@@ -28,6 +28,8 @@ class AppConfig(BaseSettings):
     classifier_temperature: float = 0.1
     extract_temperature: float = 0.1
     max_text_characters: int = 12000
+    classifier_max_text_characters: int = 4000
+    classifier_max_image_dimension: int = 1280
     prompts_dir: Path = Path("server/prompts")
     file_rules_path: Path = Path("server/file_rules.yaml")
     llm_log_dir: Path = Path("server/logs/llm")

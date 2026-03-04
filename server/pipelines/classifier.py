@@ -26,7 +26,7 @@ class DocumentClassifier:
         classifier_prompt: str,
         image_classifier_prompt: str,
         temperature: float = 0.1,
-        max_image_dimension: int = 1600,
+        max_image_dimension: int = 1280,
     ) -> None:
         self.ollama_client = ollama_client
         self.classifier_prompt = classifier_prompt

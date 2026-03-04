@@ -74,6 +74,7 @@ class DocumentProcessPipeline:
         realtime_manager: object | None = None,
         search_pipeline: object | None = None,
         max_text_characters: int = 12000,
+        classifier_max_text_characters: int | None = None,
         llm_sequence_lock: asyncio.Lock | None = None,
     ) -> None:
         self.classifier = classifier
@@ -84,6 +85,7 @@ class DocumentProcessPipeline:
         self.realtime_manager = realtime_manager
         self.search_pipeline = search_pipeline
         self.max_text_characters = max_text_characters
+        self.classifier_max_text_characters = classifier_max_text_characters or min(max_text_characters, 4000)
         self._background_tasks: set[asyncio.Task[None]] = set()
         self._llm_sequence_lock = llm_sequence_lock or asyncio.Lock()
 
@@ -480,7 +482,7 @@ class DocumentProcessPipeline:
     async def _classify_text(self, text: str, request_id: str) -> tuple[DocumentClassification, bool]:
         try:
             return await self.classifier.classify_text(
-                text[: self.max_text_characters],
+                text[: self.classifier_max_text_characters],
                 request_id=request_id,
             ), False
         except ClassificationValidationError:

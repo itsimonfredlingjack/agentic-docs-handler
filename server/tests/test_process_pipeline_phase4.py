@@ -166,6 +166,42 @@ class StrictExtractor:
         raise AssertionError("extract should be skipped for meeting_notes documents")
 
 
+class LengthTrackingClassifier:
+    def __init__(self) -> None:
+        self.lengths: list[int] = []
+
+    async def classify_text(self, text: str, request_id: str) -> DocumentClassification:
+        self.lengths.append(len(text))
+        return DocumentClassification(
+            document_type="receipt",
+            template="receipt",
+            title="Tracked receipt",
+            summary="Tracked summary",
+            tags=["receipt"],
+            language="sv",
+            confidence=0.9,
+            ocr_text=None,
+            suggested_actions=[],
+        )
+
+    async def classify_image(self, image_bytes: bytes, mime_type: str, request_id: str) -> DocumentClassification:
+        raise AssertionError("image path not expected in this test")
+
+
+class LengthTrackingExtractor:
+    def __init__(self) -> None:
+        self.lengths: list[int] = []
+
+    async def extract(
+        self,
+        text: str,
+        classification: DocumentClassification,
+        request_id: str,
+    ) -> ExtractionResult:
+        self.lengths.append(len(text))
+        return ExtractionResult(fields={"amount": "10"}, field_confidence={"amount": 0.9}, missing_fields=[])
+
+
 @pytest.mark.asyncio
 async def test_audio_process_upload_returns_transcription_and_registry_record(tmp_path: Path) -> None:
     registry = DocumentRegistry(
@@ -339,3 +375,36 @@ async def test_process_upload_skips_extractor_for_meeting_notes_documents(tmp_pa
     assert response.extraction.fields == {}
     assert response.extraction.field_confidence == {}
     assert response.extraction.missing_fields == []
+
+
+@pytest.mark.asyncio
+async def test_process_upload_uses_shorter_text_for_classification_than_extraction(tmp_path: Path) -> None:
+    registry = DocumentRegistry(
+        documents_path=tmp_path / "ui_documents.jsonl",
+        move_history_path=tmp_path / "move_history.jsonl",
+    )
+    classifier = LengthTrackingClassifier()
+    extractor = LengthTrackingExtractor()
+    pipeline = DocumentProcessPipeline(
+        classifier=classifier,
+        extractor=extractor,
+        organizer=FakeOrganizer(),
+        document_registry=registry,
+        realtime_manager=FakeRealtimeManager(),
+        max_text_characters=12000,
+    )
+    pipeline.classifier_max_text_characters = 4000
+    long_text = ("abc123 " * 3000).encode()
+
+    await pipeline.process_upload(
+        filename="long-receipt.txt",
+        content=long_text,
+        content_type="text/plain",
+        execute_move=False,
+        source_path="/tmp/long-receipt.txt",
+        client_id="client-1",
+        client_request_id="job-text-window",
+    )
+
+    assert classifier.lengths == [4000]
+    assert extractor.lengths == [12000]

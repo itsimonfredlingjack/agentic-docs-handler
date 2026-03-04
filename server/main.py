@@ -125,6 +125,7 @@ def create_app(
             classifier_prompt=read_prompt(config.prompts_dir / "classifier_system.txt"),
             image_classifier_prompt=read_prompt(config.prompts_dir / "image_classifier_system.txt"),
             temperature=config.classifier_temperature,
+            max_image_dimension=config.classifier_max_image_dimension,
         )
         extractor = DocumentExtractor(
             ollama_client=ollama_client,
@@ -146,6 +147,7 @@ def create_app(
             document_registry=document_registry,
             realtime_manager=realtime_manager,
             max_text_characters=config.max_text_characters,
+            classifier_max_text_characters=config.classifier_max_text_characters,
         )
         readiness_probe = readiness_probe or ReadinessProbe(config, ollama_client, whisper_service)
     else:

@@ -86,4 +86,4 @@ async def test_classifier_downsizes_large_images_before_model_call() -> None:
     image_url = client.calls[0]["messages"][1]["content"][0]["image_url"]["url"]
     encoded = image_url.split(",", 1)[1]
     resized = Image.open(BytesIO(base64.b64decode(encoded)))
-    assert max(resized.size) <= 1600
+    assert max(resized.size) <= 1280
