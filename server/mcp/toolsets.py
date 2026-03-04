@@ -19,6 +19,7 @@ WRITE_ANNOTATIONS = ToolAnnotations(
 READ_TOOL_NAMES = (
     "search",
     "search_documents",
+    "transcribe_audio",
     "fetch",
     "get_system_status",
     "get_validation_report",

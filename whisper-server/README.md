@@ -1,5 +1,10 @@
 # Whisper Server
 
-Den här katalogen är reserverad för blueprintens Fas 3.
+Separat FastAPI-runtime för blueprintens Fas 3 på `ai-server2` / RTX 2060.
 
-Fas 1 implementerar ingen runtime här. `ai-server2` är verifierad som tillgänglig med RTX 2060, men all faktisk Whisper-implementation skjuts till nästa fas enligt byggordningen.
+Nuvarande runtime:
+
+- `whisper_server.py` startar FastAPI på port `8090`
+- `faster-whisper` kör `large-v3-turbo` via modellidentifieraren `turbo`
+- svenska och engelska stöds via auto-detektion eller explicit `language`
+- orchestratorn på `server/main.py` proxar all access via `/transcribe`

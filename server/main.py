@@ -24,12 +24,19 @@ from server.pipelines.search import (
     SearchPipeline,
     SentenceTransformerEmbedder,
 )
+from server.pipelines.whisper_proxy import WhisperProxy
 
 
 class ReadinessProbe:
-    def __init__(self, config: AppConfig, ollama_client: AsyncOllamaClient) -> None:
+    def __init__(
+        self,
+        config: AppConfig,
+        ollama_client: AsyncOllamaClient,
+        whisper_service: WhisperProxy | None = None,
+    ) -> None:
         self.config = config
         self.ollama_client = ollama_client
+        self.whisper_service = whisper_service
         self.prompt_paths = [
             config.prompts_dir / "classifier_system.txt",
             config.prompts_dir / "image_classifier_system.txt",
@@ -45,13 +52,17 @@ class ReadinessProbe:
     def __call__(self) -> dict[str, object]:
         ollama_checks = self.ollama_client.readiness()
         prompts_ready = all(path.exists() for path in self.prompt_paths)
-        ready = ollama_checks["ollama"] and ollama_checks["model"] and prompts_ready
+        whisper_ready = True
+        if self.whisper_service is not None:
+            whisper_ready = self.whisper_service.healthcheck()["ready"] is True
+        ready = ollama_checks["ollama"] and ollama_checks["model"] and prompts_ready and whisper_ready
         return {
             "ready": ready,
             "checks": {
                 "ollama": ollama_checks["ollama"],
                 "model": ollama_checks["model"],
                 "prompts": prompts_ready,
+                "whisper": whisper_ready,
             },
         }
 
@@ -71,6 +82,7 @@ def create_app(
     config: AppConfig | None = None,
     pipeline: object | None = None,
     search_service: object | None = None,
+    whisper_service: object | None = None,
     readiness_probe: Callable[[], dict[str, object]] | None = None,
     validation_report_loader: Callable[[], dict[str, object]] | None = None,
     mcp_enabled: bool | None = None,
@@ -89,6 +101,10 @@ def create_app(
             model=config.ollama_model,
             timeout_seconds=config.request_timeout_seconds,
             log_writer=log_writer,
+        )
+        whisper_service = whisper_service or WhisperProxy(
+            base_url=config.whisper_base_url,
+            timeout_seconds=config.whisper_timeout_seconds,
         )
         classifier = DocumentClassifier(
             ollama_client=ollama_client,
@@ -114,12 +130,13 @@ def create_app(
             organizer=organizer,
             max_text_characters=config.max_text_characters,
         )
-        readiness_probe = readiness_probe or ReadinessProbe(config, ollama_client)
+        readiness_probe = readiness_probe or ReadinessProbe(config, ollama_client, whisper_service)
 
     default_documents = build_app_services(
         config=config,
         pipeline=pipeline,
         search_service=search_service,
+        whisper_service=whisper_service,
         readiness_probe=readiness_probe,
         validation_report_loader=validation_report_loader,
     ).documents
@@ -169,15 +186,17 @@ def create_app(
         config=config,
         pipeline=pipeline,
         search_service=search_service,
+        whisper_service=whisper_service,
         readiness_probe=readiness_probe,
         validation_report_loader=validation_report_loader,
     )
 
-    app = FastAPI(title="Agentic Docs Handler Phase 2")
+    app = FastAPI(title="Agentic Docs Handler Phase 3")
     app.include_router(
         create_router(
             pipeline=services.pipeline,
             search_service=services.search_service,
+            whisper_service=services.whisper_service,
             readiness_probe=services.readiness_probe,
             validation_report_loader=services.validation_report_loader,
         )
@@ -188,7 +207,7 @@ def create_app(
 
     @app.get("/", include_in_schema=False)
     async def root() -> JSONResponse:
-        return JSONResponse({"name": "agentic-docs-handler", "status": "ok", "phase": 2})
+        return JSONResponse({"name": "agentic-docs-handler", "status": "ok", "phase": 3})
 
     return app
 

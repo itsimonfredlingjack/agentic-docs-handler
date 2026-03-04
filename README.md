@@ -1,6 +1,6 @@
 # Agentic Docs Handler
 
-Fas 2 av `Agentic Docs Handler` enligt `agentic-docs-handler-blueprint-v4.md`, med ChatGPT MCP redan live och search-pipeline tillagd i samma FastAPI-runtime.
+Fas 3 av `Agentic Docs Handler` enligt `agentic-docs-handler-blueprint-v4.md`, med ChatGPT MCP live, search-pipeline i samma FastAPI-runtime och en separat Whisper-nod på `ai-server2`.
 
 Aktiv runtime i den här fasen är en Python-baserad `FastAPI`-orchestrator på port `9000` som:
 
@@ -21,11 +21,13 @@ Ingår:
 - MCP-tools mountade i samma Python-runtime under `/mcp`
 - `LanceDB`-baserad search-pipeline under `server/pipelines/search.py`
 - `GET /search` för smart document search
+- `POST /transcribe` som proxar till dedikerad Whisper-node på `ai-server2:8090`
 - `search_documents` MCP-tool som wrappar search-pipelinen
+- `transcribe_audio` MCP-tool som wrappar Whisper-proxyn
 - promptfiler versionerade i repo
 - benchmark-runner och valideringsrapport
 - deploy-skript för `ai-server`
-- `whisper-server/` endast som reserverad Fas 3-katalog
+- separat deploy-skript för `whisper-server/` på `ai-server2`
 
 Ingår inte:
 
@@ -96,6 +98,7 @@ Kontrollera endpoints:
 curl http://127.0.0.1:9000/healthz
 curl http://127.0.0.1:9000/readyz
 curl 'http://127.0.0.1:9000/search?query=invoice'
+curl -F file=@/path/to/audio.wav http://127.0.0.1:9000/transcribe
 curl http://127.0.0.1:9000/mcp
 ```
 
@@ -105,6 +108,7 @@ Nuvarande ChatGPT/MCP-tools:
 
 - `search`
 - `search_documents`
+- `transcribe_audio`
 - `fetch`
 - `get_system_status`
 - `get_validation_report`
@@ -121,6 +125,7 @@ Read-only standard för knowledge-flöden:
 - `search` söker i `agentic-docs-design-spec.md`, `agentic-docs-handler-blueprint-v4.md` och `docs/validation/phase1-validation-report.md`
 - `fetch` hämtar fulltext för ett dokument-id från `search`
 - `search_documents` kör den riktiga hybrid search-pipelinen mot indexerade dokument i LanceDB
+- `transcribe_audio` skickar lokal ljudfil till FastAPI-proxyn som i sin tur routar till `ai-server2:8090`
 
 ChatGPT-anslutning:
 
@@ -167,6 +172,7 @@ Deploy:
 
 ```bash
 bash scripts/deploy_ai_server.sh
+bash scripts/deploy_whisper_server.sh
 ```
 
 Skriptet:
@@ -176,7 +182,14 @@ Skriptet:
 - förinstallerar CPU-byggd `torch` eftersom embedding körs på CPU i Fas 2
 - installerar `server/requirements.txt`
 - säkerställer `.env`
-- startar `uvicorn server.main:app` på port `9000` i `tmux`-sessionen `adh-phase2`
+- startar `uvicorn server.main:app` på port `9000` i `tmux`-sessionen `adh-phase3`
+
+Whisper-deploy:
+
+- synkar samma repo till `ai-server2`
+- skapar `.venv-whisper`
+- installerar `whisper-server/requirements.txt`
+- startar `python whisper-server/whisper_server.py` på port `8090` i `tmux`-sessionen `adh-whisper`
 
 ## Status
 
@@ -186,12 +199,12 @@ Nuvarande repo-status efter re-baseline:
 - gammalt MCP/TypeScript-skelett: flyttat till `legacy/mcp-docs-scaffold/`
 - ChatGPT MCP live på `/mcp`
 - search-pipeline live i samma backend
-- `ai-server2`: reserverad för Fas 3
+- dedikerad Whisper-node live på `ai-server2`
 
 ## Nästa fas
 
 När Fas 2 är verifierad är nästa planerade steg:
 
-1. aktivera `Whisper` på `ai-server2`
+1. mata in verkliga ljudfiler och dokument i större valideringssviter
 2. bygga `Tauri`-skalet ovanpå den nuvarande backend- och MCP-ytan
 3. lägga till widget-UI som senare fas ovanpå MCP

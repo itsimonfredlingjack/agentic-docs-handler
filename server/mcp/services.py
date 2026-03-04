@@ -31,9 +31,10 @@ class AppServices:
     extractor: object | None = None
     organizer: object | None = None
     search_service: object | None = None
+    whisper_service: object | None = None
     activity_log_loader: Any | None = None
     root_status: dict[str, object] = field(
-        default_factory=lambda: {"name": "agentic-docs-handler", "status": "ok", "phase": 2}
+        default_factory=lambda: {"name": "agentic-docs-handler", "status": "ok", "phase": 3}
     )
 
     def prompt_paths(self) -> list[Path]:
@@ -125,6 +126,7 @@ def build_app_services(
     readiness_probe: Any,
     validation_report_loader: Any,
     search_service: object | None = None,
+    whisper_service: object | None = None,
 ) -> AppServices:
     classifier = getattr(pipeline, "classifier", None)
     extractor = getattr(pipeline, "extractor", None)
@@ -133,6 +135,7 @@ def build_app_services(
         config=config,
         pipeline=pipeline,
         search_service=search_service,
+        whisper_service=whisper_service,
         classifier=classifier,
         extractor=extractor,
         organizer=organizer,

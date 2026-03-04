@@ -13,6 +13,8 @@ from server.schemas import (
     ProcessResponse,
     SearchResponse,
     SearchResult,
+    TranscriptionResponse,
+    TranscriptionSegment,
 )
 
 
@@ -115,6 +117,40 @@ class FakeSearchService:
         )
 
 
+class FakeWhisperService:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def transcribe(
+        self,
+        *,
+        filename: str,
+        content: bytes,
+        content_type: str | None,
+        language: str | None = None,
+    ) -> TranscriptionResponse:
+        self.calls.append(
+            {
+                "filename": filename,
+                "content": content,
+                "content_type": content_type,
+                "language": language,
+            }
+        )
+        return TranscriptionResponse(
+            text="Hej team. Hello team.",
+            language=language or "sv",
+            language_probability=0.91,
+            duration=2.4,
+            duration_after_vad=2.1,
+            model="large-v3-turbo",
+            segments=[
+                TranscriptionSegment(start=0.0, end=1.2, text="Hej team."),
+                TranscriptionSegment(start=1.2, end=2.4, text="Hello team."),
+            ],
+        )
+
+
 def test_healthz_returns_process_liveness() -> None:
     app = create_app(
         pipeline=FakePipeline(),
@@ -212,3 +248,26 @@ def test_search_returns_smart_answer_and_ranked_results() -> None:
     payload = response.json()
     assert payload["rewritten_query"] == "invoice amount rewritten"
     assert payload["results"][0]["doc_id"] == "invoice-1"
+
+
+def test_transcribe_returns_structured_transcription() -> None:
+    whisper_service = FakeWhisperService()
+    app = create_app(
+        pipeline=FakePipeline(),
+        readiness_probe=FakeReadinessProbe(),
+        validation_report_loader=lambda: {"status": "missing"},
+        whisper_service=whisper_service,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/transcribe",
+            files={"file": ("clip.wav", BytesIO(b"fake-audio"), "audio/wav")},
+            data={"language": "sv"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["language"] == "sv"
+    assert payload["segments"][0]["text"] == "Hej team."
+    assert whisper_service.calls[0]["filename"] == "clip.wav"

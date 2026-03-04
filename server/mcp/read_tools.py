@@ -17,12 +17,14 @@ from server.mcp.schemas import (
     PreviewDocumentProcessingInput,
     SearchInput,
     SearchDocumentsInput,
+    TranscribeAudioInput,
 )
 from server.mcp.services import AppServices
 from server.mcp.toolsets import READ_ONLY_ANNOTATIONS
 from server.pipelines.classifier import ClassificationValidationError
 from server.pipelines.extractor import ExtractionValidationError
 from server.pipelines.process_pipeline import UnsupportedMediaTypeError
+from server.pipelines.whisper_proxy import WhisperProxyError
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
@@ -110,6 +112,29 @@ def register_read_tools(server: FastMCP, services: AppServices) -> None:
         result = await services.search_service.search(validated.query, limit=validated.limit)
         payload = result.model_dump(mode="json")
         return structured_result(result.answer, payload)
+
+    @server.tool(
+        name="transcribe_audio",
+        description="Use this when you need speech-to-text from a local audio file through the dedicated Whisper proxy.",
+        annotations=READ_ONLY_ANNOTATIONS,
+    )
+    async def transcribe_audio(audio_path: str, language: str | None = None) -> CallToolResult:
+        try:
+            validated = TranscribeAudioInput(audio_path=audio_path, language=language)
+            if services.whisper_service is None:
+                return error_result("whisper_unavailable")
+            path = validate_local_file(services, validated.audio_path)
+            result = await services.whisper_service.transcribe(
+                filename=path.name,
+                content=path.read_bytes(),
+                content_type=detect_image_mime(path),
+                language=validated.language,
+            )
+            return structured_result("Audio transcribed successfully.", result.model_dump(mode="json"))
+        except (FileNotFoundError, ValueError) as error:
+            return error_result(str(error))
+        except WhisperProxyError as error:
+            return error_result(str(error))
 
     @server.tool(
         name="fetch",

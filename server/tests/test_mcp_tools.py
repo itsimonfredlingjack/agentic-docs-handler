@@ -16,6 +16,8 @@ from server.schemas import (
     ProcessResponse,
     SearchResponse,
     SearchResult,
+    TranscriptionResponse,
+    TranscriptionSegment,
 )
 
 
@@ -107,6 +109,37 @@ class FakeSearchService:
         )
 
 
+class FakeWhisperService:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def transcribe(
+        self,
+        *,
+        filename: str,
+        content: bytes,
+        content_type: str | None,
+        language: str | None = None,
+    ) -> TranscriptionResponse:
+        self.calls.append(
+            {
+                "filename": filename,
+                "content_type": content_type,
+                "language": language,
+                "size": len(content),
+            }
+        )
+        return TranscriptionResponse(
+            text="Hej från ljudfilen.",
+            language=language or "sv",
+            language_probability=0.95,
+            duration=1.0,
+            duration_after_vad=0.9,
+            model="large-v3-turbo",
+            segments=[TranscriptionSegment(start=0.0, end=1.0, text="Hej från ljudfilen.")],
+        )
+
+
 class FakePipeline:
     def __init__(self) -> None:
         self.classifier = FakeClassifier()
@@ -176,6 +209,8 @@ def build_services(tmp_path: Path) -> tuple[AppServices, FakePipeline, Path]:
     source_path.write_text("Invoice data 2026-03-04", encoding="utf-8")
     image_path = tmp_path / "receipt.png"
     image_path.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+    audio_path = tmp_path / "clip.wav"
+    audio_path.write_bytes(b"RIFFfake")
     config = AppConfig(
         file_rules_path=Path("server/file_rules.yaml"),
         validation_report_path=report_path,
@@ -185,10 +220,12 @@ def build_services(tmp_path: Path) -> tuple[AppServices, FakePipeline, Path]:
     )
     pipeline = FakePipeline()
     search_service = FakeSearchService()
+    whisper_service = FakeWhisperService()
     services = AppServices(
         config=config,
         pipeline=pipeline,
         search_service=search_service,
+        whisper_service=whisper_service,
         classifier=pipeline.classifier,
         extractor=pipeline.extractor,
         organizer=pipeline.organizer,
@@ -239,6 +276,18 @@ async def test_search_documents_uses_search_pipeline(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_transcribe_audio_uses_whisper_proxy(tmp_path: Path) -> None:
+    services, _, _ = build_services(tmp_path)
+    audio_path = tmp_path / "clip.wav"
+    server = create_mcp_server(services)
+
+    result = await server.call_tool("transcribe_audio", {"audio_path": str(audio_path), "language": "sv"})
+
+    assert result.structuredContent["language"] == "sv"
+    assert result.structuredContent["segments"][0]["text"] == "Hej från ljudfilen."
+
+
+@pytest.mark.asyncio
 async def test_fetch_returns_standard_wrapper_json(tmp_path: Path) -> None:
     services, _, _ = build_services(tmp_path)
     server = create_mcp_server(services)
@@ -257,7 +306,7 @@ async def test_get_system_status_returns_readiness_and_model(tmp_path: Path) -> 
 
     result = await server.call_tool("get_system_status", {})
 
-    assert result.structuredContent["phase"] == 2
+    assert result.structuredContent["phase"] == 3
     assert result.structuredContent["readiness"]["ready"] is True
     assert result.structuredContent["model"] == services.config.ollama_model
 

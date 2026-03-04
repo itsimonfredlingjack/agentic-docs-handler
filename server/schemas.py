@@ -96,3 +96,30 @@ class SearchResponse(BaseModel):
     rewritten_query: str
     answer: str
     results: list[SearchResult] = Field(default_factory=list)
+
+
+class TranscriptionWord(BaseModel):
+    start: float
+    end: float
+    word: str
+    probability: float | None = None
+
+
+class TranscriptionSegment(BaseModel):
+    start: float
+    end: float
+    text: str
+    avg_logprob: float | None = None
+    no_speech_prob: float | None = None
+    words: list[TranscriptionWord] = Field(default_factory=list)
+
+
+class TranscriptionResponse(BaseModel):
+    text: str
+    language: str
+    language_probability: float | None = None
+    duration: float | None = None
+    duration_after_vad: float | None = None
+    model: str
+    source: str = "whisper_server"
+    segments: list[TranscriptionSegment] = Field(default_factory=list)

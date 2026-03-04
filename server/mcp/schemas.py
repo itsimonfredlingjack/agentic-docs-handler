@@ -14,6 +14,11 @@ class SearchDocumentsInput(BaseModel):
     limit: int = Field(default=5, ge=1, le=20)
 
 
+class TranscribeAudioInput(BaseModel):
+    audio_path: str = Field(min_length=1)
+    language: str | None = Field(default=None, min_length=2, max_length=10)
+
+
 class FetchInput(BaseModel):
     id: str = Field(min_length=1, max_length=200)
 

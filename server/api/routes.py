@@ -10,13 +10,15 @@ from server.pipelines.classifier import ClassificationValidationError
 from server.pipelines.extractor import ExtractionValidationError
 from server.pipelines.process_pipeline import UnsupportedMediaTypeError
 from server.pipelines.search import SearchPipelineError
-from server.schemas import ProcessResponse, SearchResponse
+from server.pipelines.whisper_proxy import WhisperProxyError
+from server.schemas import ProcessResponse, SearchResponse, TranscriptionResponse
 
 
 def create_router(
     *,
     pipeline: object,
     search_service: object | None,
+    whisper_service: object | None,
     readiness_probe: Callable[[], dict[str, object]],
     validation_report_loader: Callable[[], dict[str, object]],
 ) -> APIRouter:
@@ -51,6 +53,27 @@ def create_router(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=str(error),
             ) from error
+
+    @router.post("/transcribe", response_model=TranscriptionResponse)
+    async def transcribe(
+        file: UploadFile = File(...),
+        language: str | None = Form(None),
+    ) -> TranscriptionResponse:
+        if whisper_service is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="whisper_unavailable",
+            )
+        try:
+            content = await file.read()
+            return await whisper_service.transcribe(
+                filename=file.filename or "audio.bin",
+                content=content,
+                content_type=file.content_type,
+                language=language,
+            )
+        except WhisperProxyError as error:
+            raise HTTPException(status_code=error.status_code, detail=str(error)) from error
 
     @router.post("/process", response_model=ProcessResponse)
     async def process(
