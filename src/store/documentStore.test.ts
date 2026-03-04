@@ -70,7 +70,8 @@ describe("documentStore", () => {
       },
       sidebarFilter: "all",
       toasts: [],
-      uploadsByRequestId: {},
+  uploadsByRequestId: {},
+      pendingMoveStateByRecordId: {},
     });
   });
 
@@ -162,6 +163,40 @@ describe("documentStore", () => {
     expect(state.documents["doc-1"].summary).toBe("Receipt summary");
     expect(state.documents["doc-1"].errorCode).toBe("index_failed");
     expect(state.documents["doc-1"].status).toBe("failed");
+  });
+
+  it("applies move dismissed to pending confirmation document", () => {
+    const store = useDocumentStore.getState();
+    store.bootstrap(
+      [
+        {
+          ...sampleDocument,
+          kind: "contract",
+          documentType: "contract",
+          movePlan: {
+            rule_name: "contracts",
+            destination: "/tmp/contracts",
+            auto_move_allowed: false,
+            reason: "rule_matched",
+          },
+          status: "awaiting_confirmation",
+          moveStatus: "awaiting_confirmation",
+        },
+      ],
+      stateCounts(),
+      [],
+    );
+
+    store.applyMoveDismissed({
+      success: true,
+      record_id: "doc-1",
+      request_id: "req-1",
+      move_status: "not_requested",
+    });
+
+    const state = useDocumentStore.getState();
+    expect(state.documents["doc-1"].moveStatus).toBe("not_requested");
+    expect(state.documents["doc-1"].status).toBe("completed");
   });
 });
 

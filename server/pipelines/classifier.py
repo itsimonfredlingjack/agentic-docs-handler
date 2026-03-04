@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 class ClassificationValidationError(RuntimeError):
     """Raised when the classifier cannot produce valid structured output."""
 
+    def __init__(self, message: str, *, raw_response_path: str | None = None) -> None:
+        super().__init__(message)
+        self.raw_response_path = raw_response_path
+
 
 class DocumentClassifier:
     def __init__(
@@ -150,13 +154,24 @@ class DocumentClassifier:
                     repair_prompt_name,
                     input_modality,
                 )
-                self._record_log(
+                logged_entry = self._record_log(
                     repaired_meta,
                     repaired_raw,
                     json_parse_ok=self._is_json(repaired_raw),
                     schema_validation_ok=False,
                 )
-                raise ClassificationValidationError("classifier produced invalid JSON twice") from error
+                logger.error(
+                    "classifier.repair.failed.details request_id=%s prompt_name=%s modality=%s raw_response_path=%s raw_response_preview=%s",
+                    request_id,
+                    repair_prompt_name,
+                    input_modality,
+                    logged_entry.raw_response_path if logged_entry is not None else None,
+                    repaired_raw[:300].replace("\n", " "),
+                )
+                raise ClassificationValidationError(
+                    "classifier produced invalid JSON twice",
+                    raw_response_path=logged_entry.raw_response_path if logged_entry is not None else None,
+                ) from error
 
     async def _invoke_model(
         self,
@@ -192,10 +207,10 @@ class DocumentClassifier:
         *,
         json_parse_ok: bool,
         schema_validation_ok: bool,
-    ) -> None:
+    ) -> Any | None:
         if not meta or not hasattr(self.ollama_client, "log_writer"):
-            return
-        self.ollama_client.log_writer.write_call(
+            return None
+        return self.ollama_client.log_writer.write_call(
             request_id=meta["request_id"],
             prompt_name=meta["prompt_name"],
             model=self.ollama_client.model,

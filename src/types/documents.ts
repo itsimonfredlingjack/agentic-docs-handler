@@ -89,6 +89,12 @@ export type MoveResult = {
   error: string | null;
 };
 
+export type ProcessDiagnostics = {
+  pipeline_flags: string[];
+  classifier_raw_response_path: string | null;
+  fallback_reason: string | null;
+};
+
 export type TranscriptionWord = {
   start: number;
   end: number;
@@ -136,6 +142,7 @@ export type ProcessResponse = {
   retryable: boolean;
   error_code: string | null;
   warnings: string[];
+  diagnostics?: ProcessDiagnostics | null;
 };
 
 export type UiDocument = {
@@ -163,6 +170,7 @@ export type UiDocument = {
   errorCode: string | null;
   warnings: string[];
   moveStatus: MoveStatus;
+  diagnostics?: ProcessDiagnostics | null;
 };
 
 export type DocumentListResponse = {
@@ -190,6 +198,10 @@ export type ActivityEvent = {
   status: string;
   kind: string;
   request_id?: string | null;
+  debug?: {
+    pipeline_flags?: string[];
+    fallback_reason?: string;
+  } | null;
 };
 
 export type ActivityResponse = {
@@ -232,10 +244,29 @@ export type FinalizeMoveResponse = {
   move_status: MoveStatus;
 };
 
+export type DismissMoveResponse = {
+  success: boolean;
+  record_id: string;
+  request_id: string;
+  move_status: MoveStatus;
+};
+
 export type MoveExecutionResult = {
   success: boolean;
   from_path: string;
   to_path: string;
+  error?: string | null;
+};
+
+export type StageUploadResult = {
+  success: boolean;
+  source_path: string | null;
+  error?: string | null;
+};
+
+export type CleanupResult = {
+  success: boolean;
+  removed: number;
   error?: string | null;
 };
 
@@ -295,6 +326,12 @@ export type BackendServerEvent =
       client_id?: string | null;
       from_path: string;
       to_path: string;
+    }
+  | {
+      type: "move.dismissed";
+      request_id: string;
+      client_id?: string | null;
+      record_id: string;
     }
   | {
       type: "heartbeat";

@@ -4,6 +4,7 @@ import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+import re
 from threading import Lock
 from uuid import uuid4
 
@@ -13,8 +14,10 @@ from server.schemas import (
     ActivityEvent,
     DocumentCountsResponse,
     DocumentListResponse,
+    DismissMoveResponse,
     FinalizeMoveResponse,
     MoveResult,
+    ProcessDiagnostics,
     UiDocumentRecord,
     UndoMoveResponse,
 )
@@ -50,6 +53,12 @@ class FinalizeMoveResult:
     record: UiDocumentRecord | None
 
 
+@dataclass(slots=True)
+class DismissMoveResult:
+    response: DismissMoveResponse
+    record: UiDocumentRecord | None
+
+
 class DocumentRegistry:
     def __init__(self, *, documents_path: Path, move_history_path: Path) -> None:
         self.documents_path = Path(documents_path)
@@ -68,7 +77,7 @@ class DocumentRegistry:
             for line in self.documents_path.read_text(encoding="utf-8").splitlines():
                 if not line.strip():
                     continue
-                record = UiDocumentRecord.model_validate_json(line)
+                record = self._normalize_record_debug_fields(UiDocumentRecord.model_validate_json(line))
                 self._documents[record.id] = record
         if self.move_history_path.exists():
             for line in self.move_history_path.read_text(encoding="utf-8").splitlines():
@@ -91,6 +100,7 @@ class DocumentRegistry:
             return list(self._moves.values())
 
     def upsert_document(self, record: UiDocumentRecord) -> UiDocumentRecord:
+        record = self._normalize_record_debug_fields(record)
         with self._lock:
             self._documents[record.id] = record
             self._append_jsonl(self.documents_path, record)
@@ -165,6 +175,15 @@ class DocumentRegistry:
     def list_activity(self, *, limit: int = 10) -> list[ActivityEvent]:
         events: list[ActivityEvent] = []
         for record in self._snapshot_documents():
+            debug_payload: dict[str, object] | None = None
+            if record.diagnostics is not None:
+                debug_payload = {}
+                if record.diagnostics.pipeline_flags:
+                    debug_payload["pipeline_flags"] = record.diagnostics.pipeline_flags
+                if record.diagnostics.fallback_reason:
+                    debug_payload["fallback_reason"] = record.diagnostics.fallback_reason
+                if not debug_payload:
+                    debug_payload = None
             events.append(
                 ActivityEvent(
                     id=f"doc:{record.id}",
@@ -174,6 +193,7 @@ class DocumentRegistry:
                     status="success" if record.status in {"ready", "completed"} else record.status,
                     kind=record.kind,
                     request_id=record.request_id,
+                    debug=debug_payload,
                 )
             )
         for entry in self._snapshot_moves():
@@ -315,6 +335,41 @@ class DocumentRegistry:
                 record=updated_record,
             )
 
+    def dismiss_pending_move(
+        self,
+        *,
+        record_id: str,
+        request_id: str,
+        client_id: str | None,
+    ) -> DismissMoveResult:
+        del client_id
+        with self._lock:
+            record = self._documents.get(record_id)
+            if record is None:
+                raise KeyError("unknown_record_id")
+            if record.move_status != "awaiting_confirmation":
+                raise ValueError("move_not_pending_confirmation")
+
+            updated_record = record.model_copy(
+                update={
+                    "updated_at": utcnow_iso(),
+                    "move_status": "not_requested",
+                    "status": "completed",
+                }
+            )
+            self._documents[record_id] = updated_record
+            self._append_jsonl(self.documents_path, updated_record)
+
+        return DismissMoveResult(
+            response=DismissMoveResponse(
+                success=True,
+                record_id=record_id,
+                request_id=request_id,
+                move_status="not_requested",
+            ),
+            record=updated_record,
+        )
+
     def complete_client_undo(
         self,
         *,
@@ -435,4 +490,39 @@ class DocumentRegistry:
             created_at=utcnow_iso(),
             executor=executor,
             finalized_at=utcnow_iso() if finalized else None,
+        )
+
+    @staticmethod
+    def _normalize_record_debug_fields(record: UiDocumentRecord) -> UiDocumentRecord:
+        diagnostics = record.diagnostics.model_copy(deep=True) if record.diagnostics is not None else None
+        warnings, flags = DocumentRegistry._split_user_warnings_and_flags(record.warnings)
+        if flags:
+            existing_flags = diagnostics.pipeline_flags if diagnostics is not None else []
+            merged_flags = list(dict.fromkeys([*existing_flags, *flags]))
+            if diagnostics is None:
+                diagnostics = ProcessDiagnostics(pipeline_flags=merged_flags)
+            else:
+                diagnostics = diagnostics.model_copy(update={"pipeline_flags": merged_flags})
+        if warnings == record.warnings and diagnostics == record.diagnostics:
+            return record
+        return record.model_copy(update={"warnings": warnings, "diagnostics": diagnostics})
+
+    @staticmethod
+    def _split_user_warnings_and_flags(warnings: list[str]) -> tuple[list[str], list[str]]:
+        user_warnings: list[str] = []
+        flags: list[str] = []
+        for warning in warnings:
+            if DocumentRegistry._is_internal_pipeline_flag(warning):
+                flags.append(warning)
+            else:
+                user_warnings.append(warning)
+        return user_warnings, flags
+
+    @staticmethod
+    def _is_internal_pipeline_flag(value: str) -> bool:
+        candidate = value.strip().lower()
+        if not candidate:
+            return False
+        return candidate.startswith("classifier_") or candidate.startswith("pdf_") or bool(
+            re.match(r".*_fallback$", candidate)
         )

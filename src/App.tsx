@@ -20,19 +20,25 @@ export default function App() {
     let cancelled = false;
 
     async function load() {
-      const [clientId, documentsPayload, counts, activity] = await Promise.all([
-        getClientId(),
-        fetchDocuments(50),
-        fetchCounts(),
-        fetchActivity(10),
-      ]);
-      if (cancelled) {
-        return;
+      try {
+        const [clientId, documentsPayload, counts, activity] = await Promise.all([
+          getClientId(),
+          fetchDocuments(50),
+          fetchCounts(),
+          fetchActivity(10),
+        ]);
+        if (cancelled) {
+          return;
+        }
+        setClientId(clientId);
+        startTransition(() => {
+          bootstrap(documentsPayload.documents, counts, activity.events);
+        });
+      } catch (error) {
+        if (!cancelled) {
+          console.error("app.bootstrap.failed", error);
+        }
       }
-      setClientId(clientId);
-      startTransition(() => {
-        bootstrap(documentsPayload.documents, counts, activity.events);
-      });
     }
 
     void load();

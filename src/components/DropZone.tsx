@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { fetchActivity, fetchCounts, finalizeClientMove, processFile } from "../lib/api";
 import { buildQueuedDocument, mapProcessResponseToUiDocument } from "../lib/document-mappers";
 import { basename, inferSourceModality } from "../lib/mime";
-import { listenToWindowFileDrops, moveLocalFile } from "../lib/tauri-events";
+import { cleanupStagedUploads, listenToWindowFileDrops, moveLocalFile, stageLocalUpload } from "../lib/tauri-events";
 import { useDocumentStore } from "../store/documentStore";
 import type { ActivityEvent, ProcessResponse } from "../types/documents";
 
@@ -17,7 +17,6 @@ export function DropZone() {
   const markJobFailed = useDocumentStore((state) => state.markJobFailed);
   const applyMoveFinalized = useDocumentStore((state) => state.applyMoveFinalized);
   const bootstrap = useDocumentStore((state) => state.bootstrap);
-  const counts = useDocumentStore((state) => state.counts);
   const [isHovered, setHovered] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastTauriPathsRef = useRef<string[]>([]);
@@ -45,26 +44,49 @@ export function DropZone() {
     };
   }, []);
 
+  useEffect(() => {
+    void cleanupStagedUploads(24).catch((error) => {
+      console.error("dropzone.cleanup_staged_uploads.failed", error);
+    });
+  }, []);
+
   const submitFiles = async (files: File[]) => {
     if (!clientId || files.length === 0) {
       return;
     }
-    const jobs = files.map((file, index) => {
+    const jobs = await Promise.all(files.map(async (file, index) => {
       const requestId = crypto.randomUUID();
+      let sourcePath = resolveSourcePath(file, index, lastTauriPathsRef.current);
+      let stagingError: string | null = null;
+      if (!sourcePath) {
+        const stagedUpload = await stageLocalUpload(file);
+        if (stagedUpload.success && stagedUpload.source_path) {
+          sourcePath = stagedUpload.source_path;
+        } else {
+          stagingError = stagedUpload.error ?? "staging_failed";
+        }
+      }
       return {
         file,
         requestId,
-        sourcePath: resolveSourcePath(file, index, lastTauriPathsRef.current),
+        sourcePath,
+        stagingError,
       };
-    });
+    }));
     lastTauriPathsRef.current = [];
     queueUploads(jobs.map((job) => buildQueuedDocument(job)));
     jobs.forEach((job) => {
-      rememberUpload(job.requestId, { file: job.file, sourcePath: job.sourcePath });
+      if (!job.stagingError) {
+        rememberUpload(job.requestId, { file: job.file, sourcePath: job.sourcePath });
+      }
     });
 
     await Promise.allSettled(
       jobs.map(async (job) => {
+        if (job.stagingError) {
+          markJobFailed(job.requestId, job.stagingError, "staging_failed");
+          return;
+        }
         try {
           const response = await processFile({
             file: job.file,
@@ -79,13 +101,21 @@ export function DropZone() {
             clearRememberedUpload(job.requestId);
           }
         } catch (error) {
-          markJobFailed(job.requestId, error instanceof Error ? error.message : "upload_failed");
+          markJobFailed(
+            job.requestId,
+            error instanceof Error ? error.message : "upload_failed",
+            "upload_failed",
+          );
         }
       }),
     );
 
-    const [nextActivity, nextCounts] = await Promise.all([fetchActivity(10), fetchCounts()]);
-    bootstrap(Object.values(useDocumentStore.getState().documents), nextCounts, nextActivity.events);
+    try {
+      const [nextActivity, nextCounts] = await Promise.all([fetchActivity(10), fetchCounts()]);
+      bootstrap(Object.values(useDocumentStore.getState().documents), nextCounts, nextActivity.events);
+    } catch (error) {
+      console.error("dropzone.refresh.failed", error);
+    }
   };
 
   return (

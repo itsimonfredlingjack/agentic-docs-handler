@@ -1,4 +1,10 @@
-import type { BackendConnectionPayload, BackendServerEvent, MoveExecutionResult } from "../types/documents";
+import type {
+  BackendConnectionPayload,
+  BackendServerEvent,
+  CleanupResult,
+  MoveExecutionResult,
+  StageUploadResult,
+} from "../types/documents";
 
 type Unlisten = () => void | Promise<void>;
 
@@ -70,6 +76,36 @@ export async function undoLocalFileMove(fromPath: string, toPath: string): Promi
   return invoke<MoveExecutionResult>("undo_local_file_move", {
     fromPath,
     toPath,
+  });
+}
+
+export async function stageLocalUpload(file: File): Promise<StageUploadResult> {
+  if (!isTauriRuntime()) {
+    return {
+      success: false,
+      source_path: null,
+      error: "tauri_runtime_required",
+    };
+  }
+  const { invoke } = await import("@tauri-apps/api/core");
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  return invoke<StageUploadResult>("stage_local_upload", {
+    fileName: file.name,
+    bytes: Array.from(bytes),
+  });
+}
+
+export async function cleanupStagedUploads(maxAgeHours = 24): Promise<CleanupResult> {
+  if (!isTauriRuntime()) {
+    return {
+      success: true,
+      removed: 0,
+      error: null,
+    };
+  }
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<CleanupResult>("cleanup_staged_uploads", {
+    maxAgeHours,
   });
 }
 

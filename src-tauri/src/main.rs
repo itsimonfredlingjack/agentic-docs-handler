@@ -6,6 +6,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
@@ -28,6 +29,20 @@ struct MoveExecutionResult {
     success: bool,
     from_path: String,
     to_path: String,
+    error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct StageUploadResult {
+    success: bool,
+    source_path: Option<String>,
+    error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct CleanupResult {
+    success: bool,
+    removed: u64,
     error: Option<String>,
 }
 
@@ -62,6 +77,74 @@ fn undo_local_file_move(from_path: String, to_path: String) -> MoveExecutionResu
     execute_move(Path::new(&from_path), Path::new(&to_path))
 }
 
+#[tauri::command]
+fn stage_local_upload(file_name: String, bytes: Vec<u8>) -> StageUploadResult {
+    let result = (|| -> Result<PathBuf, io::Error> {
+        let root = staging_root();
+        fs::create_dir_all(&root)?;
+        let sanitized = sanitize_filename(&file_name);
+        let staged_name = format!("{}-{}", Uuid::new_v4(), sanitized);
+        let staged_path = root.join(staged_name);
+        fs::write(&staged_path, bytes)?;
+        Ok(staged_path)
+    })();
+
+    match result {
+        Ok(path) => StageUploadResult {
+            success: true,
+            source_path: Some(path.to_string_lossy().to_string()),
+            error: None,
+        },
+        Err(error) => StageUploadResult {
+            success: false,
+            source_path: None,
+            error: Some(error.to_string()),
+        },
+    }
+}
+
+#[tauri::command]
+fn cleanup_staged_uploads(max_age_hours: u64) -> CleanupResult {
+    let mut removed: u64 = 0;
+    let max_age = Duration::from_secs(max_age_hours.saturating_mul(3600));
+    let result = (|| -> Result<(), io::Error> {
+        let root = staging_root();
+        if !root.exists() {
+            return Ok(());
+        }
+        let now = SystemTime::now();
+        for entry_result in fs::read_dir(&root)? {
+            let entry = entry_result?;
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let modified = entry.metadata()?.modified()?;
+            let age = now
+                .duration_since(modified)
+                .unwrap_or(Duration::from_secs(0));
+            if age >= max_age {
+                fs::remove_file(path)?;
+                removed = removed.saturating_add(1);
+            }
+        }
+        Ok(())
+    })();
+
+    match result {
+        Ok(()) => CleanupResult {
+            success: true,
+            removed,
+            error: None,
+        },
+        Err(error) => CleanupResult {
+            success: false,
+            removed,
+            error: Some(error.to_string()),
+        },
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -90,7 +173,9 @@ fn main() {
             get_backend_base_url,
             reconnect_backend_ws,
             move_local_file,
-            undo_local_file_move
+            undo_local_file_move,
+            stage_local_upload,
+            cleanup_staged_uploads
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -151,5 +236,31 @@ fn execute_move(source_path: &Path, destination_path: &Path) -> MoveExecutionRes
             to_path,
             error: Some(error.to_string()),
         },
+    }
+}
+
+fn staging_root() -> PathBuf {
+    std::env::temp_dir().join("agentic-docs").join("uploads")
+}
+
+fn sanitize_filename(file_name: &str) -> String {
+    let base_name = Path::new(file_name)
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("upload.bin");
+    let sanitized: String = base_name
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || character == '.' || character == '-' || character == '_' {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if sanitized.is_empty() {
+        "upload.bin".to_string()
+    } else {
+        sanitized
     }
 }

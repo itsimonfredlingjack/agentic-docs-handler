@@ -18,6 +18,8 @@ from server.schemas import (
     DocumentCountsResponse,
     DocumentListResponse,
     CompleteUndoMoveRequest,
+    DismissMoveRequest,
+    DismissMoveResponse,
     FinalizeMoveRequest,
     FinalizeMoveResponse,
     ProcessResponse,
@@ -268,6 +270,33 @@ def create_router(
                         "message": payload.error or "move_failed",
                     },
                 )
+        return result.response
+
+    @router.post("/moves/dismiss", response_model=DismissMoveResponse)
+    async def dismiss_move(payload: DismissMoveRequest) -> DismissMoveResponse:
+        if document_registry is None:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="document_registry_unavailable")
+        try:
+            result = document_registry.dismiss_pending_move(
+                record_id=payload.record_id,
+                request_id=payload.request_id,
+                client_id=payload.client_id,
+            )
+        except KeyError as error:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+        except ValueError as error:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
+
+        if realtime_manager is not None and payload.client_id is not None:
+            await realtime_manager.emit_to_client(
+                payload.client_id,
+                {
+                    "type": "move.dismissed",
+                    "request_id": payload.request_id,
+                    "client_id": payload.client_id,
+                    "record_id": payload.record_id,
+                },
+            )
         return result.response
 
     @router.post("/moves/undo-complete", response_model=UndoMoveResponse)

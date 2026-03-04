@@ -5,6 +5,16 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+const INTERNAL_PIPELINE_FLAG_REGEX = /^(classifier_|pdf_).*|.*_fallback$/i;
+
+export function isInternalPipelineFlag(value: string): boolean {
+  return INTERNAL_PIPELINE_FLAG_REGEX.test(value.trim());
+}
+
+function sanitizeWarnings(warnings: string[]): string[] {
+  return warnings.filter((warning) => !isInternalPipelineFlag(warning));
+}
+
 function resolveUiKind(payload: ProcessResponse): UiDocumentKind {
   if (payload.ui_kind) {
     return payload.ui_kind;
@@ -58,8 +68,9 @@ export function mapProcessResponseToUiDocument(payload: ProcessResponse): UiDocu
     undoToken: payload.undo_token,
     retryable: payload.retryable,
     errorCode: payload.error_code,
-    warnings: payload.warnings,
+    warnings: sanitizeWarnings(payload.warnings),
     moveStatus: payload.move_status,
+    diagnostics: payload.diagnostics ?? null,
   };
 }
 
@@ -88,6 +99,7 @@ export function mapRegistryRecordToUiDocument(payload: {
   error_code?: string | null;
   warnings?: string[];
   move_status?: UiDocument["moveStatus"];
+  diagnostics?: UiDocument["diagnostics"];
 }): UiDocument {
   return {
     id: payload.id,
@@ -112,8 +124,9 @@ export function mapRegistryRecordToUiDocument(payload: {
     undoToken: payload.undo_token,
     retryable: payload.retryable ?? false,
     errorCode: payload.error_code ?? null,
-    warnings: payload.warnings ?? [],
+    warnings: sanitizeWarnings(payload.warnings ?? []),
     moveStatus: payload.move_status ?? "not_requested",
+    diagnostics: payload.diagnostics ?? null,
   };
 }
 
@@ -158,6 +171,7 @@ export function buildQueuedDocument(args: {
     errorCode: null,
     warnings: [],
     moveStatus: "not_requested",
+    diagnostics: null,
   };
 }
 
@@ -198,5 +212,6 @@ export function mapSearchResultToGenericDocument(result: SearchResult): UiDocume
     errorCode: null,
     warnings: [],
     moveStatus: "not_requested",
+    diagnostics: null,
   };
 }

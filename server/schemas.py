@@ -76,6 +76,12 @@ class MoveResult(BaseModel):
     error: str | None = None
 
 
+class ProcessDiagnostics(BaseModel):
+    pipeline_flags: list[str] = Field(default_factory=list)
+    classifier_raw_response_path: str | None = None
+    fallback_reason: str | None = None
+
+
 class ProcessResponse(BaseModel):
     request_id: str
     status: ProcessingStatus
@@ -96,6 +102,7 @@ class ProcessResponse(BaseModel):
     retryable: bool = False
     error_code: str | None = None
     warnings: list[str] = Field(default_factory=list)
+    diagnostics: ProcessDiagnostics | None = None
 
 
 class LLMCallLogEntry(BaseModel):
@@ -180,6 +187,7 @@ class UiDocumentRecord(BaseModel):
     retryable: bool = False
     error_code: str | None = None
     warnings: list[str] = Field(default_factory=list)
+    diagnostics: ProcessDiagnostics | None = None
 
 
 class DocumentListResponse(BaseModel):
@@ -207,6 +215,7 @@ class ActivityEvent(BaseModel):
     status: str
     kind: str
     request_id: str | None = None
+    debug: dict[str, Any] | None = None
 
 
 class ActivityResponse(BaseModel):
@@ -243,6 +252,19 @@ class FinalizeMoveResponse(BaseModel):
     from_path: str
     to_path: str
     undo_token: str | None = None
+    move_status: MoveStatus
+
+
+class DismissMoveRequest(BaseModel):
+    record_id: str
+    request_id: str
+    client_id: str | None = None
+
+
+class DismissMoveResponse(BaseModel):
+    success: bool
+    record_id: str
+    request_id: str
     move_status: MoveStatus
 
 

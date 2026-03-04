@@ -7,6 +7,11 @@ type GenericDocumentProps = {
 
 export function GenericDocument({ document, searchResult }: GenericDocumentProps) {
   const tags = document.tags.length > 0 ? document.tags : Object.keys(document.extraction?.fields ?? {});
+  const visibleWarnings = document.warnings.filter((warning) => !isInternalPipelineFlag(warning));
+  const isFallbackUnknown =
+    document.kind === "generic" &&
+    document.diagnostics?.pipeline_flags.some((flag) => flag === "classifier_invalid_json_fallback");
+  const badgeLabel = isFallbackUnknown ? "unknown" : document.kind;
 
   return (
     <article className="glass-panel glass-panel-hover flex h-full flex-col gap-4 p-5">
@@ -17,7 +22,7 @@ export function GenericDocument({ document, searchResult }: GenericDocumentProps
         </div>
         <span className="glass-badge border-[rgba(142,142,147,0.22)] bg-[rgba(142,142,147,0.10)] text-[var(--text-secondary)]">
           <span className="status-dot bg-[var(--report-color)]" />
-          {document.kind}
+          {badgeLabel}
         </span>
       </div>
 
@@ -25,9 +30,9 @@ export function GenericDocument({ document, searchResult }: GenericDocumentProps
         {searchResult?.snippet ?? document.summary}
       </p>
 
-      {document.warnings.length > 0 ? (
+      {visibleWarnings.length > 0 ? (
         <div className="rounded-2xl bg-[rgba(255,159,10,0.12)] p-3 text-xs text-[var(--text-primary)]">
-          {document.warnings.join(", ")}
+          {visibleWarnings.join(", ")}
         </div>
       ) : null}
 
@@ -48,4 +53,9 @@ export function GenericDocument({ document, searchResult }: GenericDocumentProps
       </div>
     </article>
   );
+}
+
+function isInternalPipelineFlag(value: string): boolean {
+  const candidate = value.trim().toLowerCase();
+  return candidate.startsWith("classifier_") || candidate.startsWith("pdf_") || candidate.endsWith("_fallback");
 }

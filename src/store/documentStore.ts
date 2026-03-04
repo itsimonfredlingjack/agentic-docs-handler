@@ -4,6 +4,7 @@ import type {
   ActivityEvent,
   BackendConnectionPayload,
   ConnectionState,
+  DismissMoveResponse,
   DocumentCounts,
   FileMoveToastItem,
   FinalizeMoveResponse,
@@ -19,6 +20,11 @@ type UploadMemory = {
   sourcePath: string | null;
 };
 
+type PendingMoveUiState = {
+  action: "idle" | "confirming" | "dismissing";
+  error: string | null;
+};
+
 type DocumentStoreState = {
   clientId: string | null;
   connectionState: ConnectionState;
@@ -30,6 +36,7 @@ type DocumentStoreState = {
   sidebarFilter: SidebarFilter;
   toasts: FileMoveToastItem[];
   uploadsByRequestId: Record<string, UploadMemory>;
+  pendingMoveStateByRecordId: Record<string, PendingMoveUiState>;
   bootstrap: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
   resyncFromBackend: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
   setClientId: (clientId: string) => void;
@@ -41,7 +48,11 @@ type DocumentStoreState = {
   upsertDocument: (document: UiDocument) => void;
   markJobFailed: (requestId: string, error: string, errorCode?: string | null) => void;
   setAwaitingConfirmation: (recordId: string) => void;
+  setPendingMoveAction: (recordId: string, action: PendingMoveUiState["action"]) => void;
+  setPendingMoveError: (recordId: string, error: string | null) => void;
+  clearPendingMoveState: (recordId: string) => void;
   applyMoveFinalized: (payload: FinalizeMoveResponse) => void;
+  applyMoveDismissed: (payload: DismissMoveResponse) => void;
   applyClientMoveFailure: (requestId: string, errorCode: string, message: string) => void;
   setSearchLoading: (query: string) => void;
   applySearchResponse: (response: SearchResponse) => void;
@@ -90,12 +101,14 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
   sidebarFilter: "all",
   toasts: [],
   uploadsByRequestId: {},
+  pendingMoveStateByRecordId: {},
   bootstrap: (documents, counts, activity) =>
     set({
       documents: Object.fromEntries(documents.map((document) => [document.id, document])),
       documentOrder: documents.map((document) => document.id),
       counts,
       activity,
+      pendingMoveStateByRecordId: {},
     }),
   resyncFromBackend: (documents, counts, activity) =>
     set({
@@ -103,6 +116,7 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
       documentOrder: documents.map((document) => document.id),
       counts,
       activity,
+      pendingMoveStateByRecordId: {},
     }),
   setClientId: (clientId) => set({ clientId }),
   setConnectionState: (connectionState) => set({ connectionState }),
@@ -202,10 +216,38 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
         },
       };
     }),
+  setPendingMoveAction: (recordId, action) =>
+    set((state) => ({
+      pendingMoveStateByRecordId: {
+        ...state.pendingMoveStateByRecordId,
+        [recordId]: {
+          action,
+          error: state.pendingMoveStateByRecordId[recordId]?.error ?? null,
+        },
+      },
+    })),
+  setPendingMoveError: (recordId, error) =>
+    set((state) => ({
+      pendingMoveStateByRecordId: {
+        ...state.pendingMoveStateByRecordId,
+        [recordId]: {
+          action: state.pendingMoveStateByRecordId[recordId]?.action ?? "idle",
+          error,
+        },
+      },
+    })),
+  clearPendingMoveState: (recordId) =>
+    set((state) => {
+      const pendingMoveStateByRecordId = { ...state.pendingMoveStateByRecordId };
+      delete pendingMoveStateByRecordId[recordId];
+      return { pendingMoveStateByRecordId };
+    }),
   applyMoveFinalized: (payload) =>
     set((state) => {
       const documents = { ...state.documents };
       const target = documents[payload.record_id];
+      const pendingMoveStateByRecordId = { ...state.pendingMoveStateByRecordId };
+      delete pendingMoveStateByRecordId[payload.record_id];
       if (target) {
         documents[payload.record_id] = {
           ...target,
@@ -216,7 +258,23 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
           updatedAt: new Date().toISOString(),
         };
       }
-      return { documents };
+      return { documents, pendingMoveStateByRecordId };
+    }),
+  applyMoveDismissed: (payload) =>
+    set((state) => {
+      const documents = { ...state.documents };
+      const target = documents[payload.record_id];
+      const pendingMoveStateByRecordId = { ...state.pendingMoveStateByRecordId };
+      delete pendingMoveStateByRecordId[payload.record_id];
+      if (target) {
+        documents[payload.record_id] = {
+          ...target,
+          moveStatus: payload.move_status,
+          status: "completed",
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return { documents, pendingMoveStateByRecordId };
     }),
   applyClientMoveFailure: (requestId, errorCode, message) =>
     set((state) => {

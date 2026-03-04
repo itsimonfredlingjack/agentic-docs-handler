@@ -10,9 +10,11 @@ from server.document_registry import DocumentRegistry
 from server.main import create_app
 from server.schemas import (
     DocumentClassification,
+    DismissMoveResponse,
     ExtractionResult,
     MovePlan,
     MoveResult,
+    ProcessDiagnostics,
     ProcessResponse,
     SearchResponse,
     SearchResult,
@@ -346,6 +348,73 @@ def test_activity_endpoint_returns_recent_events() -> None:
     assert "events" in payload
 
 
+def test_activity_and_documents_hide_internal_flags_from_warnings(tmp_path: Path) -> None:
+    registry = DocumentRegistry(
+        documents_path=tmp_path / "ui_documents.jsonl",
+        move_history_path=tmp_path / "move_history.jsonl",
+    )
+    registry.upsert_document(
+        UiDocumentRecord(
+            id="doc-debug-1",
+            request_id="req-debug-1",
+            title="Fallback document",
+            summary="Summary",
+            mime_type="text/plain",
+            source_modality="text",
+            kind="generic",
+            document_type="generic",
+            template="generic",
+            source_path=str(tmp_path / "doc.txt"),
+            created_at="2026-03-04T10:00:00+00:00",
+            updated_at="2026-03-04T10:00:00+00:00",
+            classification=DocumentClassification(
+                document_type="generic",
+                template="generic",
+                title="Fallback document",
+                summary="Summary",
+                tags=[],
+                language="sv",
+                confidence=0.0,
+                ocr_text=None,
+                suggested_actions=[],
+            ),
+            extraction=ExtractionResult(fields={}, field_confidence={}, missing_fields=[]),
+            move_plan=MovePlan(rule_name=None, destination=None, auto_move_allowed=False, reason="no_matching_rule"),
+            move_result=MoveResult(attempted=False, success=False, from_path=str(tmp_path / "doc.txt"), to_path=None, error=None),
+            tags=[],
+            status="completed",
+            warnings=["pdf_text_empty_image_fallback", "User warning"],
+            diagnostics=ProcessDiagnostics(pipeline_flags=["classifier_empty_fields_fallback"]),
+        )
+    )
+    app = create_app(
+        pipeline=FakePipeline(),
+        document_registry=registry,
+        readiness_probe=FakeReadinessProbe(),
+        validation_report_loader=lambda: {"status": "missing"},
+    )
+
+    with TestClient(app) as client:
+        documents_response = client.get("/documents", params={"limit": 10})
+        activity_response = client.get("/activity", params={"limit": 10})
+
+    assert documents_response.status_code == 200
+    documents_payload = documents_response.json()
+    document = documents_payload["documents"][0]
+    assert document["warnings"] == ["User warning"]
+    assert set(document["diagnostics"]["pipeline_flags"]) == {
+        "pdf_text_empty_image_fallback",
+        "classifier_empty_fields_fallback",
+    }
+
+    assert activity_response.status_code == 200
+    activity_payload = activity_response.json()
+    assert activity_payload["events"][0]["debug"]["pipeline_flags"] == [
+        "classifier_empty_fields_fallback",
+        "pdf_text_empty_image_fallback",
+    ]
+
+
 def test_ws_endpoint_emits_connection_ready_event() -> None:
     app = create_app(
         pipeline=FakePipeline(),
@@ -578,3 +647,138 @@ def test_moves_undo_complete_marks_move_undone(tmp_path: Path) -> None:
     payload = response.json()
     assert payload["success"] is True
     assert payload["record_id"] == "doc-3"
+
+
+def test_moves_dismiss_updates_registry(tmp_path: Path) -> None:
+    registry = DocumentRegistry(
+        documents_path=tmp_path / "ui_documents.jsonl",
+        move_history_path=tmp_path / "move_history.jsonl",
+    )
+    source_path = str(tmp_path / "contract.pdf")
+    registry.upsert_document(
+        UiDocumentRecord(
+            id="doc-4",
+            request_id="req-4",
+            title="Contract",
+            summary="Contract summary",
+            mime_type="application/pdf",
+            source_modality="text",
+            kind="contract",
+            document_type="contract",
+            template="contract",
+            source_path=source_path,
+            created_at="2026-03-04T10:00:00+00:00",
+            updated_at="2026-03-04T10:00:00+00:00",
+            classification=DocumentClassification(
+                document_type="contract",
+                template="contract",
+                title="Contract",
+                summary="Contract summary",
+                tags=["contract"],
+                language="sv",
+                confidence=0.95,
+                ocr_text=None,
+                suggested_actions=[],
+            ),
+            extraction=ExtractionResult(fields={}, field_confidence={}, missing_fields=[]),
+            move_plan=MovePlan(
+                rule_name="contracts",
+                destination=str(tmp_path / "sorted"),
+                auto_move_allowed=False,
+                reason="rule_matched",
+            ),
+            move_result=MoveResult(
+                attempted=False,
+                success=False,
+                from_path=source_path,
+                to_path=None,
+                error=None,
+            ),
+            tags=["contract"],
+            status="move_planned",
+            move_status="awaiting_confirmation",
+        )
+    )
+    app = create_app(
+        pipeline=FakePipeline(),
+        document_registry=registry,
+        readiness_probe=FakeReadinessProbe(),
+        validation_report_loader=lambda: {"status": "missing"},
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/moves/dismiss",
+            json={
+                "record_id": "doc-4",
+                "request_id": "req-4",
+                "client_id": "client-1",
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["move_status"] == "not_requested"
+    refreshed = registry.list_documents(limit=10).documents[0]
+    assert refreshed.move_status == "not_requested"
+    assert refreshed.status == "completed"
+    assert refreshed.source_path == source_path
+
+
+def test_moves_dismiss_returns_422_for_non_pending_record(tmp_path: Path) -> None:
+    registry = DocumentRegistry(
+        documents_path=tmp_path / "ui_documents.jsonl",
+        move_history_path=tmp_path / "move_history.jsonl",
+    )
+    registry.upsert_document(
+        UiDocumentRecord(
+            id="doc-5",
+            request_id="req-5",
+            title="Receipt",
+            summary="Receipt summary",
+            mime_type="text/plain",
+            source_modality="text",
+            kind="receipt",
+            document_type="receipt",
+            template="receipt",
+            source_path=str(tmp_path / "receipt.txt"),
+            created_at="2026-03-04T10:00:00+00:00",
+            updated_at="2026-03-04T10:00:00+00:00",
+            classification=DocumentClassification(
+                document_type="receipt",
+                template="receipt",
+                title="Receipt",
+                summary="Receipt summary",
+                tags=["receipt"],
+                language="sv",
+                confidence=0.95,
+                ocr_text=None,
+                suggested_actions=[],
+            ),
+            extraction=ExtractionResult(fields={}, field_confidence={}, missing_fields=[]),
+            move_plan=MovePlan(rule_name="receipts", destination=str(tmp_path / "sorted"), auto_move_allowed=True, reason="rule_matched"),
+            move_result=MoveResult(attempted=False, success=False, from_path=str(tmp_path / "receipt.txt"), to_path=None, error=None),
+            tags=["receipt"],
+            status="completed",
+            move_status="not_requested",
+        )
+    )
+    app = create_app(
+        pipeline=FakePipeline(),
+        document_registry=registry,
+        readiness_probe=FakeReadinessProbe(),
+        validation_report_loader=lambda: {"status": "missing"},
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/moves/dismiss",
+            json={
+                "record_id": "doc-5",
+                "request_id": "req-5",
+                "client_id": "client-1",
+            },
+        )
+
+    assert response.status_code == 422

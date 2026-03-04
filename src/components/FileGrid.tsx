@@ -1,4 +1,4 @@
-import { finalizeClientMove, processFile } from "../lib/api";
+import { dismissPendingMove, finalizeClientMove, processFile } from "../lib/api";
 import { mapProcessResponseToUiDocument, mapSearchResultToGenericDocument } from "../lib/document-mappers";
 import { moveLocalFile } from "../lib/tauri-events";
 import { GenericDocument } from "../templates/GenericDocument";
@@ -140,6 +140,14 @@ function FailureCard({ document }: { document: UiDocument }) {
 }
 
 function PendingMoveCard({ document }: { document: UiDocument }) {
+  const pendingMoveAction = useDocumentStore(
+    (state) => state.pendingMoveStateByRecordId[document.id]?.action ?? "idle",
+  );
+  const pendingMoveError = useDocumentStore(
+    (state) => state.pendingMoveStateByRecordId[document.id]?.error ?? null,
+  );
+  const isBusy = pendingMoveAction !== "idle";
+
   return (
     <article className="glass-panel glass-panel-hover flex h-full flex-col gap-4 p-5">
       <div>
@@ -148,24 +156,36 @@ function PendingMoveCard({ document }: { document: UiDocument }) {
       </div>
       <p className="text-sm text-[var(--text-secondary)]">{document.summary}</p>
       <div className="rounded-2xl bg-white/45 p-3 font-mono text-xs text-[var(--text-secondary)]">
-        {document.movePlan?.destination}
+        <p className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Source</p>
+        <p className="mt-1 break-all">{document.sourcePath ?? "—"}</p>
+        <p className="mt-3 text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Destination</p>
+        <p className="mt-1 break-all">{document.movePlan?.destination ?? "—"}</p>
       </div>
+      {pendingMoveError ? (
+        <p className="rounded-2xl border border-red-200/70 bg-red-50/80 px-3 py-2 text-sm text-red-700">
+          {pendingMoveError}
+        </p>
+      ) : null}
       <div className="flex gap-3">
         <button
           type="button"
-          className="rounded-2xl bg-[var(--accent-primary)] px-4 py-2 text-sm font-semibold text-white"
+          className="rounded-2xl bg-[var(--accent-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isBusy}
           onClick={() => {
             void confirmMove(document);
           }}
         >
-          Confirm move
+          {pendingMoveAction === "confirming" ? "Confirming..." : "Confirm move"}
         </button>
         <button
           type="button"
-          className="rounded-2xl border border-black/5 bg-white/50 px-4 py-2 text-sm font-semibold text-[var(--text-secondary)]"
-          onClick={() => undefined}
+          className="rounded-2xl border border-black/5 bg-white/50 px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] transition hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isBusy}
+          onClick={() => {
+            void dismissMove(document);
+          }}
         >
-          Not now
+          {pendingMoveAction === "dismissing" ? "Saving..." : "Not now"}
         </button>
       </div>
     </article>
@@ -174,20 +194,69 @@ function PendingMoveCard({ document }: { document: UiDocument }) {
 
 async function confirmMove(document: UiDocument): Promise<void> {
   const state = useDocumentStore.getState();
-  if (!state.clientId || !document.sourcePath || !document.movePlan?.destination) {
+  state.setPendingMoveError(document.id, null);
+  state.setPendingMoveAction(document.id, "confirming");
+  if (!state.clientId) {
+    state.setPendingMoveError(document.id, "move_unavailable_missing_client");
+    state.setPendingMoveAction(document.id, "idle");
     return;
   }
-  const localMove = await moveLocalFile(document.sourcePath, document.movePlan.destination);
-  const finalized = await finalizeClientMove({
-    recordId: document.id,
-    requestId: document.requestId,
-    clientId: state.clientId,
-    result: localMove,
-  });
-  if (finalized.success) {
-    useDocumentStore.getState().applyMoveFinalized(finalized);
-  } else {
-    useDocumentStore.getState().applyClientMoveFailure(document.requestId, "move_failed", "File move failed");
+  if (!document.sourcePath) {
+    state.setPendingMoveError(document.id, "move_unavailable_missing_source_path");
+    state.setPendingMoveAction(document.id, "idle");
+    return;
+  }
+  if (!document.movePlan?.destination) {
+    state.setPendingMoveError(document.id, "move_unavailable_missing_destination");
+    state.setPendingMoveAction(document.id, "idle");
+    return;
+  }
+  try {
+    const localMove = await moveLocalFile(document.sourcePath, document.movePlan.destination);
+    if (!localMove.success) {
+      state.setPendingMoveError(document.id, localMove.error ?? "move_failed");
+      state.setPendingMoveAction(document.id, "idle");
+      return;
+    }
+    const finalized = await finalizeClientMove({
+      recordId: document.id,
+      requestId: document.requestId,
+      clientId: state.clientId,
+      result: localMove,
+    });
+    if (finalized.success) {
+      useDocumentStore.getState().applyMoveFinalized(finalized);
+      return;
+    }
+    useDocumentStore.getState().setPendingMoveError(document.id, "move_failed");
+    useDocumentStore.getState().setPendingMoveAction(document.id, "idle");
+  } catch (error) {
+    state.setPendingMoveError(
+      document.id,
+      error instanceof Error ? error.message : "move_failed",
+    );
+    state.setPendingMoveAction(document.id, "idle");
+  }
+}
+
+async function dismissMove(document: UiDocument): Promise<void> {
+  const state = useDocumentStore.getState();
+  state.setPendingMoveError(document.id, null);
+  state.setPendingMoveAction(document.id, "dismissing");
+  if (!state.clientId) {
+    state.setPendingMoveError(document.id, "move_unavailable_missing_client");
+    state.setPendingMoveAction(document.id, "idle");
+    return;
+  }
+  try {
+    const response = await dismissPendingMove(document.id, document.requestId, state.clientId);
+    useDocumentStore.getState().applyMoveDismissed(response);
+  } catch (error) {
+    state.setPendingMoveError(
+      document.id,
+      error instanceof Error ? error.message : "move_dismiss_failed",
+    );
+    state.setPendingMoveAction(document.id, "idle");
   }
 }
 

@@ -15,6 +15,7 @@ export function useWebSocket(): void {
   const markJobFailed = useDocumentStore((state) => state.markJobFailed);
   const pushMoveToast = useDocumentStore((state) => state.pushMoveToast);
   const applyUndoSuccess = useDocumentStore((state) => state.applyUndoSuccess);
+  const applyMoveDismissed = useDocumentStore((state) => state.applyMoveDismissed);
   const resyncFromBackend = useDocumentStore((state) => state.resyncFromBackend);
 
   useEffect(() => {
@@ -30,11 +31,13 @@ export function useWebSocket(): void {
       updateConnectionFromPayload(payload);
       setConnectionState(payload.state);
       if (wasReconnecting && payload.state === "connected") {
-        void Promise.all([fetchDocuments(50), fetchCounts(), fetchActivity(10)]).then(
-          ([documentsPayload, counts, activity]) => {
+        void Promise.all([fetchDocuments(50), fetchCounts(), fetchActivity(10)])
+          .then(([documentsPayload, counts, activity]) => {
             resyncFromBackend(documentsPayload.documents, counts, activity.events);
-          },
-        );
+          })
+          .catch((error) => {
+            console.error("ws.resync.failed", error);
+          });
       }
     }).then((unlisten) => {
       unlistenConnection = unlisten;
@@ -49,6 +52,7 @@ export function useWebSocket(): void {
         markJobFailed,
         pushMoveToast,
         applyUndoSuccess,
+        applyMoveDismissed,
       });
     }).then((unlisten) => {
       unlistenEvents = unlisten;
@@ -58,7 +62,7 @@ export function useWebSocket(): void {
       void unlistenConnection?.();
       void unlistenEvents?.();
     };
-  }, [applyUndoSuccess, markJobFailed, markJobStage, pushMoveToast, resyncFromBackend, setConnectionState, updateConnectionFromPayload]);
+  }, [applyMoveDismissed, applyUndoSuccess, markJobFailed, markJobStage, pushMoveToast, resyncFromBackend, setConnectionState, updateConnectionFromPayload]);
 }
 
 function handleServerEvent(
@@ -68,6 +72,7 @@ function handleServerEvent(
     markJobFailed: (requestId: string, error: string, errorCode?: string | null) => void;
     pushMoveToast: (toast: FileMoveToastItem) => void;
     applyUndoSuccess: (payload: UndoMoveResponse) => void;
+    applyMoveDismissed: (payload: { success: true; record_id: string; request_id: string; move_status: "not_requested" }) => void;
   },
 ): void {
   if (payload.type === "job.progress") {
@@ -109,6 +114,15 @@ function handleServerEvent(
       to_path: payload.to_path,
       request_id: payload.request_id,
       record_id: null,
+    });
+    return;
+  }
+  if (payload.type === "move.dismissed") {
+    handlers.applyMoveDismissed({
+      success: true,
+      record_id: payload.record_id,
+      request_id: payload.request_id,
+      move_status: "not_requested",
     });
   }
 }

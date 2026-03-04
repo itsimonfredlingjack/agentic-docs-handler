@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from server.document_registry import DocumentRegistry
+from server.pipelines.classifier import ClassificationValidationError
 from server.pipelines.process_pipeline import DocumentProcessPipeline
 from server.schemas import (
     DocumentClassification,
@@ -200,6 +201,69 @@ class LengthTrackingExtractor:
     ) -> ExtractionResult:
         self.lengths.append(len(text))
         return ExtractionResult(fields={"amount": "10"}, field_confidence={"amount": 0.9}, missing_fields=[])
+
+
+class EmptyFieldClassifier:
+    async def classify_text(self, text: str, request_id: str) -> DocumentClassification:
+        return DocumentClassification(
+            document_type="generic",
+            template="",
+            title="",
+            summary="",
+            tags=[],
+            language="sv",
+            confidence=0.2,
+            ocr_text=None,
+            suggested_actions=[],
+        )
+
+    async def classify_image(self, image_bytes: bytes, mime_type: str, request_id: str) -> DocumentClassification:
+        raise AssertionError("image path not expected in this test")
+
+
+class PdfImageFallbackClassifier:
+    def __init__(self) -> None:
+        self.image_calls: list[tuple[str, int]] = []
+        self.text_calls: list[int] = []
+
+    async def classify_text(self, text: str, request_id: str) -> DocumentClassification:
+        self.text_calls.append(len(text))
+        return DocumentClassification(
+            document_type="generic",
+            template="generic",
+            title="No text",
+            summary="No text fallback",
+            tags=[],
+            language="sv",
+            confidence=0.5,
+            ocr_text=None,
+            suggested_actions=[],
+        )
+
+    async def classify_image(self, image_bytes: bytes, mime_type: str, request_id: str) -> DocumentClassification:
+        self.image_calls.append((mime_type, len(image_bytes)))
+        return DocumentClassification(
+            document_type="receipt",
+            template="receipt",
+            title="Receipt from image PDF",
+            summary="Image-based classification",
+            tags=["receipt"],
+            language="sv",
+            confidence=0.87,
+            ocr_text="ICA KVITTO",
+            suggested_actions=[],
+        )
+
+
+class InvalidJsonClassifier:
+    async def classify_text(self, text: str, request_id: str) -> DocumentClassification:
+        raise ClassificationValidationError(
+            "classifier produced invalid JSON twice",
+            raw_response_path="/tmp/logs/llm/responses/failing.json",
+        )
+
+    async def classify_image(self, image_bytes: bytes, mime_type: str, request_id: str) -> DocumentClassification:
+        raise AssertionError("image path not expected in this test")
 
 
 @pytest.mark.asyncio
@@ -408,3 +472,114 @@ async def test_process_upload_uses_shorter_text_for_classification_than_extracti
 
     assert classifier.lengths == [4000]
     assert extractor.lengths == [12000]
+
+
+@pytest.mark.asyncio
+async def test_process_upload_uses_pdf_image_fallback_when_extracted_text_is_empty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    registry = DocumentRegistry(
+        documents_path=tmp_path / "ui_documents.jsonl",
+        move_history_path=tmp_path / "move_history.jsonl",
+    )
+    classifier = PdfImageFallbackClassifier()
+    pipeline = DocumentProcessPipeline(
+        classifier=classifier,
+        extractor=FakeExtractor(),
+        organizer=FakeOrganizer(),
+        document_registry=registry,
+        realtime_manager=FakeRealtimeManager(),
+    )
+
+    monkeypatch.setattr(
+        pipeline,
+        "_extract_text",
+        lambda content, mime_type: "",
+    )
+    monkeypatch.setattr(
+        pipeline,
+        "_extract_pdf_image_for_classification",
+        lambda content: (b"\x89PNG\r\n\x1a\nfake", "image/png"),
+    )
+
+    response = await pipeline.process_upload(
+        filename="scanned.pdf",
+        content=b"%PDF fake",
+        content_type="application/pdf",
+        execute_move=False,
+        source_path="/tmp/scanned.pdf",
+        client_id="client-1",
+        client_request_id="job-pdf-image-fallback",
+    )
+
+    assert classifier.image_calls == [("image/png", len(b"\x89PNG\r\n\x1a\nfake"))]
+    assert classifier.text_calls == []
+    assert response.classification.document_type == "receipt"
+    assert response.diagnostics is not None
+    assert "pdf_text_empty_image_fallback" in response.diagnostics.pipeline_flags
+    assert "pdf_text_empty_image_fallback" not in response.warnings
+
+
+@pytest.mark.asyncio
+async def test_process_upload_falls_back_when_classifier_returns_empty_fields(tmp_path: Path) -> None:
+    registry = DocumentRegistry(
+        documents_path=tmp_path / "ui_documents.jsonl",
+        move_history_path=tmp_path / "move_history.jsonl",
+    )
+    pipeline = DocumentProcessPipeline(
+        classifier=EmptyFieldClassifier(),
+        extractor=FakeExtractor(),
+        organizer=FakeOrganizer(),
+        document_registry=registry,
+        realtime_manager=FakeRealtimeManager(),
+    )
+
+    response = await pipeline.process_upload(
+        filename="empty-model-output.pdf",
+        content=b"%PDF fake content",
+        content_type="text/plain",
+        execute_move=False,
+        source_path="/tmp/empty-model-output.pdf",
+        client_id="client-1",
+        client_request_id="job-empty-fields-fallback",
+    )
+
+    assert response.classification.title == "empty-model-output"
+    assert response.classification.summary
+    assert response.classification.template == "generic"
+    assert response.diagnostics is not None
+    assert "classifier_empty_fields_fallback" in response.diagnostics.pipeline_flags
+    assert "classifier_empty_fields_fallback" not in response.warnings
+
+
+@pytest.mark.asyncio
+async def test_process_upload_invalid_json_fallback_uses_clean_title_summary_and_diagnostics(tmp_path: Path) -> None:
+    registry = DocumentRegistry(
+        documents_path=tmp_path / "ui_documents.jsonl",
+        move_history_path=tmp_path / "move_history.jsonl",
+    )
+    pipeline = DocumentProcessPipeline(
+        classifier=InvalidJsonClassifier(),
+        extractor=FakeExtractor(),
+        organizer=FakeOrganizer(),
+        document_registry=registry,
+        realtime_manager=FakeRealtimeManager(),
+    )
+
+    response = await pipeline.process_upload(
+        filename="b95f5280-4ec5-4bd6-a977-bce198ea2165.pdf",
+        content=b"Detta ar ett intyg med flera rader.\n\npdf_text_empty_image_fallback\nNyttig text ska visas.",
+        content_type="text/plain",
+        execute_move=False,
+        source_path="/tmp/agentic-docs/uploads/fe68f9f1-bf7a-4f7b-a97f-f6f31f52a6f1-Intyg_2026.pdf",
+        client_id="client-1",
+        client_request_id="job-invalid-json-fallback",
+    )
+
+    assert response.classification.document_type == "generic"
+    assert response.classification.template == "generic"
+    assert response.classification.title == "Intyg_2026"
+    assert len(response.classification.summary) <= 200
+    assert "pdf_text_empty_image_fallback" not in response.classification.summary
+    assert response.diagnostics is not None
+    assert "classifier_invalid_json_fallback" in response.diagnostics.pipeline_flags
+    assert response.diagnostics.classifier_raw_response_path == "/tmp/logs/llm/responses/failing.json"
+    assert "classifier_invalid_json_fallback" not in response.warnings

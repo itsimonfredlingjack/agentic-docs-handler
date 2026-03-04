@@ -4,11 +4,13 @@ import asyncio
 import inspect
 import logging
 import mimetypes
+import re
 import time
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
+from typing import Any
 
 from docx import Document as DocxDocument
 from pypdf import PdfReader
@@ -27,6 +29,7 @@ from server.schemas import (
     MovePlan,
     MoveResult,
     ProcessResponse,
+    ProcessDiagnostics,
     SourceModality,
     TranscriptionResponse,
     UiDocumentKind,
@@ -109,9 +112,12 @@ class DocumentProcessPipeline:
         timings: dict[str, float] = {}
         errors: list[str] = []
         warnings: list[str] = []
+        pipeline_flags: list[str] = []
         transcription: TranscriptionResponse | None = None
         error_code: str | None = None
         retryable = False
+        fallback_reason: str | None = None
+        classifier_raw_response_path: str | None = None
         self._log_pipeline_event(
             "pipeline.received",
             request_id=request_id,
@@ -137,10 +143,13 @@ class DocumentProcessPipeline:
 
         try:
             extracted_text: str
+            pdf_image_fallback: tuple[bytes, str] | None = None
             if mime_type in SUPPORTED_IMAGE_TYPES:
                 extracted_text = ""
             elif mime_type in SUPPORTED_TEXT_TYPES:
                 extracted_text = self._extract_text(content, mime_type)
+                if mime_type == "application/pdf" and not extracted_text.strip():
+                    pdf_image_fallback = self._extract_pdf_image_for_classification(content)
             elif mime_type in SUPPORTED_AUDIO_TYPES:
                 extracted_text, transcription, error_code, retryable = await self._process_audio(
                     filename=filename,
@@ -150,8 +159,13 @@ class DocumentProcessPipeline:
                     request_id=request_id,
                 )
                 if transcription is None:
-                    classification = self._fallback_classification(filename, "", source_modality)
-                    warnings.append("audio_processing_unavailable")
+                    classification = self._fallback_classification(
+                        filename=filename,
+                        extracted_text="",
+                        source_modality=source_modality,
+                        source_path=source_path,
+                    )
+                    pipeline_flags.append("audio_processing_unavailable")
                     extraction = ExtractionResult(fields={}, field_confidence={}, missing_fields=[])
                     response = ProcessResponse(
                         request_id=request_id,
@@ -172,7 +186,11 @@ class DocumentProcessPipeline:
                         move_status="not_requested",
                         retryable=retryable,
                         error_code=error_code or "audio_processing_unavailable",
-                        warnings=warnings,
+                        warnings=["Audio processing unavailable."],
+                        diagnostics=ProcessDiagnostics(
+                            pipeline_flags=pipeline_flags,
+                            fallback_reason="audio_processing_unavailable",
+                        ),
                     )
                     self._persist_record(response)
                     await self._emit_event(
@@ -221,10 +239,43 @@ class DocumentProcessPipeline:
                     record_id=record_id,
                 )
                 if mime_type in SUPPORTED_IMAGE_TYPES:
-                    classification, used_fallback = await self._classify_image(content, mime_type, request_id)
+                    classification, used_fallback, fallback_reason, classifier_raw_response_path = await self._classify_image(
+                        content,
+                        mime_type,
+                        request_id,
+                        filename=filename,
+                        source_path=source_path,
+                    )
                     extracted_text = classification.ocr_text or classification.summary
+                elif pdf_image_fallback is not None:
+                    fallback_image_bytes, fallback_mime = pdf_image_fallback
+                    classification, used_fallback, fallback_reason, classifier_raw_response_path = await self._classify_image(
+                        fallback_image_bytes,
+                        fallback_mime,
+                        request_id,
+                        filename=filename,
+                        source_path=source_path,
+                    )
+                    extracted_text = classification.ocr_text or classification.summary
+                    pipeline_flags.append("pdf_text_empty_image_fallback")
                 else:
-                    classification, used_fallback = await self._classify_text(extracted_text, request_id)
+                    classification, used_fallback, fallback_reason, classifier_raw_response_path = await self._classify_text(
+                        extracted_text,
+                        request_id,
+                        filename=filename,
+                        source_path=source_path,
+                    )
+
+                if self._classification_has_empty_core_fields(classification):
+                    classification = self._fallback_classification(
+                        filename=filename,
+                        extracted_text=extracted_text,
+                        source_modality=source_modality,
+                        source_path=source_path,
+                    )
+                    used_fallback = True
+                    fallback_reason = "classifier_empty_fields"
+                    pipeline_flags.append("classifier_empty_fields_fallback")
 
                 timings["classify_ms"] = round((time.perf_counter() - classify_started) * 1000, 2)
                 self._log_pipeline_event(
@@ -239,7 +290,20 @@ class DocumentProcessPipeline:
                 )
                 if used_fallback:
                     error_code = "classification_validation_fallback"
-                    warnings.append("classifier_invalid_json_fallback")
+                    if fallback_reason == "classifier_invalid_json":
+                        pipeline_flags.append("classifier_invalid_json_fallback")
+                    warnings.append("Kunde inte tolka dokumentet fullt ut, visning sker i generiskt läge.")
+                    self._log_pipeline_event(
+                        "pipeline.classify.fallback",
+                        request_id=request_id,
+                        client_id=client_id,
+                        filename=filename,
+                        mime_type=mime_type,
+                        source_modality=source_modality,
+                        record_id=record_id,
+                        fallback_reason=fallback_reason,
+                        raw_response_path=classifier_raw_response_path,
+                    )
                 await self._progress(client_id, request_id, "classified", "Dokument klassificerat")
 
                 if self._should_skip_extraction(classification.document_type):
@@ -275,7 +339,7 @@ class DocumentProcessPipeline:
                         )
                     except ExtractionValidationError:
                         extraction = ExtractionResult(fields={}, field_confidence={}, missing_fields=[])
-                        warnings.append("extractor_invalid_json_fallback")
+                        pipeline_flags.append("extractor_invalid_json_fallback")
                     timings["extract_ms"] = round((time.perf_counter() - extract_started) * 1000, 2)
                     self._log_pipeline_event(
                         "pipeline.extract.done",
@@ -382,6 +446,11 @@ class DocumentProcessPipeline:
                 retryable=retryable,
                 error_code=error_code,
                 warnings=warnings,
+                diagnostics=ProcessDiagnostics(
+                    pipeline_flags=pipeline_flags,
+                    classifier_raw_response_path=classifier_raw_response_path,
+                    fallback_reason=fallback_reason,
+                ),
             )
             self._persist_record(response)
             self._log_pipeline_event(
@@ -473,20 +542,55 @@ class DocumentProcessPipeline:
             )
             raise
 
-    async def _classify_image(self, content: bytes, mime_type: str, request_id: str) -> tuple[DocumentClassification, bool]:
+    async def _classify_image(
+        self,
+        content: bytes,
+        mime_type: str,
+        request_id: str,
+        *,
+        filename: str,
+        source_path: str | None,
+    ) -> tuple[DocumentClassification, bool, str | None, str | None]:
         try:
-            return await self.classifier.classify_image(content, mime_type, request_id=request_id), False
-        except ClassificationValidationError:
-            return self._fallback_classification("image-document", "", "image"), True
+            return await self.classifier.classify_image(content, mime_type, request_id=request_id), False, None, None
+        except ClassificationValidationError as error:
+            return (
+                self._fallback_classification(
+                    filename=filename,
+                    extracted_text="",
+                    source_modality="image",
+                    source_path=source_path,
+                ),
+                True,
+                "classifier_invalid_json",
+                error.raw_response_path,
+            )
 
-    async def _classify_text(self, text: str, request_id: str) -> tuple[DocumentClassification, bool]:
+    async def _classify_text(
+        self,
+        text: str,
+        request_id: str,
+        *,
+        filename: str,
+        source_path: str | None,
+    ) -> tuple[DocumentClassification, bool, str | None, str | None]:
         try:
             return await self.classifier.classify_text(
                 text[: self.classifier_max_text_characters],
                 request_id=request_id,
-            ), False
-        except ClassificationValidationError:
-            return self._fallback_classification("generic-document", text, "text"), True
+            ), False, None, None
+        except ClassificationValidationError as error:
+            return (
+                self._fallback_classification(
+                    filename=filename,
+                    extracted_text=text,
+                    source_modality="text",
+                    source_path=source_path,
+                ),
+                True,
+                "classifier_invalid_json",
+                error.raw_response_path,
+            )
 
     async def _process_audio(
         self,
@@ -542,6 +646,7 @@ class DocumentProcessPipeline:
                 retryable=response.retryable,
                 error_code=response.error_code,
                 warnings=response.warnings,
+                diagnostics=response.diagnostics,
             )
         )
 
@@ -568,6 +673,41 @@ class DocumentProcessPipeline:
             document = DocxDocument(BytesIO(content))
             return "\n".join(paragraph.text for paragraph in document.paragraphs)
         raise UnsupportedMediaTypeError(mime_type)
+
+    @staticmethod
+    def _extract_pdf_image_for_classification(content: bytes) -> tuple[bytes, str] | None:
+        try:
+            reader = PdfReader(BytesIO(content))
+        except Exception:  # pragma: no cover - guarded by parser behavior in _extract_text
+            return None
+        for page in reader.pages:
+            images = getattr(page, "images", [])
+            for image in images:
+                image_bytes = getattr(image, "data", None)
+                if not isinstance(image_bytes, (bytes, bytearray)):
+                    continue
+                image_mime = DocumentProcessPipeline._infer_image_mime_from_pdf_image(
+                    image_name=getattr(image, "name", None),
+                    image_bytes=bytes(image_bytes),
+                )
+                if image_mime not in SUPPORTED_IMAGE_TYPES:
+                    continue
+                return bytes(image_bytes), image_mime
+        return None
+
+    @staticmethod
+    def _infer_image_mime_from_pdf_image(*, image_name: Any, image_bytes: bytes) -> str | None:
+        if isinstance(image_name, str):
+            guessed_mime, _ = mimetypes.guess_type(image_name)
+            if guessed_mime:
+                return guessed_mime
+        if image_bytes.startswith(b"\xff\xd8\xff"):
+            return "image/jpeg"
+        if image_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+            return "image/png"
+        if image_bytes.startswith(b"RIFF") and b"WEBP" in image_bytes[:16]:
+            return "image/webp"
+        return None
 
     @staticmethod
     def _coerce_move_reason(move_plan: MovePlan, execute_move: bool, move_executor: MoveExecutor) -> MovePlan:
@@ -598,19 +738,85 @@ class DocumentProcessPipeline:
         return document_type in {"meeting_notes", "generic"}
 
     @staticmethod
-    def _fallback_classification(filename: str, extracted_text: str, source_modality: SourceModality) -> DocumentClassification:
-        summary_source = extracted_text.strip() or filename
+    def _classification_has_empty_core_fields(classification: DocumentClassification) -> bool:
+        return not (
+            classification.title.strip()
+            and classification.summary.strip()
+            and classification.template.strip()
+        )
+
+    @classmethod
+    def _fallback_classification(
+        cls,
+        *,
+        filename: str,
+        extracted_text: str,
+        source_modality: SourceModality,
+        source_path: str | None,
+    ) -> DocumentClassification:
+        title = cls._derive_fallback_title(filename=filename, source_path=source_path)
+        summary_source = cls._sanitize_fallback_summary(extracted_text) or title
         return DocumentClassification(
             document_type="generic",
             template="generic",
-            title=Path(filename).stem or filename,
-            summary=summary_source[:280],
+            title=title,
+            summary=summary_source[:200],
             tags=[],
             language="unknown",
             confidence=0.0,
-            ocr_text=summary_source[:280] if source_modality == "image" else None,
+            ocr_text=summary_source[:200] if source_modality == "image" else None,
             suggested_actions=[],
         )
+
+    @classmethod
+    def _derive_fallback_title(cls, *, filename: str, source_path: str | None) -> str:
+        candidate = Path(filename).stem.strip() or Path(filename).name.strip()
+        if candidate and not cls._is_uuid_like(candidate):
+            return candidate
+
+        if source_path:
+            source_candidate = Path(source_path).stem.strip()
+            source_candidate = cls._strip_staging_prefix(source_candidate)
+            if source_candidate and not cls._is_uuid_like(source_candidate):
+                return source_candidate
+
+        return "Dokument"
+
+    @classmethod
+    def _sanitize_fallback_summary(cls, text: str) -> str:
+        sanitized = "".join(char if char.isprintable() or char.isspace() else " " for char in text)
+        sanitized = re.sub(r"\s+", " ", sanitized).strip()
+        if not sanitized:
+            return ""
+        words = [
+            token
+            for token in sanitized.split(" ")
+            if token and not cls._is_internal_pipeline_flag(token)
+        ]
+        return " ".join(words).strip()
+
+    @staticmethod
+    def _strip_staging_prefix(name: str) -> str:
+        # Tauri staging format: <uuid>-<sanitized_filename>
+        return re.sub(
+            r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}-",
+            "",
+            name,
+        ).strip()
+
+    @staticmethod
+    def _is_uuid_like(value: str) -> bool:
+        return bool(
+            re.fullmatch(
+                r"[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+                value,
+            )
+        )
+
+    @staticmethod
+    def _is_internal_pipeline_flag(value: str) -> bool:
+        candidate = value.strip().lower()
+        return candidate.startswith("classifier_") or candidate.startswith("pdf_") or candidate.endswith("_fallback")
 
     async def _progress(self, client_id: str | None, request_id: str, stage: str, message: str) -> None:
         await self._emit_event(

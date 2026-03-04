@@ -1,5 +1,6 @@
 import type {
     ActivityResponse,
+    DismissMoveResponse,
     DocumentCounts,
     DocumentListResponse,
     FinalizeMoveResponse,
@@ -100,6 +101,18 @@ export async function finalizeClientMove(args: {
       to_path: args.result.to_path,
       success: args.result.success,
       error: args.result.error ?? null,
+    }),
+  });
+}
+
+export async function dismissPendingMove(recordId: string, requestId: string, clientId: string): Promise<DismissMoveResponse> {
+  return fetchJson<DismissMoveResponse>("/moves/dismiss", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      record_id: recordId,
+      request_id: requestId,
+      client_id: clientId,
     }),
   });
 }
