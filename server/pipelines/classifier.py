@@ -3,8 +3,10 @@ from __future__ import annotations
 import base64
 import json
 import logging
+from io import BytesIO
 from typing import Any
 
+from PIL import Image, UnidentifiedImageError
 from pydantic import ValidationError
 
 from server.schemas import DocumentClassification
@@ -24,11 +26,13 @@ class DocumentClassifier:
         classifier_prompt: str,
         image_classifier_prompt: str,
         temperature: float = 0.1,
+        max_image_dimension: int = 1600,
     ) -> None:
         self.ollama_client = ollama_client
         self.classifier_prompt = classifier_prompt
         self.image_classifier_prompt = image_classifier_prompt
         self.temperature = temperature
+        self.max_image_dimension = max_image_dimension
 
     async def classify_text(self, text: str, request_id: str = "local-test") -> DocumentClassification:
         messages = [
@@ -48,7 +52,8 @@ class DocumentClassifier:
         mime_type: str,
         request_id: str = "local-test",
     ) -> DocumentClassification:
-        encoded = base64.b64encode(image_bytes).decode("utf-8")
+        prepared_bytes = self._prepare_image_bytes(image_bytes, mime_type)
+        encoded = base64.b64encode(prepared_bytes).decode("utf-8")
         messages = [
             {"role": "system", "content": self.image_classifier_prompt},
             {
@@ -208,3 +213,38 @@ class DocumentClassifier:
         except json.JSONDecodeError:
             return False
         return True
+
+    def _prepare_image_bytes(self, image_bytes: bytes, mime_type: str) -> bytes:
+        try:
+            image = Image.open(BytesIO(image_bytes))
+        except (UnidentifiedImageError, OSError):
+            return image_bytes
+
+        original_size = image.size
+        if max(original_size) <= self.max_image_dimension:
+            return image_bytes
+
+        resized = image.copy()
+        resized.thumbnail((self.max_image_dimension, self.max_image_dimension), Image.Resampling.LANCZOS)
+        buffer = BytesIO()
+        save_format = {
+            "image/jpeg": "JPEG",
+            "image/png": "PNG",
+            "image/webp": "WEBP",
+        }.get(mime_type, image.format or "PNG")
+        save_kwargs: dict[str, Any] = {"optimize": True}
+        if save_format == "JPEG":
+            if resized.mode not in {"RGB", "L"}:
+                resized = resized.convert("RGB")
+            save_kwargs.update({"quality": 85, "progressive": True})
+        resized.save(buffer, format=save_format, **save_kwargs)
+        logger.info(
+            "classifier.image_prepared original_size=%sx%s resized_size=%sx%s bytes_before=%s bytes_after=%s",
+            original_size[0],
+            original_size[1],
+            resized.size[0],
+            resized.size[1],
+            len(image_bytes),
+            buffer.tell(),
+        )
+        return buffer.getvalue()

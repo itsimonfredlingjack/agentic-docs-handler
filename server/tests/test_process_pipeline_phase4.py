@@ -156,6 +156,16 @@ class SequencedExtractor:
         )
 
 
+class StrictExtractor:
+    async def extract(
+        self,
+        text: str,
+        classification: DocumentClassification,
+        request_id: str,
+    ) -> ExtractionResult:
+        raise AssertionError("extract should be skipped for meeting_notes documents")
+
+
 @pytest.mark.asyncio
 async def test_audio_process_upload_returns_transcription_and_registry_record(tmp_path: Path) -> None:
     registry = DocumentRegistry(
@@ -299,3 +309,33 @@ async def test_process_upload_serializes_classify_and_extract_per_document(tmp_p
             "extract:end:job-a",
         ],
     )
+
+
+@pytest.mark.asyncio
+async def test_process_upload_skips_extractor_for_meeting_notes_documents(tmp_path: Path) -> None:
+    registry = DocumentRegistry(
+        documents_path=tmp_path / "ui_documents.jsonl",
+        move_history_path=tmp_path / "move_history.jsonl",
+    )
+    pipeline = DocumentProcessPipeline(
+        classifier=FakeClassifier(),
+        extractor=StrictExtractor(),
+        organizer=FakeOrganizer(),
+        document_registry=registry,
+        realtime_manager=FakeRealtimeManager(),
+    )
+
+    response = await pipeline.process_upload(
+        filename="meeting.txt",
+        content=b"Sprint planning notes",
+        content_type="text/plain",
+        execute_move=False,
+        source_path="/tmp/meeting.txt",
+        client_id="client-1",
+        client_request_id="job-skip-extract",
+    )
+
+    assert response.classification.document_type == "meeting_notes"
+    assert response.extraction.fields == {}
+    assert response.extraction.field_confidence == {}
+    assert response.extraction.missing_fields == []

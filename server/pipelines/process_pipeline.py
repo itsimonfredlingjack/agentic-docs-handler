@@ -240,37 +240,51 @@ class DocumentProcessPipeline:
                     warnings.append("classifier_invalid_json_fallback")
                 await self._progress(client_id, request_id, "classified", "Dokument klassificerat")
 
-                await self._progress(client_id, request_id, "extracting", "Extraherar fält")
-                extract_started = time.perf_counter()
-                self._log_pipeline_event(
-                    "pipeline.extract.start",
-                    request_id=request_id,
-                    client_id=client_id,
-                    filename=filename,
-                    mime_type=mime_type,
-                    source_modality=source_modality,
-                    record_id=record_id,
-                )
-                try:
-                    extraction = await self.extractor.extract(
-                        extracted_text[: self.max_text_characters],
-                        classification,
-                        request_id=request_id,
-                    )
-                except ExtractionValidationError:
+                if self._should_skip_extraction(classification.document_type):
                     extraction = ExtractionResult(fields={}, field_confidence={}, missing_fields=[])
-                    warnings.append("extractor_invalid_json_fallback")
-                timings["extract_ms"] = round((time.perf_counter() - extract_started) * 1000, 2)
-                self._log_pipeline_event(
-                    "pipeline.extract.done",
-                    request_id=request_id,
-                    client_id=client_id,
-                    filename=filename,
-                    mime_type=mime_type,
-                    source_modality=source_modality,
-                    record_id=record_id,
-                    elapsed_ms=timings["extract_ms"],
-                )
+                    timings["extract_ms"] = 0.0
+                    self._log_pipeline_event(
+                        "pipeline.extract.skipped",
+                        request_id=request_id,
+                        client_id=client_id,
+                        filename=filename,
+                        mime_type=mime_type,
+                        source_modality=source_modality,
+                        record_id=record_id,
+                        document_type=classification.document_type,
+                    )
+                else:
+                    await self._progress(client_id, request_id, "extracting", "Extraherar fält")
+                    extract_started = time.perf_counter()
+                    self._log_pipeline_event(
+                        "pipeline.extract.start",
+                        request_id=request_id,
+                        client_id=client_id,
+                        filename=filename,
+                        mime_type=mime_type,
+                        source_modality=source_modality,
+                        record_id=record_id,
+                    )
+                    try:
+                        extraction = await self.extractor.extract(
+                            extracted_text[: self.max_text_characters],
+                            classification,
+                            request_id=request_id,
+                        )
+                    except ExtractionValidationError:
+                        extraction = ExtractionResult(fields={}, field_confidence={}, missing_fields=[])
+                        warnings.append("extractor_invalid_json_fallback")
+                    timings["extract_ms"] = round((time.perf_counter() - extract_started) * 1000, 2)
+                    self._log_pipeline_event(
+                        "pipeline.extract.done",
+                        request_id=request_id,
+                        client_id=client_id,
+                        filename=filename,
+                        mime_type=mime_type,
+                        source_modality=source_modality,
+                        record_id=record_id,
+                        elapsed_ms=timings["extract_ms"],
+                    )
 
             await self._progress(client_id, request_id, "organizing", "Planerar filsortering")
             plan_started = time.perf_counter()
@@ -576,6 +590,10 @@ class DocumentProcessPipeline:
         if document_type in {"receipt", "contract", "invoice", "meeting_notes"}:
             return document_type
         return "generic"
+
+    @staticmethod
+    def _should_skip_extraction(document_type: str) -> bool:
+        return document_type in {"meeting_notes", "generic"}
 
     @staticmethod
     def _fallback_classification(filename: str, extracted_text: str, source_modality: SourceModality) -> DocumentClassification:
