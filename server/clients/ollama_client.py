@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+import asyncio
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -37,16 +38,20 @@ class AsyncOllamaClient:
         model: str,
         timeout_seconds: float,
         log_writer: LLMLogWriter,
+        max_concurrency: int = 1,
     ) -> None:
         self.base_url = base_url
         self.api_key = api_key
         self.model = model
         self.timeout_seconds = timeout_seconds
         self.log_writer = log_writer
+        self.max_concurrency = max(1, max_concurrency)
+        self._semaphore = asyncio.Semaphore(self.max_concurrency)
         self.client = AsyncOpenAI(
             base_url=base_url,
             api_key=api_key,
             timeout=timeout_seconds,
+            max_retries=0,
         )
 
     async def chat_json_with_meta(
@@ -77,7 +82,16 @@ class AsyncOllamaClient:
                 attempt + 1,
             )
             try:
-                response = await self.client.chat.completions.create(**payload)
+                async with self._semaphore:
+                    logger.info(
+                        "ollama.request.acquired request_id=%s prompt_name=%s input_modality=%s model=%s max_concurrency=%s",
+                        request_id,
+                        prompt_name,
+                        input_modality,
+                        self.model,
+                        self.max_concurrency,
+                    )
+                    response = await self.client.chat.completions.create(**payload)
                 latency_ms = (time.perf_counter() - started_at) * 1000
                 logger.info(
                     "ollama.request.done request_id=%s prompt_name=%s input_modality=%s model=%s latency_ms=%.2f",
@@ -165,7 +179,16 @@ class AsyncOllamaClient:
                 attempt + 1,
             )
             try:
-                response = await self.client.chat.completions.create(**payload)
+                async with self._semaphore:
+                    logger.info(
+                        "ollama.request.acquired request_id=%s prompt_name=%s input_modality=%s model=%s max_concurrency=%s",
+                        request_id,
+                        prompt_name,
+                        input_modality,
+                        self.model,
+                        self.max_concurrency,
+                    )
+                    response = await self.client.chat.completions.create(**payload)
                 latency_ms = (time.perf_counter() - started_at) * 1000
                 logger.info(
                     "ollama.request.done request_id=%s prompt_name=%s input_modality=%s model=%s latency_ms=%.2f",

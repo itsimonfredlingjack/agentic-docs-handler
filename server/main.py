@@ -114,6 +114,7 @@ def create_app(
             model=config.ollama_model,
             timeout_seconds=config.request_timeout_seconds,
             log_writer=log_writer,
+            max_concurrency=config.ollama_max_concurrency,
         )
         whisper_service = whisper_service or WhisperProxy(
             base_url=config.whisper_base_url,

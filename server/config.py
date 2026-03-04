@@ -23,7 +23,8 @@ class AppConfig(BaseSettings):
     ollama_base_url: str = "http://localhost:11434/v1"
     ollama_api_key: str = "ollama"
     ollama_model: str = "ministral-3:14b"
-    request_timeout_seconds: float = 90.0
+    request_timeout_seconds: float = 300.0
+    ollama_max_concurrency: int = 1
     classifier_temperature: float = 0.1
     extract_temperature: float = 0.1
     max_text_characters: int = 12000

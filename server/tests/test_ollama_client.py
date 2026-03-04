@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 import pytest
 from openai import APIStatusError
@@ -37,3 +39,59 @@ async def test_chat_text_maps_api_status_error_to_ollama_service_error(tmp_path)
     assert error.value.code == "ollama_upstream_error"
     assert error.value.status_code == 500
     assert error.value.retryable is True
+
+
+@pytest.mark.asyncio
+async def test_chat_text_serializes_ollama_requests_when_max_concurrency_is_one(tmp_path) -> None:
+    client = AsyncOllamaClient(
+        base_url="http://localhost:11434/v1",
+        api_key="ollama",
+        model="ministral-3:14b",
+        timeout_seconds=5,
+        log_writer=LLMLogWriter(tmp_path / "llm"),
+        max_concurrency=1,
+    )
+
+    active_calls = 0
+    max_active_calls = 0
+
+    async def fake_create(**_: object) -> object:
+        nonlocal active_calls, max_active_calls
+        active_calls += 1
+        max_active_calls = max(max_active_calls, active_calls)
+        await asyncio.sleep(0.05)
+        active_calls -= 1
+        return type(
+            "FakeResponse",
+            (),
+            {
+                "choices": [
+                    type(
+                        "Choice",
+                        (),
+                        {"message": type("Message", (), {"content": "hello"})()},
+                    )()
+                ]
+            },
+        )()
+
+    client.client.chat.completions.create = fake_create  # type: ignore[method-assign]
+
+    await asyncio.gather(
+        client.chat_text(
+            request_id="req-1",
+            prompt_name="classifier",
+            input_modality="text",
+            messages=[{"role": "user", "content": "a"}],
+            temperature=0.1,
+        ),
+        client.chat_text(
+            request_id="req-2",
+            prompt_name="classifier",
+            input_modality="text",
+            messages=[{"role": "user", "content": "b"}],
+            temperature=0.1,
+        ),
+    )
+
+    assert max_active_calls == 1
