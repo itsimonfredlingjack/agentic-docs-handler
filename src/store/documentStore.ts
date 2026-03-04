@@ -1,0 +1,222 @@
+import { create } from "zustand";
+
+import type {
+  ActivityEvent,
+  BackendConnectionPayload,
+  DocumentCounts,
+  SearchResponse,
+  SearchState,
+  SidebarFilter,
+  UiDocument,
+  FileMoveToastItem,
+  UndoMoveResponse,
+  ConnectionState,
+} from "../types/documents";
+
+type DocumentStoreState = {
+  clientId: string | null;
+  connectionState: ConnectionState;
+  documents: Record<string, UiDocument>;
+  documentOrder: string[];
+  counts: DocumentCounts;
+  activity: ActivityEvent[];
+  search: SearchState;
+  sidebarFilter: SidebarFilter;
+  toasts: FileMoveToastItem[];
+  bootstrap: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
+  setClientId: (clientId: string) => void;
+  setConnectionState: (state: ConnectionState) => void;
+  queueUploads: (localJobs: UiDocument[]) => void;
+  markJobStage: (requestId: string, stage: UiDocument["status"]) => void;
+  upsertDocument: (document: UiDocument) => void;
+  markJobFailed: (requestId: string, error: string) => void;
+  setSearchLoading: (query: string) => void;
+  applySearchResponse: (response: SearchResponse) => void;
+  clearSearch: () => void;
+  setSidebarFilter: (filter: SidebarFilter) => void;
+  pushMoveToast: (toast: FileMoveToastItem) => void;
+  dismissToast: (id: string) => void;
+  applyUndoSuccess: (payload: UndoMoveResponse) => void;
+  updateConnectionFromPayload: (payload: BackendConnectionPayload) => void;
+};
+
+const emptyCounts: DocumentCounts = {
+  all: 0,
+  processing: 0,
+  receipt: 0,
+  contract: 0,
+  invoice: 0,
+  meeting_notes: 0,
+  audio: 0,
+  generic: 0,
+  moved: 0,
+};
+
+const emptySearch: SearchState = {
+  query: "",
+  rewrittenQuery: "",
+  answer: "",
+  loading: false,
+  active: false,
+  resultIds: [],
+  orphanResults: [],
+};
+
+function upsertOrder(order: string[], id: string): string[] {
+  return [id, ...order.filter((entry) => entry !== id)];
+}
+
+export const useDocumentStore = create<DocumentStoreState>((set, get) => ({
+  clientId: null,
+  connectionState: "connecting",
+  documents: {},
+  documentOrder: [],
+  counts: emptyCounts,
+  activity: [],
+  search: emptySearch,
+  sidebarFilter: "all",
+  toasts: [],
+  bootstrap: (documents, counts, activity) =>
+    set({
+      documents: Object.fromEntries(documents.map((document) => [document.id, document])),
+      documentOrder: documents.map((document) => document.id),
+      counts,
+      activity,
+    }),
+  setClientId: (clientId) => set({ clientId }),
+  setConnectionState: (connectionState) => set({ connectionState }),
+  queueUploads: (localJobs) =>
+    set((state) => {
+      const documents = { ...state.documents };
+      let documentOrder = [...state.documentOrder];
+      for (const job of localJobs) {
+        documents[job.id] = job;
+        documentOrder = upsertOrder(documentOrder, job.id);
+      }
+      return {
+        documents,
+        documentOrder,
+        counts: {
+          ...state.counts,
+          all: state.counts.all + localJobs.length,
+          processing: state.counts.processing + localJobs.length,
+        },
+      };
+    }),
+  markJobStage: (requestId, stage) =>
+    set((state) => {
+      const documents = { ...state.documents };
+      const target = Object.values(documents).find((document) => document.requestId === requestId);
+      if (!target) {
+        return state;
+      }
+      documents[target.id] = {
+        ...target,
+        status: stage,
+        updatedAt: new Date().toISOString(),
+      };
+      return { documents };
+    }),
+  upsertDocument: (document) =>
+    set((state) => {
+      const documents = { ...state.documents };
+      const placeholder = Object.values(documents).find(
+        (entry) => entry.requestId === document.requestId && entry.id !== document.id,
+      );
+      let documentOrder = [...state.documentOrder];
+      if (placeholder) {
+        delete documents[placeholder.id];
+        documentOrder = documentOrder.filter((entry) => entry !== placeholder.id);
+      }
+      documents[document.id] = document;
+      documentOrder = upsertOrder(documentOrder, document.id);
+      return { documents, documentOrder };
+    }),
+  markJobFailed: (requestId, error) =>
+    set((state) => {
+      const documents = { ...state.documents };
+      const target = Object.values(documents).find((document) => document.requestId === requestId);
+      if (!target) {
+        return state;
+      }
+      documents[target.id] = {
+        ...target,
+        status: "failed",
+        summary: error,
+        updatedAt: new Date().toISOString(),
+      };
+      return { documents };
+    }),
+  setSearchLoading: (query) =>
+    set((state) => ({
+      search: {
+        ...state.search,
+        query,
+        loading: true,
+        active: true,
+      },
+    })),
+  applySearchResponse: (response) =>
+    set((state) => {
+      const resultIds: string[] = [];
+      const orphanResults = [];
+      for (const result of response.results) {
+        if (state.documents[result.doc_id]) {
+          resultIds.push(result.doc_id);
+        } else {
+          orphanResults.push(result);
+        }
+      }
+      return {
+        search: {
+          query: response.query,
+          rewrittenQuery: response.rewritten_query,
+          answer: response.answer,
+          loading: false,
+          active: true,
+          resultIds,
+          orphanResults,
+        },
+      };
+    }),
+  clearSearch: () => set({ search: emptySearch }),
+  setSidebarFilter: (sidebarFilter) => set({ sidebarFilter }),
+  pushMoveToast: (toast) =>
+    set((state) => ({
+      toasts: [toast, ...state.toasts.filter((entry) => entry.undoToken !== toast.undoToken)],
+    })),
+  dismissToast: (id) =>
+    set((state) => ({
+      toasts: state.toasts.filter((toast) => toast.id !== id),
+    })),
+  applyUndoSuccess: (payload) =>
+    set((state) => {
+      const documents = { ...state.documents };
+      const target = Object.values(documents).find(
+        (document) => document.moveResult?.to_path === payload.from_path,
+      );
+      if (target) {
+        documents[target.id] = {
+          ...target,
+          sourcePath: payload.to_path,
+          undoToken: null,
+          moveResult: {
+            attempted: true,
+            success: true,
+            from_path: payload.from_path,
+            to_path: payload.to_path,
+            error: null,
+          },
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return {
+        documents,
+        toasts: state.toasts.filter((toast) => toast.undoToken !== target?.undoToken),
+      };
+    }),
+  updateConnectionFromPayload: (payload) =>
+    set({
+      connectionState: payload.state,
+    }),
+}));

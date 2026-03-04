@@ -34,6 +34,8 @@ class AppConfig(BaseSettings):
     validation_report_path: Path = Path("server/logs/validation/latest.json")
     lancedb_path: Path = Path("server/data/lancedb")
     lancedb_table_name: str = "document_chunks"
+    ui_documents_path: Path = Path("server/data/ui_documents.jsonl")
+    move_history_path: Path = Path("server/data/move_history.jsonl")
     embedding_model_name: str = "nomic-ai/nomic-embed-text-v1.5"
     embedding_model_revision: str = "e5cf08aadaa33385f5990def41f7a23405aec398"
     embedding_device: str = "cpu"
@@ -43,6 +45,7 @@ class AppConfig(BaseSettings):
     search_chunk_overlap: int = 120
     search_default_limit: int = 5
     search_candidate_limit: int = 20
+    cors_allowed_origins: list[str] = Field(default_factory=lambda: ["*"])
     mcp_enabled: bool = True
     mcp_mount_path: str = "/mcp"
     mcp_allowed_roots: list[Path] = Field(default_factory=lambda: [REPO_ROOT])

@@ -12,7 +12,17 @@ DocumentType = Literal[
     "generic",
     "unsupported",
 ]
+SourceModality = Literal["text", "image", "audio"]
 FileActionType = Literal["none", "auto_moved", "needs_confirmation", "failed"]
+UiDocumentKind = Literal[
+    "receipt",
+    "contract",
+    "invoice",
+    "meeting_notes",
+    "audio",
+    "generic",
+    "file_moved",
+]
 ProcessingStatus = Literal[
     "classified",
     "extracted",
@@ -66,6 +76,12 @@ class ProcessResponse(BaseModel):
     move_result: MoveResult
     timings: dict[str, float] = Field(default_factory=dict)
     errors: list[str] = Field(default_factory=list)
+    record_id: str | None = None
+    source_modality: SourceModality | None = None
+    created_at: str | None = None
+    transcription: TranscriptionResponse | None = None
+    ui_kind: UiDocumentKind | None = None
+    undo_token: str | None = None
 
 
 class LLMCallLogEntry(BaseModel):
@@ -123,3 +139,69 @@ class TranscriptionResponse(BaseModel):
     model: str
     source: str = "whisper_server"
     segments: list[TranscriptionSegment] = Field(default_factory=list)
+
+
+class UiDocumentRecord(BaseModel):
+    id: str
+    request_id: str
+    title: str
+    summary: str
+    mime_type: str
+    source_modality: SourceModality
+    kind: UiDocumentKind
+    document_type: str
+    template: str
+    source_path: str | None = None
+    created_at: str
+    updated_at: str
+    classification: DocumentClassification
+    extraction: ExtractionResult | None = None
+    transcription: TranscriptionResponse | None = None
+    move_plan: MovePlan | None = None
+    move_result: MoveResult | None = None
+    tags: list[str] = Field(default_factory=list)
+    status: str = "ready"
+    undo_token: str | None = None
+
+
+class DocumentListResponse(BaseModel):
+    documents: list[UiDocumentRecord] = Field(default_factory=list)
+    total: int = 0
+
+
+class DocumentCountsResponse(BaseModel):
+    all: int = 0
+    processing: int = 0
+    receipt: int = 0
+    contract: int = 0
+    invoice: int = 0
+    meeting_notes: int = 0
+    audio: int = 0
+    generic: int = 0
+    moved: int = 0
+
+
+class ActivityEvent(BaseModel):
+    id: str
+    type: str
+    timestamp: str
+    title: str
+    status: str
+    kind: str
+    request_id: str | None = None
+
+
+class ActivityResponse(BaseModel):
+    events: list[ActivityEvent] = Field(default_factory=list)
+
+
+class UndoMoveRequest(BaseModel):
+    undo_token: str
+    client_id: str | None = None
+
+
+class UndoMoveResponse(BaseModel):
+    success: bool
+    from_path: str
+    to_path: str
+    request_id: str

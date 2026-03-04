@@ -5,11 +5,14 @@ from collections.abc import Callable
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from server.api.routes import create_router
+from server.api.ws import create_ws_router
 from server.clients.ollama_client import AsyncOllamaClient
 from server.config import AppConfig, get_config
+from server.document_registry import DocumentRegistry
 from server.logging_config import LLMLogWriter, configure_logging
 from server.mcp.app import mount_mcp_server
 from server.mcp.services import build_app_services
@@ -25,6 +28,7 @@ from server.pipelines.search import (
     SentenceTransformerEmbedder,
 )
 from server.pipelines.whisper_proxy import WhisperProxy
+from server.realtime import ConnectionManager
 
 
 class ReadinessProbe:
@@ -83,6 +87,8 @@ def create_app(
     pipeline: object | None = None,
     search_service: object | None = None,
     whisper_service: object | None = None,
+    document_registry: object | None = None,
+    realtime_manager: object | None = None,
     readiness_probe: Callable[[], dict[str, object]] | None = None,
     validation_report_loader: Callable[[], dict[str, object]] | None = None,
     mcp_enabled: bool | None = None,
@@ -91,8 +97,15 @@ def create_app(
     config = config or get_config()
     config.llm_log_dir.mkdir(parents=True, exist_ok=True)
     config.validation_log_dir.mkdir(parents=True, exist_ok=True)
+    config.ui_documents_path.parent.mkdir(parents=True, exist_ok=True)
+    config.move_history_path.parent.mkdir(parents=True, exist_ok=True)
 
     ollama_client: AsyncOllamaClient | None = None
+    realtime_manager = realtime_manager or ConnectionManager()
+    document_registry = document_registry or DocumentRegistry(
+        documents_path=config.ui_documents_path,
+        move_history_path=config.move_history_path,
+    )
     if pipeline is None or readiness_probe is None:
         log_writer = LLMLogWriter(config.llm_log_dir)
         ollama_client = AsyncOllamaClient(
@@ -128,15 +141,27 @@ def create_app(
             classifier=classifier,
             extractor=extractor,
             organizer=organizer,
+            whisper_service=whisper_service,
+            document_registry=document_registry,
+            realtime_manager=realtime_manager,
             max_text_characters=config.max_text_characters,
         )
         readiness_probe = readiness_probe or ReadinessProbe(config, ollama_client, whisper_service)
+    else:
+        if hasattr(pipeline, "document_registry"):
+            setattr(pipeline, "document_registry", document_registry)
+        if hasattr(pipeline, "realtime_manager"):
+            setattr(pipeline, "realtime_manager", realtime_manager)
+        if hasattr(pipeline, "whisper_service") and whisper_service is not None:
+            setattr(pipeline, "whisper_service", whisper_service)
 
     default_documents = build_app_services(
         config=config,
         pipeline=pipeline,
         search_service=search_service,
         whisper_service=whisper_service,
+        document_registry=document_registry,
+        realtime_manager=realtime_manager,
         readiness_probe=readiness_probe,
         validation_report_loader=validation_report_loader,
     ).documents
@@ -187,27 +212,39 @@ def create_app(
         pipeline=pipeline,
         search_service=search_service,
         whisper_service=whisper_service,
+        document_registry=document_registry,
+        realtime_manager=realtime_manager,
         readiness_probe=readiness_probe,
         validation_report_loader=validation_report_loader,
     )
 
-    app = FastAPI(title="Agentic Docs Handler Phase 3")
+    app = FastAPI(title="Agentic Docs Handler Phase 4")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=config.cors_allowed_origins,
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.include_router(
         create_router(
             pipeline=services.pipeline,
             search_service=services.search_service,
             whisper_service=services.whisper_service,
+            document_registry=services.document_registry,
+            realtime_manager=services.realtime_manager,
             readiness_probe=services.readiness_probe,
             validation_report_loader=services.validation_report_loader,
         )
     )
+    app.include_router(create_ws_router(realtime_manager=services.realtime_manager))
     app.state.services = services
     if mcp_enabled if mcp_enabled is not None else config.mcp_enabled:
         mount_mcp_server(app, services, config.mcp_mount_path)
 
     @app.get("/", include_in_schema=False)
     async def root() -> JSONResponse:
-        return JSONResponse({"name": "agentic-docs-handler", "status": "ok", "phase": 3})
+        return JSONResponse({"name": "agentic-docs-handler", "status": "ok", "phase": 4})
 
     return app
 

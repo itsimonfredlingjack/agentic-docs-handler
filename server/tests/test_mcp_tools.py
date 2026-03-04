@@ -306,7 +306,7 @@ async def test_get_system_status_returns_readiness_and_model(tmp_path: Path) -> 
 
     result = await server.call_tool("get_system_status", {})
 
-    assert result.structuredContent["phase"] == 3
+    assert result.structuredContent["phase"] == 4
     assert result.structuredContent["readiness"]["ready"] is True
     assert result.structuredContent["model"] == services.config.ollama_model
 

@@ -1,0 +1,19 @@
+[package]
+name = "agentic-docs-handler"
+version = "0.4.0"
+description = "Agentic Docs Handler desktop shell"
+authors = ["Simon Fredling Jack"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2.5.6", features = [] }
+
+[dependencies]
+dirs = "6.0.0"
+futures-util = "0.3.32"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+tauri = { version = "2.10.3", features = [] }
+tokio = { version = "1.50.0", features = ["macros", "rt-multi-thread", "sync", "time"] }
+tokio-tungstenite = "0.28.0"
+uuid = { version = "1.21.0", features = ["v4"] }

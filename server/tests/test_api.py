@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from io import BytesIO
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from server.document_registry import DocumentRegistry
 from server.main import create_app
 from server.schemas import (
     DocumentClassification,
@@ -15,6 +17,7 @@ from server.schemas import (
     SearchResult,
     TranscriptionResponse,
     TranscriptionSegment,
+    UiDocumentRecord,
 )
 
 
@@ -30,6 +33,8 @@ class FakePipeline:
         content_type: str | None,
         execute_move: bool,
         source_path: str | None,
+        client_id: str | None = None,
+        client_request_id: str | None = None,
     ) -> ProcessResponse:
         if self.raise_unsupported:
             raise ValueError("unsupported_media_type")
@@ -128,6 +133,8 @@ class FakeWhisperService:
         content: bytes,
         content_type: str | None,
         language: str | None = None,
+        client_id: str | None = None,
+        client_request_id: str | None = None,
     ) -> TranscriptionResponse:
         self.calls.append(
             {
@@ -135,6 +142,8 @@ class FakeWhisperService:
                 "content": content,
                 "content_type": content_type,
                 "language": language,
+                "client_id": client_id,
+                "client_request_id": client_request_id,
             }
         )
         return TranscriptionResponse(
@@ -271,3 +280,144 @@ def test_transcribe_returns_structured_transcription() -> None:
     assert payload["language"] == "sv"
     assert payload["segments"][0]["text"] == "Hej team."
     assert whisper_service.calls[0]["filename"] == "clip.wav"
+
+
+def test_documents_endpoint_returns_bootstrap_payload() -> None:
+    app = create_app(
+        pipeline=FakePipeline(),
+        readiness_probe=FakeReadinessProbe(),
+        validation_report_loader=lambda: {"status": "missing"},
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/documents", params={"limit": 10})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "documents" in payload
+    assert "total" in payload
+
+
+def test_document_counts_endpoint_returns_sidebar_counts() -> None:
+    app = create_app(
+        pipeline=FakePipeline(),
+        readiness_probe=FakeReadinessProbe(),
+        validation_report_loader=lambda: {"status": "missing"},
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/documents/counts")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["all"] >= 0
+    assert "receipt" in payload
+
+
+def test_activity_endpoint_returns_recent_events() -> None:
+    app = create_app(
+        pipeline=FakePipeline(),
+        readiness_probe=FakeReadinessProbe(),
+        validation_report_loader=lambda: {"status": "missing"},
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/activity", params={"limit": 5})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "events" in payload
+
+
+def test_ws_endpoint_emits_connection_ready_event() -> None:
+    app = create_app(
+        pipeline=FakePipeline(),
+        readiness_probe=FakeReadinessProbe(),
+        validation_report_loader=lambda: {"status": "missing"},
+    )
+
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws?client_id=test-client&client=tauri") as websocket:
+            payload = websocket.receive_json()
+
+    assert payload["type"] == "connection.ready"
+    assert payload["client_id"] == "test-client"
+
+
+def test_moves_undo_restores_file_from_registry(tmp_path: Path) -> None:
+    registry = DocumentRegistry(
+        documents_path=tmp_path / "ui_documents.jsonl",
+        move_history_path=tmp_path / "move_history.jsonl",
+    )
+    incoming_dir = tmp_path / "incoming"
+    sorted_dir = tmp_path / "sorted"
+    incoming_dir.mkdir()
+    sorted_dir.mkdir()
+    source_file = incoming_dir / "receipt.txt"
+    source_file.write_text("receipt", encoding="utf-8")
+    moved_file = sorted_dir / "receipt.txt"
+    source_file.rename(moved_file)
+    registry.upsert_document(
+        UiDocumentRecord(
+            id="doc-1",
+            request_id="req-1",
+            title="Receipt",
+            summary="Receipt summary",
+            mime_type="text/plain",
+            source_modality="text",
+            kind="receipt",
+            document_type="receipt",
+            template="receipt",
+            source_path=str(moved_file),
+            created_at="2026-03-04T10:00:00+00:00",
+            updated_at="2026-03-04T10:00:00+00:00",
+            classification=DocumentClassification(
+                document_type="receipt",
+                template="receipt",
+                title="Receipt",
+                summary="Receipt summary",
+                tags=["receipt"],
+                language="sv",
+                confidence=0.95,
+                ocr_text=None,
+                suggested_actions=[],
+            ),
+            extraction=ExtractionResult(fields={}, field_confidence={}, missing_fields=[]),
+            move_plan=MovePlan(
+                rule_name="receipts",
+                destination=str(sorted_dir),
+                auto_move_allowed=True,
+                reason="rule_matched",
+            ),
+            move_result=MoveResult(
+                attempted=True,
+                success=True,
+                from_path=str(source_file),
+                to_path=str(moved_file),
+                error=None,
+            ),
+            tags=["receipt"],
+            status="completed",
+        )
+    )
+    move_entry = registry.record_move(
+        request_id="req-1",
+        record_id="doc-1",
+        from_path=str(source_file),
+        to_path=str(moved_file),
+        client_id="test-client",
+    )
+    app = create_app(
+        pipeline=FakePipeline(),
+        document_registry=registry,
+        readiness_probe=FakeReadinessProbe(),
+        validation_report_loader=lambda: {"status": "missing"},
+    )
+
+    with TestClient(app) as client:
+        response = client.post("/moves/undo", json={"undo_token": move_entry.undo_token, "client_id": "test-client"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert Path(payload["to_path"]).exists()

@@ -1,40 +1,69 @@
 # Agentic Docs Handler
 
-Fas 3 av `Agentic Docs Handler` enligt `agentic-docs-handler-blueprint-v4.md`, med ChatGPT MCP live, search-pipeline i samma FastAPI-runtime och en separat Whisper-nod på `ai-server2`.
+Fas 4 av `Agentic Docs Handler` enligt [agentic-docs-handler-blueprint-v4.md](/Users/coffeedev/Projects/02_AUTOMATION-PIPELINES/agentic-docs-handler/agentic-docs-handler-blueprint-v4.md): samma FastAPI-orchestrator driver nu både MCP-ytan för ChatGPT och en lokal Tauri-desktopapp för Mac.
 
-Aktiv runtime i den här fasen är en Python-baserad `FastAPI`-orchestrator på port `9000` som:
+Aktiv runtime i den här fasen:
 
-- klassificerar text och bilder via `Ministral 3 14B` genom `Ollama`
-- extraherar typ-specifika fält till validerad JSON
-- planerar regelbaserad filsortering via `server/file_rules.yaml`
-- indexerar dokument i `LanceDB` med embeddings från `sentence-transformers`
-- exponerar hybrid search med query rewrite + smart answer via `Ministral`
-- loggar alla LLM-anrop till fil med prompt, response, latency och valideringsstatus
-- exponerar health, readiness, process och benchmark-rapport över HTTP
-- mountar en `tool-only` MCP-server på `/mcp` för ChatGPT Developer Mode
+- `FastAPI` på port `9000` för process, search, activity, undo och WebSocket-events
+- `Ministral 3 14B` via `Ollama` för klassificering, extraktion och search-query-rewrite
+- `sentence-transformers` + `LanceDB` för hybrid search
+- separat `Whisper`-nod på `ai-server2:8090`
+- `Tauri 2 + React 19 + Tailwind + Zustand` för desktop-shellen
+- `MCP` mountad under `/mcp` för ChatGPT Developer Mode
 
-## Fas 2 Scope
+## Fas 4 Scope
 
 Ingår:
 
-- `FastAPI`-server under `server/`
-- MCP-tools mountade i samma Python-runtime under `/mcp`
-- `LanceDB`-baserad search-pipeline under `server/pipelines/search.py`
-- `GET /search` för smart document search
-- `POST /transcribe` som proxar till dedikerad Whisper-node på `ai-server2:8090`
-- `search_documents` MCP-tool som wrappar search-pipelinen
-- `transcribe_audio` MCP-tool som wrappar Whisper-proxyn
-- promptfiler versionerade i repo
-- benchmark-runner och valideringsrapport
-- deploy-skript för `ai-server`
-- separat deploy-skript för `whisper-server/` på `ai-server2`
+- `FastAPI`-backend under `server/`
+- `Tauri`-shell under `src-tauri/`
+- `React`-renderer under `src/`
+- dokumentregistry för UI-read-model
+- `GET /documents`, `GET /documents/counts`, `GET /activity`
+- `POST /moves/undo`
+- `GET /ws` för realtidsstatus per `client_id`
+- audio ingest via `POST /process`
+- `search_documents` och övriga MCP-tools på samma pipeline-lager
 
 Ingår inte:
 
-- `Tauri`-app
-- React-shell
-- `Whisper`
-- UI-templates och desktop-actions
+- dark mode
+- system tray / The Orb
+- widget UI
+- AI-actionknappar
+- waveform player
+
+## Arkitektur
+
+```text
+Mac App (Tauri)
+├── Rust WS bridge
+│   └── ws://ai-server:9000/ws?client_id=<uuid>
+├── React renderer
+│   ├── GET /documents
+│   ├── GET /documents/counts
+│   ├── GET /activity
+│   ├── GET /search
+│   ├── POST /process
+│   └── POST /moves/undo
+└── FastAPI
+    ├── pipelines/
+    ├── document_registry.py
+    ├── realtime.py
+    ├── /mcp
+    └── whisper proxy -> ai-server2:8090
+
+ChatGPT
+└── MCP -> https://docsgpt.fredlingautomation.dev/mcp
+```
+
+Arkitekturregeln gäller fortfarande:
+
+```text
+mcp_tools/     -> importerar från pipelines/
+main.py / WS   -> importerar från pipelines/
+pipelines/     -> importerar aldrig från mcp_tools/ eller UI-lager
+```
 
 ## Repo-layout
 
@@ -45,14 +74,7 @@ Ingår inte:
 ├── agentic-docs-design-spec.md
 ├── agentic-docs-handler-blueprint-v4.md
 ├── docs/
-│   ├── plans/
-│   └── validation/
-├── legacy/
-│   └── mcp-docs-scaffold/
 ├── scripts/
-│   ├── collect_phase1_report.py
-│   ├── deploy_ai_server.sh
-│   └── run_phase1_benchmarks.py
 ├── server/
 │   ├── api/
 │   ├── clients/
@@ -61,18 +83,29 @@ Ingår inte:
 │   ├── prompts/
 │   ├── tests/
 │   ├── config.py
-│   ├── file_rules.yaml
-│   ├── logging_config.py
-│   ├── main.py
+│   ├── document_registry.py
+│   ├── realtime.py
 │   ├── requirements.txt
 │   └── schemas.py
-└── whisper-server/
-    └── README.md
+├── src/
+│   ├── components/
+│   ├── hooks/
+│   ├── lib/
+│   ├── store/
+│   ├── templates/
+│   └── types/
+├── src-tauri/
+│   ├── src/
+│   ├── capabilities/
+│   ├── Cargo.toml
+│   └── tauri.conf.json
+├── whisper-server/
+└── legacy/
 ```
 
-## Lokal utveckling
+## Backend Setup
 
-Installera beroenden:
+Installera backend-bibliotek:
 
 ```bash
 python3.14 -m venv .venv
@@ -80,31 +113,100 @@ python3.14 -m venv .venv
 pip install -r server/requirements.txt
 ```
 
-Kör tester:
-
-```bash
-.venv/bin/python -m pytest server/tests -q
-```
-
-Starta servern:
+Starta FastAPI lokalt:
 
 ```bash
 .venv/bin/python -m uvicorn server.main:app --host 0.0.0.0 --port 9000
 ```
 
-Kontrollera endpoints:
+Verifiera backend:
 
 ```bash
+curl http://127.0.0.1:9000/
 curl http://127.0.0.1:9000/healthz
 curl http://127.0.0.1:9000/readyz
-curl 'http://127.0.0.1:9000/search?query=invoice'
-curl -F file=@/path/to/audio.wav http://127.0.0.1:9000/transcribe
-curl http://127.0.0.1:9000/mcp
+curl 'http://127.0.0.1:9000/search?query=kvitton%20mars'
+curl http://127.0.0.1:9000/documents
+curl http://127.0.0.1:9000/documents/counts
+curl http://127.0.0.1:9000/activity
 ```
 
-## MCP tool surface
+## Frontend Setup
 
-Nuvarande ChatGPT/MCP-tools:
+Installera frontend-bibliotek:
+
+```bash
+npm install
+```
+
+Kör React-ytan separat:
+
+```bash
+npm run dev
+```
+
+Bygg frontend:
+
+```bash
+npm run build
+```
+
+Kör Tauri-shell:
+
+```bash
+npm run tauri dev
+```
+
+Byggkontroll för Rust/Tauri:
+
+```bash
+cargo check --manifest-path src-tauri/Cargo.toml
+```
+
+Tauri-kommandon som exponeras till React:
+
+- `get_client_id`
+- `get_backend_base_url`
+- `reconnect_backend_ws`
+
+## HTTP API för UI
+
+Fas 4 använder följande publika ytor:
+
+- `GET /healthz`
+- `GET /readyz`
+- `GET /validation/report`
+- `GET /documents`
+- `GET /documents/counts`
+- `GET /activity`
+- `GET /search`
+- `POST /process`
+- `POST /transcribe`
+- `POST /moves/undo`
+- `GET /ws` som WebSocket
+
+`POST /process` är den enda ingest-ytan för appen. Backend avgör själv om filen ska gå genom text-, bild- eller audioflöde.
+
+## WebSocket Events
+
+Per klient skickar backend bland annat:
+
+- `connection.ready`
+- `job.started`
+- `job.progress`
+- `job.completed`
+- `job.failed`
+- `file.moved`
+- `file.move_undone`
+- `heartbeat`
+
+Event routing är per `client_id`. Ingen broadcast används för UI-jobb.
+
+## MCP Surface
+
+MCP-servern är mountad i samma FastAPI-process under `/mcp`.
+
+Nuvarande MCP-tools:
 
 - `search`
 - `search_documents`
@@ -120,91 +222,78 @@ Nuvarande ChatGPT/MCP-tools:
 - `get_activity_log`
 - `organize_file`
 
-Read-only standard för knowledge-flöden:
+Publik MCP-URL i nuvarande setup:
 
-- `search` söker i `agentic-docs-design-spec.md`, `agentic-docs-handler-blueprint-v4.md` och `docs/validation/phase1-validation-report.md`
-- `fetch` hämtar fulltext för ett dokument-id från `search`
-- `search_documents` kör den riktiga hybrid search-pipelinen mot indexerade dokument i LanceDB
-- `transcribe_audio` skickar lokal ljudfil till FastAPI-proxyn som i sin tur routar till `ai-server2:8090`
+- [https://docsgpt.fredlingautomation.dev/mcp](https://docsgpt.fredlingautomation.dev/mcp)
 
-ChatGPT-anslutning:
+## Test och verifiering
 
-- lokal MCP URL: `http://127.0.0.1:9000/mcp`
-- publik MCP URL efter tunnel/reverse proxy: `https://<din-domän>/mcp`
-
-## Search Pipeline
-
-Search-pipelinen finns i [server/pipelines/search.py](/Users/coffeedev/Projects/02_AUTOMATION-PIPELINES/agentic-docs-handler/server/pipelines/search.py) och gör följande:
-
-- chunkar dokumenttext
-- genererar embeddings med `nomic-ai/nomic-embed-text-v1.5`
-- lagrar chunkar i `LanceDB`
-- kombinerar vector-ranking och keyword-score i en hybrid rankning
-- rewritar query och skriver svar via `Ministral`
-
-Konfigurerbara värden finns i `.env.example` med prefix `ADH_LANCEDB_*`, `ADH_EMBEDDING_*` och `ADH_SEARCH_*`.
-
-## Benchmark och rapport
-
-Kör benchmark mot en redan startad server:
+Backend-tester:
 
 ```bash
-python3 scripts/run_phase1_benchmarks.py --base-url http://127.0.0.1:9000
-python3 scripts/collect_phase1_report.py
+python3 -m pytest server/tests -q
 ```
 
-Rapporter skrivs till:
+Frontend-tester:
 
-- `server/logs/validation/latest.json`
-- `docs/validation/phase1-validation-report.md`
+```bash
+npm test
+```
 
-LLM-loggar skrivs till:
+Fas 4-verifiering som bör köras inför leverans:
 
-- `server/logs/llm/index.jsonl`
-- `server/logs/llm/prompts/`
-- `server/logs/llm/responses/`
+```bash
+python3 -m pytest server/tests -q
+npm test
+npm run build
+cargo check --manifest-path src-tauri/Cargo.toml
+```
 
-## Deploy till ai-server
+## Deploy
 
-`ai-server` är den enda runtime-värden i Fas 2.
-
-Deploy:
+Backend + search + MCP + proxy deployas till `ai-server`:
 
 ```bash
 bash scripts/deploy_ai_server.sh
+```
+
+Whisper-noden deployas till `ai-server2`:
+
+```bash
 bash scripts/deploy_whisper_server.sh
 ```
 
-Skriptet:
+`deploy_ai_server.sh` gör även ett warmup-anrop efter serverstart:
 
-- synkar repot till `/home/ai-server/01_PROJECTS/agentic-docs-handler`
-- skapar `.venv`
-- förinstallerar CPU-byggd `torch` eftersom embedding körs på CPU i Fas 2
-- installerar `server/requirements.txt`
-- säkerställer `.env`
-- startar `uvicorn server.main:app` på port `9000` i `tmux`-sessionen `adh-phase3`
+```bash
+curl -s localhost:9000/search?query=warmup > /dev/null
+```
 
-Whisper-deploy:
+## Viktiga env-vars
 
-- synkar samma repo till `ai-server2`
-- skapar `.venv-whisper`
-- installerar `whisper-server/requirements.txt`
-- startar `python whisper-server/whisper_server.py` på port `8090` i `tmux`-sessionen `adh-whisper`
+Se [.env.example](/Users/coffeedev/Projects/02_AUTOMATION-PIPELINES/agentic-docs-handler/.env.example). Fas 4 adderar särskilt:
+
+- `ADH_UI_DOCUMENTS_PATH`
+- `ADH_MOVE_HISTORY_PATH`
+- `ADH_CORS_ALLOWED_ORIGINS`
+- `ADH_WHISPER_*`
 
 ## Status
 
-Nuvarande repo-status efter re-baseline:
+Nuvarande status i repo:
 
-- aktiv runtime: Python/FastAPI
-- gammalt MCP/TypeScript-skelett: flyttat till `legacy/mcp-docs-scaffold/`
-- ChatGPT MCP live på `/mcp`
-- search-pipeline live i samma backend
-- dedikerad Whisper-node live på `ai-server2`
+- FastAPI orchestrator live
+- LanceDB search live
+- Whisper-proxy live
+- MCP live på `/mcp`
+- Tauri desktop-shell scaffoldad och kopplad till backend via hybridmodell:
+  - WS för events
+  - HTTP för data
 
-## Nästa fas
+## Nästa steg
 
-När Fas 2 är verifierad är nästa planerade steg:
+Efter Fas 4 är de naturliga nästa spåren:
 
-1. mata in verkliga ljudfiler och dokument i större valideringssviter
-2. bygga `Tauri`-skalet ovanpå den nuvarande backend- och MCP-ytan
-3. lägga till widget-UI som senare fas ovanpå MCP
+1. manuell live-validering av hela Tauri-flödet på Mac mot `ai-server`
+2. polish av animationer, spacing och responsive detaljer
+3. Fas 5+: system tray, widget UI och AI-actions

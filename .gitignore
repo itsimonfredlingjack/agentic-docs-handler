@@ -5,7 +5,11 @@ __pycache__
 *.pyc
 .venv
 .env
+src-tauri/target
+src-tauri/gen
 server/data/lancedb
+server/data/ui_documents.jsonl
+server/data/move_history.jsonl
 server/logs/runtime.log
 server/logs/llm/*
 server/logs/validation/*

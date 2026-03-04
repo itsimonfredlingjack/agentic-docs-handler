@@ -51,10 +51,16 @@ class WhisperProxy:
         content: bytes,
         content_type: str | None,
         language: str | None = None,
+        client_id: str | None = None,
+        client_request_id: str | None = None,
     ) -> TranscriptionResponse:
         data: dict[str, str] = {}
         if language:
             data["language"] = language
+        if client_id:
+            data["client_id"] = client_id
+        if client_request_id:
+            data["client_request_id"] = client_request_id
         files = {
             "file": (
                 filename,
