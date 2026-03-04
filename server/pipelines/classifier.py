@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 from typing import Any
 
 from pydantic import ValidationError
 
 from server.schemas import DocumentClassification
+
+logger = logging.getLogger(__name__)
 
 
 class ClassificationValidationError(RuntimeError):
@@ -89,6 +92,12 @@ class DocumentClassifier:
             self._record_log(meta, raw, json_parse_ok=True, schema_validation_ok=True)
             return classification
         except (json.JSONDecodeError, ValidationError):
+            logger.warning(
+                "classifier.parse_failed request_id=%s prompt_name=%s modality=%s repair_attempt=1",
+                request_id,
+                prompt_name,
+                input_modality,
+            )
             self._record_log(meta, raw, json_parse_ok=self._is_json(raw), schema_validation_ok=False)
             repaired_messages = messages + [
                 {
@@ -100,6 +109,12 @@ class DocumentClassifier:
                 }
             ]
             repair_prompt_name = f"{prompt_name}_repair"
+            logger.info(
+                "classifier.repair.start request_id=%s prompt_name=%s modality=%s",
+                request_id,
+                repair_prompt_name,
+                input_modality,
+            )
             repaired_raw, repaired_meta = await self._invoke_model(
                 request_id=request_id,
                 prompt_name=repair_prompt_name,
@@ -115,8 +130,20 @@ class DocumentClassifier:
                     json_parse_ok=True,
                     schema_validation_ok=True,
                 )
+                logger.info(
+                    "classifier.repair.done request_id=%s prompt_name=%s modality=%s",
+                    request_id,
+                    repair_prompt_name,
+                    input_modality,
+                )
                 return classification
             except (json.JSONDecodeError, ValidationError) as error:
+                logger.error(
+                    "classifier.repair.failed request_id=%s prompt_name=%s modality=%s",
+                    request_id,
+                    repair_prompt_name,
+                    input_modality,
+                )
                 self._record_log(
                     repaired_meta,
                     repaired_raw,

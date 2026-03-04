@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -8,9 +9,11 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
-from openai import APIConnectionError, APITimeoutError, AsyncOpenAI
+from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpenAI
 
 from server.logging_config import LLMLogWriter
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -65,9 +68,25 @@ class AsyncOllamaClient:
         attempt = 0
         while True:
             started_at = time.perf_counter()
+            logger.info(
+                "ollama.request.start request_id=%s prompt_name=%s input_modality=%s model=%s attempt=%s",
+                request_id,
+                prompt_name,
+                input_modality,
+                self.model,
+                attempt + 1,
+            )
             try:
                 response = await self.client.chat.completions.create(**payload)
                 latency_ms = (time.perf_counter() - started_at) * 1000
+                logger.info(
+                    "ollama.request.done request_id=%s prompt_name=%s input_modality=%s model=%s latency_ms=%.2f",
+                    request_id,
+                    prompt_name,
+                    input_modality,
+                    self.model,
+                    latency_ms,
+                )
                 content = response.choices[0].message.content or ""
                 return {
                     "content": content,
@@ -77,9 +96,29 @@ class AsyncOllamaClient:
                     "input_modality": input_modality,
                     "request_id": request_id,
                 }
-            except (APIConnectionError, APITimeoutError, httpx.HTTPError) as error:
+            except (APIConnectionError, APITimeoutError, APIStatusError, httpx.HTTPError) as error:
                 if attempt >= 1:
-                    raise self._map_error(error) from error
+                    mapped_error = self._map_error(error)
+                    logger.error(
+                        "ollama.request.error request_id=%s prompt_name=%s input_modality=%s model=%s code=%s retryable=%s status_code=%s",
+                        request_id,
+                        prompt_name,
+                        input_modality,
+                        self.model,
+                        mapped_error.code,
+                        mapped_error.retryable,
+                        mapped_error.status_code,
+                    )
+                    raise mapped_error from error
+                logger.warning(
+                    "ollama.request.retry request_id=%s prompt_name=%s input_modality=%s model=%s attempt=%s error=%s",
+                    request_id,
+                    prompt_name,
+                    input_modality,
+                    self.model,
+                    attempt + 1,
+                    error,
+                )
                 attempt += 1
 
     async def chat_json(
@@ -117,9 +156,25 @@ class AsyncOllamaClient:
         attempt = 0
         while True:
             started_at = time.perf_counter()
+            logger.info(
+                "ollama.request.start request_id=%s prompt_name=%s input_modality=%s model=%s attempt=%s",
+                request_id,
+                prompt_name,
+                input_modality,
+                self.model,
+                attempt + 1,
+            )
             try:
                 response = await self.client.chat.completions.create(**payload)
                 latency_ms = (time.perf_counter() - started_at) * 1000
+                logger.info(
+                    "ollama.request.done request_id=%s prompt_name=%s input_modality=%s model=%s latency_ms=%.2f",
+                    request_id,
+                    prompt_name,
+                    input_modality,
+                    self.model,
+                    latency_ms,
+                )
                 content = response.choices[0].message.content or ""
                 self.log_writer.write_call(
                     request_id=request_id,
@@ -133,9 +188,29 @@ class AsyncOllamaClient:
                     schema_validation_ok=False,
                 )
                 return content
-            except (APIConnectionError, APITimeoutError, httpx.HTTPError) as error:
+            except (APIConnectionError, APITimeoutError, APIStatusError, httpx.HTTPError) as error:
                 if attempt >= 1:
-                    raise self._map_error(error) from error
+                    mapped_error = self._map_error(error)
+                    logger.error(
+                        "ollama.request.error request_id=%s prompt_name=%s input_modality=%s model=%s code=%s retryable=%s status_code=%s",
+                        request_id,
+                        prompt_name,
+                        input_modality,
+                        self.model,
+                        mapped_error.code,
+                        mapped_error.retryable,
+                        mapped_error.status_code,
+                    )
+                    raise mapped_error from error
+                logger.warning(
+                    "ollama.request.retry request_id=%s prompt_name=%s input_modality=%s model=%s attempt=%s error=%s",
+                    request_id,
+                    prompt_name,
+                    input_modality,
+                    self.model,
+                    attempt + 1,
+                    error,
+                )
                 attempt += 1
 
     def readiness(self) -> dict[str, bool]:

@@ -5,6 +5,8 @@ import { listenToBackendConnection, listenToBackendEvent } from "../lib/tauri-ev
 import { useDocumentStore } from "../store/documentStore";
 import type { BackendServerEvent, FileMoveToastItem, UndoMoveResponse } from "../types/documents";
 
+const debugWebSocket = import.meta.env.DEV;
+
 export function useWebSocket(): void {
   const previousConnection = useRef<string>("connecting");
   const setConnectionState = useDocumentStore((state) => state.setConnectionState);
@@ -20,6 +22,9 @@ export function useWebSocket(): void {
     let unlistenEvents: (() => void | Promise<void>) | undefined;
 
     void listenToBackendConnection((payload) => {
+      if (debugWebSocket) {
+        console.debug("backend:connection", payload);
+      }
       const wasReconnecting = previousConnection.current === "reconnecting";
       previousConnection.current = payload.state;
       updateConnectionFromPayload(payload);
@@ -36,6 +41,9 @@ export function useWebSocket(): void {
     });
 
     void listenToBackendEvent((payload) => {
+      if (debugWebSocket) {
+        console.debug("backend:event", payload);
+      }
       handleServerEvent(payload, {
         markJobStage,
         markJobFailed,
@@ -63,14 +71,23 @@ function handleServerEvent(
   },
 ): void {
   if (payload.type === "job.progress") {
+    if (debugWebSocket) {
+      console.debug("backend:event:markJobStage", payload.request_id, payload.stage);
+    }
     handlers.markJobStage(payload.request_id, payload.stage);
     return;
   }
   if (payload.type === "job.completed") {
+    if (debugWebSocket) {
+      console.debug("backend:event:completed", payload.request_id);
+    }
     handlers.markJobStage(payload.request_id, "completed");
     return;
   }
   if (payload.type === "job.failed") {
+    if (debugWebSocket) {
+      console.debug("backend:event:failed", payload.request_id, payload.message);
+    }
     handlers.markJobFailed(payload.request_id, payload.message);
     return;
   }

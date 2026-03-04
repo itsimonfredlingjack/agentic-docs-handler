@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
+import logging
 import mimetypes
 import time
 from datetime import UTC, datetime
@@ -57,6 +59,9 @@ class UnsupportedMediaTypeError(ValueError):
     """Raised for file types that the current processing pipeline does not support."""
 
 
+logger = logging.getLogger(__name__)
+
+
 class DocumentProcessPipeline:
     def __init__(
         self,
@@ -78,6 +83,7 @@ class DocumentProcessPipeline:
         self.realtime_manager = realtime_manager
         self.search_pipeline = search_pipeline
         self.max_text_characters = max_text_characters
+        self._background_tasks: set[asyncio.Task[None]] = set()
 
     async def process_upload(
         self,
@@ -102,6 +108,15 @@ class DocumentProcessPipeline:
         transcription: TranscriptionResponse | None = None
         error_code: str | None = None
         retryable = False
+        self._log_pipeline_event(
+            "pipeline.received",
+            request_id=request_id,
+            client_id=client_id,
+            filename=filename,
+            mime_type=mime_type,
+            source_modality=source_modality,
+            record_id=record_id,
+        )
 
         await self._emit_event(
             client_id,
@@ -118,6 +133,15 @@ class DocumentProcessPipeline:
 
         try:
             classify_started = time.perf_counter()
+            self._log_pipeline_event(
+                "pipeline.classify.start",
+                request_id=request_id,
+                client_id=client_id,
+                filename=filename,
+                mime_type=mime_type,
+                source_modality=source_modality,
+                record_id=record_id,
+            )
             extracted_text: str
             if mime_type in SUPPORTED_IMAGE_TYPES:
                 classification, used_fallback = await self._classify_image(content, mime_type, request_id)
@@ -174,6 +198,16 @@ class DocumentProcessPipeline:
                 raise UnsupportedMediaTypeError(mime_type)
 
             timings["classify_ms"] = round((time.perf_counter() - classify_started) * 1000, 2)
+            self._log_pipeline_event(
+                "pipeline.classify.done",
+                request_id=request_id,
+                client_id=client_id,
+                filename=filename,
+                mime_type=mime_type,
+                source_modality=source_modality,
+                record_id=record_id,
+                elapsed_ms=timings["classify_ms"],
+            )
             if used_fallback:
                 error_code = "classification_validation_fallback"
                 warnings.append("classifier_invalid_json_fallback")
@@ -181,6 +215,15 @@ class DocumentProcessPipeline:
 
             await self._progress(client_id, request_id, "extracting", "Extraherar fält")
             extract_started = time.perf_counter()
+            self._log_pipeline_event(
+                "pipeline.extract.start",
+                request_id=request_id,
+                client_id=client_id,
+                filename=filename,
+                mime_type=mime_type,
+                source_modality=source_modality,
+                record_id=record_id,
+            )
             try:
                 extraction = await self.extractor.extract(
                     extracted_text[: self.max_text_characters],
@@ -191,9 +234,28 @@ class DocumentProcessPipeline:
                 extraction = ExtractionResult(fields={}, field_confidence={}, missing_fields=[])
                 warnings.append("extractor_invalid_json_fallback")
             timings["extract_ms"] = round((time.perf_counter() - extract_started) * 1000, 2)
+            self._log_pipeline_event(
+                "pipeline.extract.done",
+                request_id=request_id,
+                client_id=client_id,
+                filename=filename,
+                mime_type=mime_type,
+                source_modality=source_modality,
+                record_id=record_id,
+                elapsed_ms=timings["extract_ms"],
+            )
 
             await self._progress(client_id, request_id, "organizing", "Planerar filsortering")
             plan_started = time.perf_counter()
+            self._log_pipeline_event(
+                "pipeline.organize.start",
+                request_id=request_id,
+                client_id=client_id,
+                filename=filename,
+                mime_type=mime_type,
+                source_modality=source_modality,
+                record_id=record_id,
+            )
             move_plan = self.organizer.plan_move(filename, classification)
             move_result = MoveResult(
                 attempted=False,
@@ -239,25 +301,17 @@ class DocumentProcessPipeline:
                     )
 
             timings["organize_ms"] = round((time.perf_counter() - plan_started) * 1000, 2)
-
-            if self.search_pipeline is not None:
-                await self._progress(client_id, request_id, "indexing", "Indexerar dokument")
-                indexed_source_path = move_result.to_path or source_path or filename
-                upsert_result = self.search_pipeline.upsert_document(
-                    IndexedDocument(
-                        doc_id=record_id,
-                        title=classification.title,
-                        source_path=indexed_source_path,
-                        text=extracted_text,
-                        metadata={
-                            "document_type": classification.document_type,
-                            "summary": classification.summary,
-                            "tags": classification.tags,
-                        },
-                    )
-                )
-                if inspect.isawaitable(upsert_result):
-                    await upsert_result
+            self._log_pipeline_event(
+                "pipeline.organize.done",
+                request_id=request_id,
+                client_id=client_id,
+                filename=filename,
+                mime_type=mime_type,
+                source_modality=source_modality,
+                record_id=record_id,
+                elapsed_ms=timings["organize_ms"],
+                move_status=move_status,
+            )
 
             ui_kind = self._resolve_ui_kind(
                 document_type=classification.document_type,
@@ -287,6 +341,16 @@ class DocumentProcessPipeline:
                 warnings=warnings,
             )
             self._persist_record(response)
+            self._log_pipeline_event(
+                "pipeline.persist.done",
+                request_id=request_id,
+                client_id=client_id,
+                filename=filename,
+                mime_type=mime_type,
+                source_modality=source_modality,
+                record_id=record_id,
+                move_status=move_status,
+            )
 
             if undo_token is not None and move_result.from_path and move_result.to_path:
                 await self._emit_event(
@@ -303,19 +367,58 @@ class DocumentProcessPipeline:
                 )
                 await self._progress(client_id, request_id, "moved", "Filen flyttades")
 
-            if move_status not in {"auto_pending_client", "awaiting_confirmation"}:
-                await self._emit_event(
-                    client_id,
-                    {
-                        "type": "job.completed",
-                        "request_id": request_id,
-                        "client_id": client_id,
-                        "record_id": record_id,
-                        "ui_kind": ui_kind,
-                    },
+            if self.search_pipeline is not None:
+                indexed_source_path = move_result.to_path or source_path or filename
+                self._schedule_indexing(
+                    request_id=request_id,
+                    client_id=client_id,
+                    filename=filename,
+                    mime_type=mime_type,
+                    source_modality=source_modality,
+                    record_id=record_id,
+                    ui_kind=ui_kind,
+                    move_status=move_status,
+                    indexed_document=IndexedDocument(
+                        doc_id=record_id,
+                        title=classification.title,
+                        source_path=indexed_source_path,
+                        text=extracted_text,
+                        metadata={
+                            "document_type": classification.document_type,
+                            "summary": classification.summary,
+                            "tags": classification.tags,
+                        },
+                    ),
                 )
+            elif move_status not in {"auto_pending_client", "awaiting_confirmation"}:
+                await self._emit_completed_event(
+                    client_id=client_id,
+                    request_id=request_id,
+                    record_id=record_id,
+                    ui_kind=ui_kind,
+                )
+            self._log_pipeline_event(
+                "pipeline.response.ready",
+                request_id=request_id,
+                client_id=client_id,
+                filename=filename,
+                mime_type=mime_type,
+                source_modality=source_modality,
+                record_id=record_id,
+                move_status=move_status,
+            )
             return response
         except Exception as error:
+            self._log_pipeline_event(
+                "pipeline.failed",
+                request_id=request_id,
+                client_id=client_id,
+                filename=filename,
+                mime_type=mime_type,
+                source_modality=source_modality,
+                record_id=record_id,
+                error=str(error),
+            )
             await self._emit_event(
                 client_id,
                 {
@@ -399,6 +502,11 @@ class DocumentProcessPipeline:
             )
         )
 
+    async def drain_background_tasks(self) -> None:
+        if not self._background_tasks:
+            return
+        await asyncio.gather(*list(self._background_tasks), return_exceptions=True)
+
     @staticmethod
     def _detect_mime(filename: str, content_type: str | None) -> str:
         if content_type:
@@ -472,7 +580,130 @@ class DocumentProcessPipeline:
     async def _emit_event(self, client_id: str | None, payload: dict[str, object]) -> None:
         if client_id is None or self.realtime_manager is None:
             return
+        self._log_pipeline_event(
+            "pipeline.ws.emit",
+            request_id=str(payload.get("request_id", "")),
+            client_id=client_id,
+            event_type=str(payload.get("type", "")),
+            stage=str(payload.get("stage", "")) if payload.get("stage") is not None else None,
+        )
         await self.realtime_manager.emit_to_client(client_id, payload)
+
+    def _schedule_indexing(
+        self,
+        *,
+        request_id: str,
+        client_id: str | None,
+        filename: str,
+        mime_type: str,
+        source_modality: SourceModality,
+        record_id: str,
+        ui_kind: UiDocumentKind,
+        move_status: str,
+        indexed_document: IndexedDocument,
+    ) -> None:
+        task = asyncio.create_task(
+            self._index_document_and_finalize(
+                request_id=request_id,
+                client_id=client_id,
+                filename=filename,
+                mime_type=mime_type,
+                source_modality=source_modality,
+                record_id=record_id,
+                ui_kind=ui_kind,
+                move_status=move_status,
+                indexed_document=indexed_document,
+            )
+        )
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
+    async def _index_document_and_finalize(
+        self,
+        *,
+        request_id: str,
+        client_id: str | None,
+        filename: str,
+        mime_type: str,
+        source_modality: SourceModality,
+        record_id: str,
+        ui_kind: UiDocumentKind,
+        move_status: str,
+        indexed_document: IndexedDocument,
+    ) -> None:
+        try:
+            await self._progress(client_id, request_id, "indexing", "Indexerar dokument")
+            started = time.perf_counter()
+            self._log_pipeline_event(
+                "pipeline.index.start",
+                request_id=request_id,
+                client_id=client_id,
+                filename=filename,
+                mime_type=mime_type,
+                source_modality=source_modality,
+                record_id=record_id,
+            )
+            upsert_result = self.search_pipeline.upsert_document(indexed_document)
+            if inspect.isawaitable(upsert_result):
+                await upsert_result
+            elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
+            self._log_pipeline_event(
+                "pipeline.index.done",
+                request_id=request_id,
+                client_id=client_id,
+                filename=filename,
+                mime_type=mime_type,
+                source_modality=source_modality,
+                record_id=record_id,
+                elapsed_ms=elapsed_ms,
+            )
+        except Exception as error:
+            self._log_pipeline_event(
+                "pipeline.index.failed",
+                request_id=request_id,
+                client_id=client_id,
+                filename=filename,
+                mime_type=mime_type,
+                source_modality=source_modality,
+                record_id=record_id,
+                error=str(error),
+            )
+            return
+
+        if move_status not in {"auto_pending_client", "awaiting_confirmation"}:
+            await self._emit_completed_event(
+                client_id=client_id,
+                request_id=request_id,
+                record_id=record_id,
+                ui_kind=ui_kind,
+            )
+
+    async def _emit_completed_event(
+        self,
+        *,
+        client_id: str | None,
+        request_id: str,
+        record_id: str,
+        ui_kind: UiDocumentKind,
+    ) -> None:
+        await self._emit_event(
+            client_id,
+            {
+                "type": "job.completed",
+                "request_id": request_id,
+                "client_id": client_id,
+                "record_id": record_id,
+                "ui_kind": ui_kind,
+            },
+        )
+
+    def _log_pipeline_event(self, event: str, **fields: object) -> None:
+        details = " ".join(
+            f"{key}={value}"
+            for key, value in fields.items()
+            if value is not None and value != ""
+        )
+        logger.info("%s %s", event, details)
 
 
 __all__ = [

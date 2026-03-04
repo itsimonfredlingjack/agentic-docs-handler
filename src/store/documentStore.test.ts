@@ -151,6 +151,18 @@ describe("documentStore", () => {
 
     expect(useDocumentStore.getState().documents["doc-1"].sourcePath).toBe("/tmp/incoming/receipt.txt");
   });
+
+  it("preserves rendered document summary when a late job failure arrives", () => {
+    const store = useDocumentStore.getState();
+    store.bootstrap([sampleDocument], stateCounts(), []);
+
+    store.markJobFailed("req-1", "index_failed", "index_failed");
+
+    const state = useDocumentStore.getState();
+    expect(state.documents["doc-1"].summary).toBe("Receipt summary");
+    expect(state.documents["doc-1"].errorCode).toBe("index_failed");
+    expect(state.documents["doc-1"].status).toBe("failed");
+  });
 });
 
 function stateCounts() {

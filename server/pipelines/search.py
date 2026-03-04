@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -14,6 +15,7 @@ from server.clients.ollama_client import OllamaServiceError
 from server.schemas import SearchResponse, SearchResult
 
 TOKEN_PATTERN = re.compile(r"[\wÅÄÖåäö]+", re.UNICODE)
+logger = logging.getLogger(__name__)
 
 
 def tokenize(text: str) -> list[str]:
@@ -205,11 +207,19 @@ class SearchPipeline:
 
     async def upsert_document(self, document: IndexedDocument) -> None:
         async with self._mutation_lock:
+            started = asyncio.get_running_loop().time()
             self._documents[document.doc_id] = document
             doc_rows = self._build_document_rows(document)
             next_rows = [row for row in self._rows if row["doc_id"] != document.doc_id]
             next_rows.extend(doc_rows)
             self._swap_snapshot(next_rows)
+            elapsed_ms = round((asyncio.get_running_loop().time() - started) * 1000, 2)
+            logger.info(
+                "search.upsert.done doc_id=%s rows=%s elapsed_ms=%s",
+                document.doc_id,
+                len(doc_rows),
+                elapsed_ms,
+            )
 
     async def search(self, query: str, limit: int | None = None) -> SearchResponse:
         await self._ensure_bootstrapped()

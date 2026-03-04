@@ -50,6 +50,7 @@ async fn run_ws_loop(
 
         match connect_async(ws_url.as_str()).await {
             Ok((stream, _)) => {
+                eprintln!("ws.connected client_id={} url={}", client_id, ws_url);
                 backoff_index = 0;
                 emit_connection(
                     &app,
@@ -70,17 +71,22 @@ async fn run_ws_loop(
                         }
                         incoming = reader.next() => match incoming {
                             Some(Ok(Message::Text(text))) => {
-                                let _ = app.emit("backend:event", serde_json::from_str::<serde_json::Value>(text.as_str()).unwrap_or_else(|_| serde_json::json!({
+                                eprintln!("ws.event.received client_id={} payload={}", client_id, text);
+                                let parsed = serde_json::from_str::<serde_json::Value>(text.as_str()).unwrap_or_else(|_| serde_json::json!({
                                     "type": "job.failed",
                                     "request_id": "rust-ws",
                                     "message": "invalid_backend_event"
-                                })));
+                                }));
+                                eprintln!("ws.event.parsed client_id={} type={}", client_id, parsed.get("type").and_then(|value| value.as_str()).unwrap_or("unknown"));
+                                let _ = app.emit("backend:event", parsed);
                             }
                             Some(Ok(Message::Close(_))) | None => {
+                                eprintln!("ws.closed client_id={}", client_id);
                                 break;
                             }
                             Some(Ok(_)) => {}
                             Some(Err(error)) => {
+                                eprintln!("ws.receive.error client_id={} error={}", client_id, error);
                                 emit_connection(
                                     &app,
                                     ConnectionPayload {
@@ -97,6 +103,7 @@ async fn run_ws_loop(
                 }
             }
             Err(error) => {
+                eprintln!("ws.reconnecting client_id={} error={}", client_id, error);
                 emit_connection(
                     &app,
                     ConnectionPayload {

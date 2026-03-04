@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import logging
+import time
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import JSONResponse
@@ -24,6 +26,8 @@ from server.schemas import (
     UndoMoveRequest,
     UndoMoveResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def create_router(
@@ -124,9 +128,18 @@ def create_router(
         client_request_id: str | None = Form(None),
         move_executor: str = Form("none"),
     ) -> ProcessResponse:
+        started = time.perf_counter()
         try:
             content = await file.read()
-            return await pipeline.process_upload(
+            logger.info(
+                "api.process.received filename=%s mime_type=%s client_id=%s client_request_id=%s move_executor=%s",
+                file.filename or "upload.bin",
+                file.content_type,
+                client_id,
+                client_request_id,
+                move_executor,
+            )
+            response = await pipeline.process_upload(
                 filename=file.filename or "upload.bin",
                 content=content,
                 content_type=file.content_type,
@@ -136,6 +149,16 @@ def create_router(
                 client_request_id=client_request_id,
                 move_executor=move_executor,
             )
+            elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
+            logger.info(
+                "api.process.completed request_id=%s record_id=%s client_id=%s elapsed_ms=%s move_status=%s",
+                response.request_id,
+                response.record_id,
+                client_id,
+                elapsed_ms,
+                response.move_status,
+            )
+            return response
         except UnsupportedMediaTypeError as error:
             raise HTTPException(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,

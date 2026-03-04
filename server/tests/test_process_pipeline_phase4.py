@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -99,6 +100,18 @@ class FakeSearchPipeline:
         self.documents.append(document)
 
 
+class BlockingSearchPipeline:
+    def __init__(self) -> None:
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+        self.documents: list[object] = []
+
+    async def upsert_document(self, document: object) -> None:
+        self.started.set()
+        await self.release.wait()
+        self.documents.append(document)
+
+
 @pytest.mark.asyncio
 async def test_audio_process_upload_returns_transcription_and_registry_record(tmp_path: Path) -> None:
     registry = DocumentRegistry(
@@ -132,6 +145,7 @@ async def test_audio_process_upload_returns_transcription_and_registry_record(tm
     assert response.transcription is not None
     assert response.ui_kind == "audio"
     assert registry.list_documents(limit=10).total == 1
+    await pipeline.drain_background_tasks()
     assert search.documents
     assert [event["type"] for event in realtime.events] == [
         "job.started",
@@ -143,3 +157,47 @@ async def test_audio_process_upload_returns_transcription_and_registry_record(tm
         "job.progress",
         "job.completed",
     ]
+
+
+@pytest.mark.asyncio
+async def test_process_upload_returns_before_slow_search_indexing_finishes(tmp_path: Path) -> None:
+    registry = DocumentRegistry(
+        documents_path=tmp_path / "ui_documents.jsonl",
+        move_history_path=tmp_path / "move_history.jsonl",
+    )
+    realtime = FakeRealtimeManager()
+    search = BlockingSearchPipeline()
+    pipeline = DocumentProcessPipeline(
+        classifier=FakeClassifier(),
+        extractor=FakeExtractor(),
+        organizer=FakeOrganizer(),
+        document_registry=registry,
+        realtime_manager=realtime,
+        search_pipeline=search,
+    )
+
+    response = await asyncio.wait_for(
+        pipeline.process_upload(
+            filename="meeting.txt",
+            content=b"Sprint planning notes",
+            content_type="text/plain",
+            execute_move=False,
+            source_path="/tmp/meeting.txt",
+            client_id="client-1",
+            client_request_id="job-blocking",
+        ),
+        timeout=0.2,
+    )
+
+    assert response.request_id == "job-blocking"
+    assert registry.list_documents(limit=10).total == 1
+    await asyncio.sleep(0)
+    assert search.started.is_set() is True
+    assert search.documents == []
+    assert realtime.events[-1]["type"] != "job.completed"
+
+    search.release.set()
+    await pipeline.drain_background_tasks()
+
+    assert len(search.documents) == 1
+    assert realtime.events[-1]["type"] == "job.completed"

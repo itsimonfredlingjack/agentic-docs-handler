@@ -173,12 +173,14 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
       if (!target) {
         return state;
       }
+      const preserveContent = target.template !== "processing" && target.status !== "uploading";
       documents[target.id] = {
         ...target,
         status: "failed",
-        summary: error,
+        summary: preserveContent ? target.summary : error,
         updatedAt: new Date().toISOString(),
         errorCode,
+        warnings: preserveContent ? Array.from(new Set([...target.warnings, error])) : target.warnings,
       };
       return { documents };
     }),
