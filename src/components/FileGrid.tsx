@@ -57,13 +57,14 @@ function matchesFilter(document: UiDocument, filter: ReturnType<typeof useDocume
 
 function renderDocument(document: UiDocument, orphanResult?: ReturnType<typeof useDocumentStore.getState>["search"]["orphanResults"][number]) {
   if (document.status === "uploading" || document.status === "processing" || document.status === "classifying" || document.status === "classified" || document.status === "extracting" || document.status === "indexing" || document.status === "organizing" || document.status === "transcribing") {
+    const processingMeta = getProcessingMeta(document.status);
     return (
       <article className="glass-panel flex h-full flex-col gap-4 p-5">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Processing</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">{processingMeta.label}</p>
           <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)]">{document.title}</h3>
         </div>
-        <p className="text-sm text-[var(--text-secondary)]">{document.summary}</p>
+        <p className="text-sm text-[var(--text-secondary)]">{processingMeta.message}</p>
         <div className="processing-bar" />
       </article>
     );
@@ -90,6 +91,29 @@ function renderDocument(document: UiDocument, orphanResult?: ReturnType<typeof u
     return <FileMovedCard document={document} />;
   }
   return <GenericDocument document={document} searchResult={orphanResult} />;
+}
+
+function getProcessingMeta(status: UiDocument["status"]): { label: string; message: string } {
+  switch (status) {
+    case "uploading":
+      return { label: "Uploading", message: "Laddar upp filen till orkestratorn." };
+    case "processing":
+      return { label: "Queued", message: "Väntar på modellkön för nästa bearbetningssteg." };
+    case "classifying":
+      return { label: "Classifying", message: "Identifierar dokumenttypen." };
+    case "classified":
+      return { label: "Classified", message: "Dokumenttypen är klar, nästa steg är fältextraktion." };
+    case "extracting":
+      return { label: "Extracting", message: "Plockar ut fält och nyckelinformation." };
+    case "organizing":
+      return { label: "Organizing", message: "Planerar sortering och målmapp." };
+    case "indexing":
+      return { label: "Indexing", message: "Skriver dokumentet till sökindexet i bakgrunden." };
+    case "transcribing":
+      return { label: "Transcribing", message: "Transkriberar ljudfilen innan klassificering." };
+    default:
+      return { label: "Processing", message: "Bearbetar dokumentet." };
+  }
 }
 
 function FailureCard({ document }: { document: UiDocument }) {

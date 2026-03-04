@@ -74,6 +74,7 @@ class DocumentProcessPipeline:
         realtime_manager: object | None = None,
         search_pipeline: object | None = None,
         max_text_characters: int = 12000,
+        llm_sequence_lock: asyncio.Lock | None = None,
     ) -> None:
         self.classifier = classifier
         self.extractor = extractor
@@ -84,6 +85,7 @@ class DocumentProcessPipeline:
         self.search_pipeline = search_pipeline
         self.max_text_characters = max_text_characters
         self._background_tasks: set[asyncio.Task[None]] = set()
+        self._llm_sequence_lock = llm_sequence_lock or asyncio.Lock()
 
     async def process_upload(
         self,
@@ -132,23 +134,11 @@ class DocumentProcessPipeline:
         await self._progress(client_id, request_id, "processing", "Bearbetar dokument")
 
         try:
-            classify_started = time.perf_counter()
-            self._log_pipeline_event(
-                "pipeline.classify.start",
-                request_id=request_id,
-                client_id=client_id,
-                filename=filename,
-                mime_type=mime_type,
-                source_modality=source_modality,
-                record_id=record_id,
-            )
             extracted_text: str
             if mime_type in SUPPORTED_IMAGE_TYPES:
-                classification, used_fallback = await self._classify_image(content, mime_type, request_id)
-                extracted_text = classification.ocr_text or classification.summary
+                extracted_text = ""
             elif mime_type in SUPPORTED_TEXT_TYPES:
                 extracted_text = self._extract_text(content, mime_type)
-                classification, used_fallback = await self._classify_text(extracted_text, request_id)
             elif mime_type in SUPPORTED_AUDIO_TYPES:
                 extracted_text, transcription, error_code, retryable = await self._process_audio(
                     filename=filename,
@@ -193,30 +183,13 @@ class DocumentProcessPipeline:
                         },
                     )
                     return response
-                classification, used_fallback = await self._classify_text(extracted_text, request_id)
             else:
                 raise UnsupportedMediaTypeError(mime_type)
 
-            timings["classify_ms"] = round((time.perf_counter() - classify_started) * 1000, 2)
+            await self._progress(client_id, request_id, "processing", "Väntar på modellkön")
+            llm_wait_started = time.perf_counter()
             self._log_pipeline_event(
-                "pipeline.classify.done",
-                request_id=request_id,
-                client_id=client_id,
-                filename=filename,
-                mime_type=mime_type,
-                source_modality=source_modality,
-                record_id=record_id,
-                elapsed_ms=timings["classify_ms"],
-            )
-            if used_fallback:
-                error_code = "classification_validation_fallback"
-                warnings.append("classifier_invalid_json_fallback")
-            await self._progress(client_id, request_id, "classified", "Dokument klassificerat")
-
-            await self._progress(client_id, request_id, "extracting", "Extraherar fält")
-            extract_started = time.perf_counter()
-            self._log_pipeline_event(
-                "pipeline.extract.start",
+                "pipeline.llm.waiting",
                 request_id=request_id,
                 client_id=client_id,
                 filename=filename,
@@ -224,26 +197,80 @@ class DocumentProcessPipeline:
                 source_modality=source_modality,
                 record_id=record_id,
             )
-            try:
-                extraction = await self.extractor.extract(
-                    extracted_text[: self.max_text_characters],
-                    classification,
+            async with self._llm_sequence_lock:
+                self._log_pipeline_event(
+                    "pipeline.llm.acquired",
                     request_id=request_id,
+                    client_id=client_id,
+                    filename=filename,
+                    mime_type=mime_type,
+                    source_modality=source_modality,
+                    record_id=record_id,
+                    wait_ms=round((time.perf_counter() - llm_wait_started) * 1000, 2),
                 )
-            except ExtractionValidationError:
-                extraction = ExtractionResult(fields={}, field_confidence={}, missing_fields=[])
-                warnings.append("extractor_invalid_json_fallback")
-            timings["extract_ms"] = round((time.perf_counter() - extract_started) * 1000, 2)
-            self._log_pipeline_event(
-                "pipeline.extract.done",
-                request_id=request_id,
-                client_id=client_id,
-                filename=filename,
-                mime_type=mime_type,
-                source_modality=source_modality,
-                record_id=record_id,
-                elapsed_ms=timings["extract_ms"],
-            )
+                classify_started = time.perf_counter()
+                self._log_pipeline_event(
+                    "pipeline.classify.start",
+                    request_id=request_id,
+                    client_id=client_id,
+                    filename=filename,
+                    mime_type=mime_type,
+                    source_modality=source_modality,
+                    record_id=record_id,
+                )
+                if mime_type in SUPPORTED_IMAGE_TYPES:
+                    classification, used_fallback = await self._classify_image(content, mime_type, request_id)
+                    extracted_text = classification.ocr_text or classification.summary
+                else:
+                    classification, used_fallback = await self._classify_text(extracted_text, request_id)
+
+                timings["classify_ms"] = round((time.perf_counter() - classify_started) * 1000, 2)
+                self._log_pipeline_event(
+                    "pipeline.classify.done",
+                    request_id=request_id,
+                    client_id=client_id,
+                    filename=filename,
+                    mime_type=mime_type,
+                    source_modality=source_modality,
+                    record_id=record_id,
+                    elapsed_ms=timings["classify_ms"],
+                )
+                if used_fallback:
+                    error_code = "classification_validation_fallback"
+                    warnings.append("classifier_invalid_json_fallback")
+                await self._progress(client_id, request_id, "classified", "Dokument klassificerat")
+
+                await self._progress(client_id, request_id, "extracting", "Extraherar fält")
+                extract_started = time.perf_counter()
+                self._log_pipeline_event(
+                    "pipeline.extract.start",
+                    request_id=request_id,
+                    client_id=client_id,
+                    filename=filename,
+                    mime_type=mime_type,
+                    source_modality=source_modality,
+                    record_id=record_id,
+                )
+                try:
+                    extraction = await self.extractor.extract(
+                        extracted_text[: self.max_text_characters],
+                        classification,
+                        request_id=request_id,
+                    )
+                except ExtractionValidationError:
+                    extraction = ExtractionResult(fields={}, field_confidence={}, missing_fields=[])
+                    warnings.append("extractor_invalid_json_fallback")
+                timings["extract_ms"] = round((time.perf_counter() - extract_started) * 1000, 2)
+                self._log_pipeline_event(
+                    "pipeline.extract.done",
+                    request_id=request_id,
+                    client_id=client_id,
+                    filename=filename,
+                    mime_type=mime_type,
+                    source_modality=source_modality,
+                    record_id=record_id,
+                    elapsed_ms=timings["extract_ms"],
+                )
 
             await self._progress(client_id, request_id, "organizing", "Planerar filsortering")
             plan_started = time.perf_counter()
