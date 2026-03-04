@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from server.config import AppConfig
 from server.document_registry import DocumentRegistry
 from server.main import create_app
 from server.schemas import (
@@ -173,6 +174,21 @@ def test_healthz_returns_process_liveness() -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_healthz_includes_active_model_name() -> None:
+    app = create_app(
+        config=AppConfig(ollama_model="qwen3.5:9b"),
+        pipeline=FakePipeline(),
+        readiness_probe=FakeReadinessProbe(),
+        validation_report_loader=lambda: {"status": "missing"},
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/healthz")
+
+    assert response.status_code == 200
+    assert response.json()["model"] == "qwen3.5:9b"
 
 
 def test_readyz_returns_readiness_payload() -> None:

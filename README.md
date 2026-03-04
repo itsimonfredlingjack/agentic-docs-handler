@@ -5,7 +5,7 @@ Fas 4 av `Agentic Docs Handler` enligt [agentic-docs-handler-blueprint-v4.md](/U
 Aktiv runtime i den här fasen:
 
 - `FastAPI` på port `9000` för process, search, activity, undo och WebSocket-events
-- `Ministral 3 14B` via `Ollama` för klassificering, extraktion och search-query-rewrite
+- `Qwen 3.5 9B` via `Ollama` för klassificering, extraktion och search-query-rewrite
 - `sentence-transformers` + `LanceDB` för hybrid search
 - separat `Whisper`-nod på `ai-server2:8090`
 - `Tauri 2 + React 19 + Tailwind + Zustand` för desktop-shellen

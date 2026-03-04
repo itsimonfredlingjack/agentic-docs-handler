@@ -16,7 +16,7 @@
 ### Vad det betyder i praktiken
 
 - **Noll konfiguration synlig.** Ollama, FastAPI, VRAM — det existerar inte i UI:t.
-- **Resultat före process.** Visa "Kvitto, ICA, 342 kr" — inte "Klassificering pågår med Ministral 3 14B Q4_K_M via Ollama..."
+- **Resultat före process.** Visa "Kvitto, ICA, 342 kr" — inte "Klassificering pågår med Qwen 3.5 9B Q4_K_M via Ollama..."
 - **Handlingar, inte data.** Varje vy ska leda till en action, inte bara visa information.
 - **Snabbhet framför spektakel.** Animationer ska vara 150–300ms. Aldrig över 500ms. Aldrig blockerande.
 
@@ -211,7 +211,7 @@ Inte en vanlig sökruta. Det här är RAG-porten.
 
 **VARFÖR "Vad letar du efter?" istället för "Sök filer"?**
 
-Systemet har LanceDB + Ministral RAG. Användaren kan skriva:
+Systemet har LanceDB + Qwen 3.5 RAG. Användaren kan skriva:
 - "När går hyresavtalet ut?" → RAG-svar: "2029-01-31, Fastighets AB"
 - "Kvitton över 500 kr" → Filtrerad lista
 - "Sammanfatta sprint 14" → AI-genererat svar från mötesanteckningar
@@ -509,7 +509,7 @@ Fråga: "sammanfatta sprint 14"
 │  💬  Sprint 14 Planning (2026-02-28)          │
 │                                               │
 │  3 beslut:                                    │
-│  • Byta till Ministral 3 14B                  │
+│  • Byta till Qwen 3.5 9B                  │
 │  • Deadline för MVP: 15 mars                  │
 │  • Anna ansvarar för testning                 │
 │                                               │
@@ -593,7 +593,7 @@ Simon har tillgång till Google Antigravity som kan accelerera UI-bygget.
 
 Antigravity gör:     Scaffolding, CSS-implementering, responsiv layout
 Simon gör:           Design-beslut, UX-flöden, kvalitetskontroll
-Claude/Ministral:    Backend-logik, API-integration, RAG-sökning
+Claude/Qwen 3.5:    Backend-logik, API-integration, RAG-sökning
 ```
 
 **VARNING:** Antigravity tenderar att överdesigna. Ge den denna spec som constraint.

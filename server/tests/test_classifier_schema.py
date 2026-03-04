@@ -87,3 +87,25 @@ async def test_classifier_downsizes_large_images_before_model_call() -> None:
     encoded = image_url.split(",", 1)[1]
     resized = Image.open(BytesIO(base64.b64decode(encoded)))
     assert max(resized.size) <= 1280
+
+
+@pytest.mark.asyncio
+async def test_classifier_accepts_markdown_wrapped_json() -> None:
+    client = FakeOllamaClient(
+        [
+            """Här är resultatet:
+```json
+{"document_type":"receipt","template":"receipt","title":"ICA Maxi","summary":"Matvarukvitto","tags":["receipt"],"language":"sv","confidence":0.97,"ocr_text":"ICA Maxi 342 kr","suggested_actions":["archive"]}
+```""",
+        ]
+    )
+    classifier = DocumentClassifier(
+        ollama_client=client,
+        classifier_prompt="Du klassificerar dokument.",
+        image_classifier_prompt="Du analyserar dokumentbilder.",
+    )
+
+    result = await classifier.classify_text("ICA Maxi 342 kr")
+
+    assert result.document_type == "receipt"
+    assert len(client.calls) == 1

@@ -232,6 +232,7 @@ def create_app(
     app.include_router(
         create_router(
             pipeline=services.pipeline,
+            model_name=config.ollama_model,
             search_service=services.search_service,
             whisper_service=services.whisper_service,
             document_registry=services.document_registry,

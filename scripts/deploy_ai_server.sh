@@ -23,6 +23,7 @@ rsync -az --delete \
 ssh "${REMOTE_HOST}" "mkdir -p ${REMOTE_ROOT}/server/logs/llm ${REMOTE_ROOT}/server/logs/validation ${REMOTE_ROOT}/docs/validation"
 ssh "${REMOTE_HOST}" "cd ${REMOTE_ROOT} && ${PYTHON_BIN} -m venv .venv && . .venv/bin/activate && pip install --upgrade pip && pip install --index-url ${TORCH_INDEX_URL} torch==${TORCH_VERSION} && pip install -r server/requirements.txt"
 ssh "${REMOTE_HOST}" "cd ${REMOTE_ROOT} && test -f .env || cp .env.example .env"
+ssh "${REMOTE_HOST}" "cd ${REMOTE_ROOT} && MODEL_LINE=\$(grep '^ADH_OLLAMA_MODEL=' .env.example) && if grep -q '^ADH_OLLAMA_MODEL=' .env; then sed -i \"s|^ADH_OLLAMA_MODEL=.*|\$MODEL_LINE|\" .env; else printf '%s\n' \"\$MODEL_LINE\" >> .env; fi"
 ssh "${REMOTE_HOST}" "tmux kill-session -t adh-phase1 2>/dev/null || true"
 ssh "${REMOTE_HOST}" "tmux kill-session -t adh-phase2 2>/dev/null || true"
 ssh "${REMOTE_HOST}" "tmux kill-session -t adh-phase3 2>/dev/null || true"

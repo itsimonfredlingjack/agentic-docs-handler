@@ -7,6 +7,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+LLM_MODEL = "qwen3.5:9b"
 
 
 class AppConfig(BaseSettings):
@@ -22,7 +23,7 @@ class AppConfig(BaseSettings):
     port: int = 9000
     ollama_base_url: str = "http://localhost:11434/v1"
     ollama_api_key: str = "ollama"
-    ollama_model: str = "ministral-3:14b"
+    ollama_model: str = LLM_MODEL
     request_timeout_seconds: float = 300.0
     ollama_max_concurrency: int = 1
     classifier_temperature: float = 0.1

@@ -17,6 +17,28 @@ from server.logging_config import LLMLogWriter
 logger = logging.getLogger(__name__)
 
 
+def extract_json_object_text(raw: str) -> str:
+    candidate = raw.strip()
+    if not candidate:
+        return candidate
+    try:
+        json.loads(candidate)
+        return candidate
+    except json.JSONDecodeError:
+        pass
+
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(candidate):
+        if char not in "{[":
+            continue
+        try:
+            _, end = decoder.raw_decode(candidate[index:])
+        except json.JSONDecodeError:
+            continue
+        return candidate[index : index + end]
+    return candidate
+
+
 @dataclass(slots=True)
 class OllamaServiceError(RuntimeError):
     code: str

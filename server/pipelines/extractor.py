@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from server.clients.ollama_client import extract_json_object_text
 from server.schemas import DocumentClassification, ExtractionResult
 
 
@@ -43,7 +44,7 @@ class DocumentExtractor:
             messages=messages,
         )
         try:
-            payload = json.loads(raw)
+            payload = json.loads(extract_json_object_text(raw))
             result = ExtractionResult.model_validate(payload)
             self._record_log(meta, raw, json_parse_ok=True, schema_validation_ok=True)
             return result
@@ -102,7 +103,7 @@ class DocumentExtractor:
     @staticmethod
     def _is_json(raw: str) -> bool:
         try:
-            json.loads(raw)
+            json.loads(extract_json_object_text(raw))
         except json.JSONDecodeError:
             return False
         return True

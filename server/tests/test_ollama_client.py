@@ -7,6 +7,7 @@ import pytest
 from openai import APIStatusError
 
 from server.clients.ollama_client import AsyncOllamaClient, OllamaServiceError
+from server.config import LLM_MODEL
 from server.logging_config import LLMLogWriter
 
 
@@ -15,7 +16,7 @@ async def test_chat_text_maps_api_status_error_to_ollama_service_error(tmp_path)
     client = AsyncOllamaClient(
         base_url="http://localhost:11434/v1",
         api_key="ollama",
-        model="ministral-3:14b",
+        model=LLM_MODEL,
         timeout_seconds=5,
         log_writer=LLMLogWriter(tmp_path / "llm"),
     )
@@ -46,7 +47,7 @@ async def test_chat_text_serializes_ollama_requests_when_max_concurrency_is_one(
     client = AsyncOllamaClient(
         base_url="http://localhost:11434/v1",
         api_key="ollama",
-        model="ministral-3:14b",
+        model=LLM_MODEL,
         timeout_seconds=5,
         log_writer=LLMLogWriter(tmp_path / "llm"),
         max_concurrency=1,

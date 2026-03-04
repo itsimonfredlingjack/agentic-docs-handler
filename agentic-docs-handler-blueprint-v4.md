@@ -1,56 +1,56 @@
 # Agentic Docs Handler — Arkitektur-Blueprint v4.1
 
 **Lokal AI-driven dokumenthantering med generativt gränssnitt + automatisk filsortering**
-*Stack: Tauri 2.0 · React · LanceDB · Ministral 3 14B via Ollama · RTX 4070 + RTX 2060*
+*Stack: Tauri 2.0 · React · LanceDB · Qwen 3.5 9B via Ollama · RTX 4070 + RTX 2060*
 
 ---
 
 ## 0. Designbeslut
 
-### En LLM, Två GPU:er, Noll Kinesiska Modeller
+### En LLM, Två GPU:er, En Enkel Runtime
 
 | Komponent | Modell | Runtime | Maskin | VRAM |
 |-----------|--------|---------|--------|------|
-| LLM + Vision (klassificering + extraktion + RAG + OCR) | **Ministral 3 14B Instruct 2512** Q4_K_M | **Ollama** | RTX 4070 | **~9GB** |
+| LLM + Vision (klassificering + extraktion + RAG + OCR) | **Qwen 3.5 9B** Q4_K_M | **Ollama** | RTX 4070 | **~6.6GB** |
 | Embedding (sökning) | nomic-embed-text v1.5 | **sentence-transformers** (Python) | RTX 4070 CPU | ~300MB RAM |
 | Audio-transkription | Whisper large-v3-turbo | **faster-whisper** | RTX 2060 | ~1.5GB |
 
-**Alla modeller: västeuropeiska/amerikanska, Apache 2.0 / MIT. Noll kinesiska beroenden.**
+**Alla modeller körs lokalt. LLM är `qwen3.5:9b` via Ollama, embeddings är `nomic-embed-text`, och audio körs via Whisper på separat nod.**
 
 ### v3 → v4: Vad ändrades och VARFÖR
 
 | Ändring | v3 | v4 | VARFÖR |
 |---------|----|----|--------|
-| LLM | GPT-OSS 20B (OpenAI) | **Ministral 3 14B** (Mistral, Frankrike) | Inbyggd vision, native JSON, mindre VRAM |
+| LLM | GPT-OSS 20B (OpenAI) | **Qwen 3.5 9B** | Inbyggd vision, native JSON, mindre VRAM |
 | OCR | Tesseract (separat steg) | **Eliminerad** — vision-modellen läser bilder direkt | Enklare pipeline, bättre precision |
-| JSON output | GBNF grammar (workaround) | **Native function calling** + GBNF som säkerhetsnät | Ministral har inbyggt stöd |
+| JSON output | GBNF grammar (workaround) | **Native function calling** + GBNF som säkerhetsnät | Qwen 3.5 har inbyggt stöd |
 | Runtime | llama-server (krävdes pga GPT-OSS) | **Ollama 0.13.1+** (enklare, vision funkar direkt) | Färre rörliga delar, snabbare setup |
-| VRAM | ~11GB (1GB marginal) | **~9GB (3GB marginal)** | Mer headroom för KV-cache vid lång kontext |
+| VRAM | ~11GB (1GB marginal) | **~6.6GB (god marginal)** | Mer headroom för samtidiga andra workloads |
 | Filsortering | Saknas | **Ny: automatisk filorganisering** | Klassificering → flytta fil till rätt mapp |
-| Geopolitik | USA (OpenAI) | **EU/Frankrike** (Mistral AI) | Bättre fit för svensk enterprise/portfolio |
+| Driftmodell | Extern modellstack | **Lokal Ollama-modell** | Enklare drift och lägre latency |
 
-### VARFÖR Ministral 3 14B?
+### VARFÖR Qwen 3.5 9B?
 
 1. **Vision-modell**: 13.5B language + 0.4B Vision Transformer = native bildförståelse
    - Läser kvitton, skannade kontrakt, fotografier direkt
    - Eliminerar Tesseract OCR helt — en komponent mindre att underhålla
 2. **Native function calling**: Designad för agentic tasks med strukturerad JSON-output
    - Inget behov av GBNF grammar-workarounds (behålls som backup)
-3. **Effektiv**: Q4_K_M kvantisering → ~9GB VRAM, 3GB marginal
-   - Jämförbara prestanda med Mistral Small 3.2 24B trots halva storleken
-4. **EU-ursprung**: Mistral AI, Paris. Apache 2.0. GDPR-vänligt.
+3. **Effektiv**: Q4_K_M kvantisering → ~6.6GB VRAM
+   - Lägre VRAM-tryck än tidigare 14B-spåret och bättre fit för RTX 4070
+4. **Lokalt körbar**: En lättare modell gör att resten av stacken får bättre headroom
 5. **40+ språk**: Native svenska, engelska, och mer
 
 ### VARFÖR Ollama istället för llama-server?
 
 I v3 var llama-server nödvändigt pga GPT-OSS 20B:s buggiga structured output via Ollama.
-Ministral 3 14B har **native function calling** — Ollamas structured output funkar korrekt.
+Qwen 3.5 9B har **native function calling** — Ollamas structured output funkar korrekt.
 
 | Feature | Ollama | llama-server |
 |---------|--------|-------------|
 | Vision-stöd | ✅ Direkt (fused GGUF) | ✅ Via llama-mtmd-cli |
 | JSON output | ✅ `format: json` + native tool calling | ✅ GBNF grammar |
-| Setup-komplexitet | `ollama pull ministral-3:14b` | Bygg från source, ladda GGUF manuellt |
+| Setup-komplexitet | `ollama pull qwen3.5:9b` | Bygg från source, ladda GGUF manuellt |
 | API-kompatibilitet | OpenAI-kompatibelt | OpenAI-kompatibelt |
 | Model management | Inbyggt | Manuellt |
 | **Vinnare** | **✅ Enklare, allt funkar** | Mer kontroll, men onödigt för denna modell |
@@ -90,7 +90,7 @@ Frigör RTX 4070 helt för LLM — parallell bearbetning av ljud + dokument.
 │                                                       │
 │  ┌─────────────────────────────────────────────────┐ │
 │  │  Ollama (port 11434)                            │ │
-│  │  └─ Ministral 3 14B Instruct Q4_K_M (~9GB)     │ │
+│  │  └─ Qwen 3.5 9B Instruct Q4_K_M (~9GB)     │ │
 │  │     • Native vision (bilder direkt)             │ │
 │  │     • Native function calling (JSON)            │ │
 │  │     • OpenAI-compatible /v1/chat/completions    │ │
@@ -163,7 +163,7 @@ ChatGPT ──MCP──▶ docsgpt.fredlingautomation.dev/mcp ──▶ RTX 4070
 
 ---
 
-## 2. Ministral 3 14B via Ollama
+## 2. Qwen 3.5 9B via Ollama
 
 ### Setup
 
@@ -172,13 +172,13 @@ ChatGPT ──MCP──▶ docsgpt.fredlingautomation.dev/mcp ──▶ RTX 4070
 curl -fsSL https://ollama.ai/install.sh | sh
 
 # Dra ner modellen — EN modell för ALLA uppgifter
-ollama pull ministral-3:14b
+ollama pull qwen3.5:9b
 
 # Verifiera vision
-ollama run ministral-3:14b "beskriv vad du ser" ./test_kvitto.jpg
+ollama run qwen3.5:9b "beskriv vad du ser" ./test_kvitto.jpg
 ```
 
-**VARFÖR ministral-3:14b?**
+**VARFÖR qwen3.5:9b?**
 - Fused GGUF: text + vision-vikter i samma fil
 - ~9GB VRAM med Q4_K_M kvantisering
 - 3GB marginal på RTX 4070 (12GB) för KV-cache
@@ -210,7 +210,7 @@ Om du vill ha namngivna "roller" (noll extra diskutrymme — delar vikter):
 
 ```dockerfile
 # classifier.Modelfile
-FROM ministral-3:14b
+FROM qwen3.5:9b
 SYSTEM """Du är en dokumentklassificerare. Analysera dokumentet och returnera JSON med:
 document_type, template, title, summary, tags, language, confidence.
 Svara BARA med JSON, inget annat."""
@@ -220,7 +220,7 @@ PARAMETER num_predict 2048
 
 ```dockerfile
 # extractor.Modelfile
-FROM ministral-3:14b
+FROM qwen3.5:9b
 SYSTEM """Du extraherar strukturerad data från dokument. Returnera JSON med alla
 relevanta fält baserat på dokumenttyp. Var noggrann med datum, belopp, namn."""
 PARAMETER temperature 0.1
@@ -247,9 +247,9 @@ llm = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
 
 
 def classify_document(text: str) -> dict:
-    """Klassificera textdokument via Ministral 3."""
+    """Klassificera textdokument via Qwen 3.5."""
     response = llm.chat.completions.create(
-        model="ministral-3:14b",
+        model="qwen3.5:9b",
         messages=[
             {
                 "role": "system",
@@ -272,11 +272,11 @@ def classify_document(text: str) -> dict:
 
 
 def classify_image(image_bytes: bytes) -> dict:
-    """Klassificera bild via Ministral 3 Vision — INGEN Tesseract behövs."""
+    """Klassificera bild via Qwen 3.5 Vision — INGEN Tesseract behövs."""
     b64 = base64.b64encode(image_bytes).decode("utf-8")
 
     response = llm.chat.completions.create(
-        model="ministral-3:14b",
+        model="qwen3.5:9b",
         messages=[
             {
                 "role": "system",
@@ -320,7 +320,7 @@ def extract_fields(text: str, doc_type: str) -> dict:
     }
 
     response = llm.chat.completions.create(
-        model="ministral-3:14b",
+        model="qwen3.5:9b",
         messages=[
             {
                 "role": "system",
@@ -345,7 +345,7 @@ Om du vill ha 100% garanterad JSON (belt-and-suspenders):
 # Byt till llama-server istället för Ollama
 # Ladda ner fused GGUF
 ./llama-server \
-  -hf unsloth/Ministral-3-14B-Instruct-2512-GGUF:Q4_K_XL \
+  -hf unsloth/Qwen 3.5-3-14B-Instruct-2512-GGUF:Q4_K_XL \
   --ctx-size 32768 \
   --jinja \
   -ngl 99 \
@@ -373,7 +373,7 @@ systemet vet att det är ett kvitto → systemet FLYTTAR filen till rätt mapp.
 ```
 DROPZONE: kvitto_ica_mars.jpg
   ↓
-Ministral 3 14B (vision + klassificering)
+Qwen 3.5 9B (vision + klassificering)
   ↓
 Klassificering: {
   document_type: "receipt",
@@ -644,7 +644,7 @@ def embed_batch(texts: list[str]) -> list[list[float]]:
 ### LanceDB + Hybrid Search
 
 Oförändrad från v3. Samma schema, chunk-strategi, och smart_search.
-Enda skillnaden: `model` parameter pekar nu på `ministral-3:14b`.
+Enda skillnaden: `model` parameter pekar nu på `qwen3.5:9b`.
 
 ---
 
@@ -658,7 +658,7 @@ Oförändrad från v3. Se v3-blueprint sektion 4.
 | VRAM-konflikt | 9GB + 1.5GB = ok, men tight | **Noll**: varsitt kort |
 | Throughput | 1 pipeline | **2 pipelines** parallellt |
 
-**Not:** Med Ministral (9GB) hade Whisper tekniskt fått plats på 4070 (9+1.5=10.5 av 12GB).
+**Not:** Med Qwen 3.5 (9GB) hade Whisper tekniskt fått plats på 4070 (9+1.5=10.5 av 12GB).
 Men dedikerad GPU ger bättre parallellism och noll risk för VRAM-spikes.
 
 ---
@@ -681,17 +681,17 @@ FIL DROPPAS I APPEN
 └──────────────┬──────────────────────────────┘
                │
     ┌──────────▼──────────┐
-    │   TEXT?              │────── JA ──▶ Ministral: klassificera text
-    │   BILD?              │────── JA ──▶ Ministral: vision-klassificera  ← NYTT
-    │   LJUD?              │────── JA ──▶ RTX 2060 → Ministral
+    │   TEXT?              │────── JA ──▶ Qwen 3.5: klassificera text
+    │   BILD?              │────── JA ──▶ Qwen 3.5: vision-klassificera  ← NYTT
+    │   LJUD?              │────── JA ──▶ RTX 2060 → Qwen 3.5
     └─────────────────────┘
 
 ┌─ RTX 4070: FASTAPI ORCHESTRATOR ──────────┐
-│ 4. Ministral 3: Klassificera               │
+│ 4. Qwen 3.5: Klassificera               │
 │    → native JSON mode                      │
 │    → vision för bilder (ingen OCR-steg)    │
 │                                             │
-│ 5. Ministral 3: Extrahera fält             │
+│ 5. Qwen 3.5: Extrahera fält             │
 │    → typ-specifik prompt                    │
 │    → JSON: fält, actions, sammanfattning   │
 │                                             │
@@ -718,13 +718,13 @@ FIL DROPPAS I APPEN
 
 ```
 ANVÄNDARE DROPPAR 3 FILER SAMTIDIGT:
-  ├── faktura.pdf   ──▶ RTX 4070: Ministral klassificerar text
-  ├── kvitto.jpg    ──▶ RTX 4070: Ministral vision-analyserar direkt  ← NYTT!
+  ├── faktura.pdf   ──▶ RTX 4070: Qwen 3.5 klassificerar text
+  ├── kvitto.jpg    ──▶ RTX 4070: Qwen 3.5 vision-analyserar direkt  ← NYTT!
   └── möte.mp3      ──▶ RTX 2060: Whisper transkriberar
-                         └──▶ RTX 4070: Ministral klassificerar transkription
+                         └──▶ RTX 4070: Qwen 3.5 klassificerar transkription
 
 I v3 hade kvitto.jpg gått: Tesseract OCR → GPT-OSS text → JSON (2 steg)
-I v4 går det: Ministral vision → JSON (1 steg, bättre resultat)
+I v4 går det: Qwen 3.5 vision → JSON (1 steg, bättre resultat)
 ```
 
 ---
@@ -784,8 +784,8 @@ agentic-docs-handler/
 ├── server/                        # Python backend — RTX 4070
 │   ├── main.py                    # FastAPI + WebSocket
 │   ├── pipelines/
-│   │   ├── classifier.py         # Ministral via Ollama (text + vision)
-│   │   ├── extractor.py          # Ministral djup extraktion
+│   │   ├── classifier.py         # Qwen 3.5 via Ollama (text + vision)
+│   │   ├── extractor.py          # Qwen 3.5 djup extraktion
 │   │   ├── embedder.py           # sentence-transformers + LanceDB
 │   │   ├── file_organizer.py     # NY: regelbaserad filflyttning
 │   │   └── whisper_proxy.py      # HTTP proxy → RTX 2060
@@ -824,7 +824,7 @@ agentic-docs-handler/
 | Desktop App | Tauri 2.0 + React 19 | MIT | Open source |
 | State | Zustand | MIT | Open source |
 | Styling | Tailwind CSS | MIT | Open source |
-| **LLM + Vision** | **Ministral 3 14B Instruct 2512** | **Apache 2.0** | **Mistral AI (Frankrike)** |
+| **LLM + Vision** | **Qwen 3.5 9B** | **Apache 2.0** | **Qwen Team / Alibaba** |
 | LLM Runtime | Ollama 0.13.1+ | MIT | Open source |
 | Embedding | nomic-embed-text v1.5 | Apache 2.0 | Nomic AI (USA) |
 | Embedding Runtime | sentence-transformers | Apache 2.0 | Open source |
@@ -835,26 +835,26 @@ agentic-docs-handler/
 | Server | FastAPI | MIT | Open source |
 | IPC | WebSocket | — | Standard |
 
-**100% västerländsk open source. Noll kinesiska beroenden.**
+**All inferens sker lokalt i den egna miljön via Ollama och lokala GPU-noder.**
 **Tesseract OCR: ELIMINERAD — vision-modellen ersätter.**
-**LLM: EU-baserad (Frankrike) — GDPR-vänligt, perfekt för svensk kontext.**
+**LLM: `qwen3.5:9b` via lokal Ollama-runtime på RTX 4070.**
 
 ---
 
 ## 10. Byggordning v4.1
 
-### Fas 1: Validera Ministral 3 + Vision + JSON (vecka 1)
+### Fas 1: Validera Qwen 3.5 + Vision + JSON (vecka 1)
 **Mål: Fungerar vision? Fungerar JSON mode?**
 
 ```bash
 # Dag 1: Setup
 # Installera Ollama 0.13.1+
-# Dra ministral-3:14b
+# Dra qwen3.5:9b
 # Verifiera att den kör (~9GB VRAM)
 
 # Dag 2: Vision-test
 # 20 bilder: kvitton, fakturor, visitkort, kontrakt-skanningar
-# Testa: ollama run ministral-3:14b "beskriv" ./bild.jpg
+# Testa: ollama run qwen3.5:9b "beskriv" ./bild.jpg
 # Mät: Kan den läsa text? Rätt belopp? Rätt datum?
 # KRITISKT: Om vision inte funkar → fallback: Tesseract + text-only
 
@@ -875,7 +875,7 @@ agentic-docs-handler/
 ```bash
 # sentence-transformers + LanceDB
 # Ingest 100 dokument (inklusive vision-klassificerade bilder)
-# Hybrid search + query reformulation via Ministral
+# Hybrid search + query reformulation via Qwen 3.5
 # Smart search: svar istället för fillista
 # MCP: exponera search_documents direkt mot search-pipelinen
 ```
@@ -915,8 +915,8 @@ agentic-docs-handler/
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| **Ministral vision-kvalitet** | HÖG | Fas 1 validerar. Fallback: lägg till Tesseract som OCR-backup enbart för dåliga bilder. |
-| **Ollama JSON mode** | MEDEL | Ministral har native stöd. Fallback: byt till llama-server + GBNF grammar (arkitekturen ändras minimalt). |
+| **Qwen 3.5 vision-kvalitet** | HÖG | Fas 1 validerar. Fallback: lägg till Tesseract som OCR-backup enbart för dåliga bilder. |
+| **Ollama JSON mode** | MEDEL | Qwen 3.5 har native stöd. Fallback: byt till llama-server + GBNF grammar (arkitekturen ändras minimalt). |
 | **Ollama 0.13.1 stabilitet** | MEDEL | Pre-release krävs. Uppdatera löpande. Alt: llama-server om instabilt. |
 | **LAN-latency 4070→2060** | LÅG | Ljud-filer är ~MB, överföring <1s på LAN. |
 | **VRAM 9GB av 12GB** | LÅG | 3GB marginal — bättre än v3:s 1GB. Rum för längre kontext. |
@@ -929,8 +929,8 @@ agentic-docs-handler/
 
 | Upgrade | Ändring | Effekt |
 |---------|---------|--------|
-| Bättre LLM | Byt Ministral → nyare modell | Bättre resonerande |
-| Reasoning-variant | Ministral 3 14B Reasoning 2512 | Djupare analys, långsammare |
+| Bättre LLM | Byt Qwen 3.5 → nyare modell | Bättre resonerande |
+| Reasoning-variant | Qwen 3.5 9B Reasoning 2512 | Djupare analys, långsammare |
 | Cloud fallback | Lägg till Claude API | Perfekt JSON, bäst-i-klass vision |
 | Fler GPU:er | Lägg till GPU-nod i kluster | Mer parallell kapacitet |
 | n8n integration | Action-knappar → n8n workflows | Automatisera mail, kalender |
@@ -949,7 +949,7 @@ ELIMINERAT:
   ✗ llama-server (primärt)  → Ollama (enklare, allt funkar)
 
 NYTT:
-  ✓ Ministral 3 14B        → Vision + text + JSON i EN modell
+  ✓ Qwen 3.5 9B        → Vision + text + JSON i EN modell
   ✓ Automatisk filsortering → Klassificering → flytta fil till rätt mapp
   ✓ YAML-baserade regler    → Konfigurerbar mappstruktur
   ✓ 3GB VRAM-marginal       → Bättre headroom (var 1GB i v3)
@@ -966,7 +966,7 @@ RESULTAT:
 ---
 
 *Agentic Docs Handler — Blueprint v4.1*
-*Dual-server: RTX 4070 (Ministral 3 Vision + embedding) + RTX 2060 (Whisper)*
-*Stack: Tauri 2.0 · React · LanceDB · Ministral 3 14B · nomic-embed-text · Whisper*
+*Dual-server: RTX 4070 (Qwen 3.5 Vision + embedding) + RTX 2060 (Whisper)*
+*Stack: Tauri 2.0 · React · LanceDB · Qwen 3.5 9B · nomic-embed-text · Whisper*
 *Runtime: Ollama + sentence-transformers + faster-whisper*
 *Ny: Automatisk filsortering med konfigurerbara regler*

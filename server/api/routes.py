@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 def create_router(
     *,
     pipeline: object,
+    model_name: str,
     search_service: object | None,
     whisper_service: object | None,
     document_registry: object | None,
@@ -44,7 +45,7 @@ def create_router(
 
     @router.get("/healthz")
     async def healthz() -> dict[str, object]:
-        return {"status": "ok"}
+        return {"status": "ok", "model": model_name}
 
     @router.get("/readyz")
     async def readyz() -> dict[str, object]:

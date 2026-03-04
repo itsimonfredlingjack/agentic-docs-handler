@@ -9,6 +9,7 @@ from typing import Any
 from PIL import Image, UnidentifiedImageError
 from pydantic import ValidationError
 
+from server.clients.ollama_client import extract_json_object_text
 from server.schemas import DocumentClassification
 
 logger = logging.getLogger(__name__)
@@ -92,7 +93,7 @@ class DocumentClassifier:
             messages=messages,
         )
         try:
-            parsed = json.loads(raw)
+            parsed = json.loads(extract_json_object_text(raw))
             classification = DocumentClassification.model_validate(parsed)
             self._record_log(meta, raw, json_parse_ok=True, schema_validation_ok=True)
             return classification
@@ -127,7 +128,7 @@ class DocumentClassifier:
                 messages=repaired_messages,
             )
             try:
-                repaired_parsed = json.loads(repaired_raw)
+                repaired_parsed = json.loads(extract_json_object_text(repaired_raw))
                 classification = DocumentClassification.model_validate(repaired_parsed)
                 self._record_log(
                     repaired_meta,
@@ -209,7 +210,7 @@ class DocumentClassifier:
     @staticmethod
     def _is_json(raw: str) -> bool:
         try:
-            json.loads(raw)
+            json.loads(extract_json_object_text(raw))
         except json.JSONDecodeError:
             return False
         return True
