@@ -6,6 +6,7 @@ import { AudioTranscript } from "../templates/AudioTranscript";
 import { ContractCard } from "../templates/ContractCard";
 import { FileMovedCard } from "../templates/FileMovedCard";
 import { ReceiptCard } from "../templates/ReceiptCard";
+import { RequestIdMeta } from "./RequestIdMeta";
 import { useDocumentStore } from "../store/documentStore";
 import type { ProcessResponse, UiDocument } from "../types/documents";
 
@@ -66,6 +67,7 @@ function renderDocument(document: UiDocument, orphanResult?: ReturnType<typeof u
         </div>
         <p className="text-sm text-[var(--text-secondary)]">{processingMeta.message}</p>
         <div className="processing-bar" />
+        <RequestIdMeta document={document} />
       </article>
     );
   }
@@ -135,6 +137,7 @@ function FailureCard({ document }: { document: UiDocument }) {
           Retry
         </button>
       ) : null}
+      <RequestIdMeta document={document} />
     </article>
   );
 }
@@ -188,6 +191,7 @@ function PendingMoveCard({ document }: { document: UiDocument }) {
           {pendingMoveAction === "dismissing" ? "Saving..." : "Not now"}
         </button>
       </div>
+      <RequestIdMeta document={document} />
     </article>
   );
 }

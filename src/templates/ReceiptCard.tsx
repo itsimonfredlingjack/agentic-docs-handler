@@ -1,4 +1,5 @@
 import type { UiDocument } from "../types/documents";
+import { RequestIdMeta } from "../components/RequestIdMeta";
 
 type ReceiptCardProps = {
   document: UiDocument;
@@ -70,6 +71,7 @@ export function ReceiptCard({ document, variant = "receipt" }: ReceiptCardProps)
           </dd>
         </div>
       </dl>
+      <RequestIdMeta document={document} />
     </article>
   );
 }

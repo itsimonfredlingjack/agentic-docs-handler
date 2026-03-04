@@ -1,4 +1,5 @@
 import type { UiDocument } from "../types/documents";
+import { RequestIdMeta } from "../components/RequestIdMeta";
 
 export function ContractCard({ document }: { document: UiDocument }) {
   const fields = document.extraction?.fields ?? {};
@@ -41,6 +42,7 @@ export function ContractCard({ document }: { document: UiDocument }) {
           </dd>
         </div>
       </dl>
+      <RequestIdMeta document={document} />
     </article>
   );
 }

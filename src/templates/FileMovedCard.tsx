@@ -1,4 +1,5 @@
 import type { UiDocument } from "../types/documents";
+import { RequestIdMeta } from "../components/RequestIdMeta";
 
 export function FileMovedCard({ document }: { document: UiDocument }) {
   return (
@@ -21,6 +22,7 @@ export function FileMovedCard({ document }: { document: UiDocument }) {
       {document.undoToken ? (
         <p className="text-xs text-[var(--text-secondary)]">Undo available</p>
       ) : null}
+      <RequestIdMeta document={document} />
     </article>
   );
 }

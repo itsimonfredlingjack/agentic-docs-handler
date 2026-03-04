@@ -1,4 +1,5 @@
 import type { UiDocument } from "../types/documents";
+import { RequestIdMeta } from "../components/RequestIdMeta";
 
 export function AudioTranscript({ document }: { document: UiDocument }) {
   const unavailable = document.errorCode === "audio_processing_unavailable";
@@ -38,6 +39,7 @@ export function AudioTranscript({ document }: { document: UiDocument }) {
           </div>
         ))}
       </div>
+      <RequestIdMeta document={document} />
     </article>
   );
 }

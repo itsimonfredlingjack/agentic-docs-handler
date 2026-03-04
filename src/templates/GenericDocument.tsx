@@ -1,4 +1,5 @@
 import type { SearchResult, UiDocument } from "../types/documents";
+import { RequestIdMeta } from "../components/RequestIdMeta";
 
 type GenericDocumentProps = {
   document: UiDocument;
@@ -51,6 +52,7 @@ export function GenericDocument({ document, searchResult }: GenericDocumentProps
           </span>
         ))}
       </div>
+      <RequestIdMeta document={document} />
     </article>
   );
 }
