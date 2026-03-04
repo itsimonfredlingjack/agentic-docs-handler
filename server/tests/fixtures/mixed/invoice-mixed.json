@@ -1,0 +1,7 @@
+{
+  "expected_document_type": "invoice",
+  "expected_title_contains": "faktura",
+  "expected_fields": ["invoice_number", "amount", "due_date"],
+  "allow_auto_move": false,
+  "expected_destination_pattern": "Fakturor"
+}

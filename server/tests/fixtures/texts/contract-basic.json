@@ -1,0 +1,7 @@
+{
+  "expected_document_type": "contract",
+  "expected_title_contains": "avtal",
+  "expected_fields": ["parties", "start_date", "end_date"],
+  "allow_auto_move": false,
+  "expected_destination_pattern": "Avtal"
+}

@@ -1,0 +1,7 @@
+{
+  "expected_document_type": "meeting_notes",
+  "expected_title_contains": "möte",
+  "expected_fields": ["participants", "decisions", "action_items"],
+  "allow_auto_move": false,
+  "expected_destination_pattern": "Motesanteckningar"
+}

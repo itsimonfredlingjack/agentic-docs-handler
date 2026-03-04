@@ -1,0 +1,13 @@
+node_modules
+dist
+.pytest_cache
+__pycache__
+*.pyc
+.venv
+.env
+server/data/lancedb
+server/logs/runtime.log
+server/logs/llm/*
+server/logs/validation/*
+!server/logs/llm/.gitkeep
+!server/logs/validation/.gitkeep

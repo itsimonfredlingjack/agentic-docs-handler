@@ -1,0 +1,7 @@
+{
+  "expected_document_type": "receipt",
+  "expected_title_contains": "kvitto",
+  "expected_fields": ["vendor", "amount", "date"],
+  "allow_auto_move": true,
+  "expected_destination_pattern": "Kvitton"
+}

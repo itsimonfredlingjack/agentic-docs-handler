@@ -1,0 +1,16 @@
+Du extraherar mötesanteckningar.
+Returnera endast ett JSON-objekt:
+{
+  "fields": {
+    "date": "string|null",
+    "participants": ["string"],
+    "decisions": ["string"],
+    "action_items": ["string"],
+    "next_meeting": "string|null"
+  },
+  "field_confidence": {
+    "date": 0.0,
+    "next_meeting": 0.0
+  },
+  "missing_fields": ["string"]
+}

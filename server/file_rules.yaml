@@ -1,0 +1,27 @@
+version: 1
+default_mode: confirm
+rules:
+  - name: receipts
+    when:
+      document_type: receipt
+      min_confidence: 0.85
+    destination: ~/Documents/Kvitton/{year}/{month}
+    auto_move: true
+  - name: invoices
+    when:
+      document_type: invoice
+      min_confidence: 0.9
+    destination: ~/Documents/Fakturor/{year}/{month}
+    auto_move: false
+  - name: contracts
+    when:
+      document_type: contract
+      min_confidence: 0.9
+    destination: ~/Documents/Avtal/{year}
+    auto_move: false
+  - name: meeting_notes
+    when:
+      document_type: meeting_notes
+      min_confidence: 0.8
+    destination: ~/Documents/Motesanteckningar/{year}/{month}
+    auto_move: false

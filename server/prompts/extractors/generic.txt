@@ -1,0 +1,12 @@
+Du extraherar generiska dokumentfält.
+Returnera endast ett JSON-objekt:
+{
+  "fields": {
+    "entities": ["string"],
+    "dates": ["string"],
+    "amounts": ["string"],
+    "keywords": ["string"]
+  },
+  "field_confidence": {},
+  "missing_fields": ["string"]
+}

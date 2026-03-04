@@ -1,0 +1,5 @@
+Faktura INV-123
+Avsändare: Leverantör AB
+Mottagare: Simon AB
+Belopp: 900 SEK
+Förfallodatum: 2026-03-31

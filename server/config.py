@@ -1,0 +1,54 @@
+from __future__ import annotations
+
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+class AppConfig(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="ADH_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    environment: str = "development"
+    host: str = "0.0.0.0"
+    port: int = 9000
+    ollama_base_url: str = "http://localhost:11434/v1"
+    ollama_api_key: str = "ollama"
+    ollama_model: str = "ministral-3:14b"
+    request_timeout_seconds: float = 90.0
+    classifier_temperature: float = 0.1
+    extract_temperature: float = 0.1
+    max_text_characters: int = 12000
+    prompts_dir: Path = Path("server/prompts")
+    file_rules_path: Path = Path("server/file_rules.yaml")
+    llm_log_dir: Path = Path("server/logs/llm")
+    validation_log_dir: Path = Path("server/logs/validation")
+    validation_report_path: Path = Path("server/logs/validation/latest.json")
+    lancedb_path: Path = Path("server/data/lancedb")
+    lancedb_table_name: str = "document_chunks"
+    embedding_model_name: str = "nomic-ai/nomic-embed-text-v1.5"
+    embedding_model_revision: str = "e5cf08aadaa33385f5990def41f7a23405aec398"
+    embedding_device: str = "cpu"
+    embedding_batch_size: int = 16
+    embedding_trust_remote_code: bool = True
+    search_chunk_size: int = 900
+    search_chunk_overlap: int = 120
+    search_default_limit: int = 5
+    search_candidate_limit: int = 20
+    mcp_enabled: bool = True
+    mcp_mount_path: str = "/mcp"
+    mcp_allowed_roots: list[Path] = Field(default_factory=lambda: [REPO_ROOT])
+    mcp_max_image_bytes: int = 4 * 1024 * 1024
+
+
+@lru_cache(maxsize=1)
+def get_config() -> AppConfig:
+    return AppConfig()

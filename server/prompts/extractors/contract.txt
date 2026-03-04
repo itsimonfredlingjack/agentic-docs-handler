@@ -1,0 +1,18 @@
+Du extraherar avtalsfält.
+Returnera endast ett JSON-objekt:
+{
+  "fields": {
+    "parties": ["string"],
+    "start_date": "string|null",
+    "end_date": "string|null",
+    "termination_clause": "string|null",
+    "value": "string|null"
+  },
+  "field_confidence": {
+    "start_date": 0.0,
+    "end_date": 0.0,
+    "termination_clause": 0.0,
+    "value": 0.0
+  },
+  "missing_fields": ["string"]
+}
