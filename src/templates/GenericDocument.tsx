@@ -25,6 +25,12 @@ export function GenericDocument({ document, searchResult }: GenericDocumentProps
         {searchResult?.snippet ?? document.summary}
       </p>
 
+      {document.warnings.length > 0 ? (
+        <div className="rounded-2xl bg-[rgba(255,159,10,0.12)] p-3 text-xs text-[var(--text-primary)]">
+          {document.warnings.join(", ")}
+        </div>
+      ) : null}
+
       {searchResult ? (
         <div className="rounded-2xl bg-white/45 p-3 text-sm font-mono text-[var(--text-secondary)]">
           <p>{searchResult.source_path}</p>

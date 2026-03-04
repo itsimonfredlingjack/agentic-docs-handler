@@ -218,7 +218,7 @@ def create_app(
         validation_report_loader=validation_report_loader,
     )
 
-    app = FastAPI(title="Agentic Docs Handler Phase 4")
+    app = FastAPI(title="Agentic Docs Handler Phase 5")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=config.cors_allowed_origins,
@@ -244,7 +244,7 @@ def create_app(
 
     @app.get("/", include_in_schema=False)
     async def root() -> JSONResponse:
-        return JSONResponse({"name": "agentic-docs-handler", "status": "ok", "phase": 4})
+        return JSONResponse({"name": "agentic-docs-handler", "status": "ok", "phase": 5})
 
     return app
 

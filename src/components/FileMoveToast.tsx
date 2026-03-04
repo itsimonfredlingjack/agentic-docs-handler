@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
-import { undoMove } from "../lib/api";
+import { completeClientUndo } from "../lib/api";
+import { undoLocalFileMove } from "../lib/tauri-events";
 import { useDocumentStore } from "../store/documentStore";
 
 export function FileMoveToast() {
@@ -42,7 +43,12 @@ export function FileMoveToast() {
               if (!clientId) {
                 return;
               }
-              const payload = await undoMove(toast.undoToken, clientId);
+              const moveResult = await undoLocalFileMove(toast.toPath, toast.fromPath);
+              const payload = await completeClientUndo({
+                undoToken: toast.undoToken,
+                clientId,
+                result: moveResult,
+              });
               applyUndoSuccess(payload);
               dismissToast(toast.id);
             }}

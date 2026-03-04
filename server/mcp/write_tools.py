@@ -36,6 +36,7 @@ def register_write_tools(server: FastMCP, services: AppServices) -> None:
                 content_type=detect_content_type(path),
                 execute_move=True,
                 source_path=str(path),
+                move_executor="server",
             )
             return structured_result("File organized successfully.", result.model_dump(mode="json"))
         except (FileNotFoundError, ValueError, UnsupportedMediaTypeError) as error:

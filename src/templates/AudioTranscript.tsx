@@ -1,6 +1,8 @@
 import type { UiDocument } from "../types/documents";
 
 export function AudioTranscript({ document }: { document: UiDocument }) {
+  const unavailable = document.errorCode === "audio_processing_unavailable";
+
   return (
     <article className="glass-panel glass-panel-hover flex h-full flex-col gap-4 p-5">
       <div className="flex items-start justify-between gap-4">
@@ -23,7 +25,7 @@ export function AudioTranscript({ document }: { document: UiDocument }) {
       </div>
 
       <p className="text-sm leading-6 text-[var(--text-secondary)]">
-        {document.transcription?.text ?? document.summary}
+        {unavailable ? "Audio processing unavailable" : document.transcription?.text ?? document.summary}
       </p>
 
       <div className="space-y-2">

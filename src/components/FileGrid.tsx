@@ -1,11 +1,13 @@
+import { finalizeClientMove, processFile } from "../lib/api";
+import { mapProcessResponseToUiDocument, mapSearchResultToGenericDocument } from "../lib/document-mappers";
+import { moveLocalFile } from "../lib/tauri-events";
 import { GenericDocument } from "../templates/GenericDocument";
 import { AudioTranscript } from "../templates/AudioTranscript";
 import { ContractCard } from "../templates/ContractCard";
 import { FileMovedCard } from "../templates/FileMovedCard";
 import { ReceiptCard } from "../templates/ReceiptCard";
-import { mapSearchResultToGenericDocument } from "../lib/document-mappers";
 import { useDocumentStore } from "../store/documentStore";
-import type { UiDocument } from "../types/documents";
+import type { ProcessResponse, UiDocument } from "../types/documents";
 
 export function FileGrid() {
   const documents = useDocumentStore((state) => state.documents);
@@ -48,13 +50,13 @@ function matchesFilter(document: UiDocument, filter: ReturnType<typeof useDocume
     return document.status !== "ready" && document.status !== "completed";
   }
   if (filter === "moved") {
-    return Boolean(document.moveResult?.success);
+    return document.moveStatus === "moved";
   }
   return document.kind === filter;
 }
 
 function renderDocument(document: UiDocument, orphanResult?: ReturnType<typeof useDocumentStore.getState>["search"]["orphanResults"][number]) {
-  if (document.status === "uploading" || document.status === "classifying" || document.status === "extracting" || document.status === "indexing" || document.status === "organizing" || document.status === "transcribing") {
+  if (document.status === "uploading" || document.status === "processing" || document.status === "classifying" || document.status === "classified" || document.status === "extracting" || document.status === "indexing" || document.status === "organizing" || document.status === "transcribing") {
     return (
       <article className="glass-panel flex h-full flex-col gap-4 p-5">
         <div>
@@ -65,6 +67,12 @@ function renderDocument(document: UiDocument, orphanResult?: ReturnType<typeof u
         <div className="processing-bar" />
       </article>
     );
+  }
+  if (document.status === "failed") {
+    return <FailureCard document={document} />;
+  }
+  if (document.moveStatus === "awaiting_confirmation" && document.movePlan?.destination) {
+    return <PendingMoveCard document={document} />;
   }
   if (document.kind === "receipt") {
     return <ReceiptCard document={document} />;
@@ -78,11 +86,122 @@ function renderDocument(document: UiDocument, orphanResult?: ReturnType<typeof u
   if (document.kind === "audio" || (document.kind === "meeting_notes" && document.transcription?.segments.length)) {
     return <AudioTranscript document={document} />;
   }
-  if (document.kind === "file_moved") {
-    return <FileMovedCard document={document} />;
-  }
-  if (document.moveResult?.success) {
+  if (document.kind === "file_moved" || document.moveStatus === "moved" || document.moveResult?.success) {
     return <FileMovedCard document={document} />;
   }
   return <GenericDocument document={document} searchResult={orphanResult} />;
+}
+
+function FailureCard({ document }: { document: UiDocument }) {
+  return (
+    <article className="glass-panel flex h-full flex-col gap-4 p-5">
+      <div>
+        <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Failed</p>
+        <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)]">{document.title}</h3>
+      </div>
+      <p className="text-sm text-[var(--text-secondary)]">{document.errorCode === "audio_processing_unavailable" ? "Audio processing unavailable" : document.summary}</p>
+      {document.retryable ? (
+        <button
+          type="button"
+          className="w-fit rounded-2xl bg-[var(--accent-primary)] px-4 py-2 text-sm font-semibold text-white"
+          onClick={() => {
+            void retryDocument(document.requestId);
+          }}
+        >
+          Retry
+        </button>
+      ) : null}
+    </article>
+  );
+}
+
+function PendingMoveCard({ document }: { document: UiDocument }) {
+  return (
+    <article className="glass-panel glass-panel-hover flex h-full flex-col gap-4 p-5">
+      <div>
+        <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Move confirmation</p>
+        <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)]">{document.title}</h3>
+      </div>
+      <p className="text-sm text-[var(--text-secondary)]">{document.summary}</p>
+      <div className="rounded-2xl bg-white/45 p-3 font-mono text-xs text-[var(--text-secondary)]">
+        {document.movePlan?.destination}
+      </div>
+      <div className="flex gap-3">
+        <button
+          type="button"
+          className="rounded-2xl bg-[var(--accent-primary)] px-4 py-2 text-sm font-semibold text-white"
+          onClick={() => {
+            void confirmMove(document);
+          }}
+        >
+          Confirm move
+        </button>
+        <button
+          type="button"
+          className="rounded-2xl border border-black/5 bg-white/50 px-4 py-2 text-sm font-semibold text-[var(--text-secondary)]"
+          onClick={() => undefined}
+        >
+          Not now
+        </button>
+      </div>
+    </article>
+  );
+}
+
+async function confirmMove(document: UiDocument): Promise<void> {
+  const state = useDocumentStore.getState();
+  if (!state.clientId || !document.sourcePath || !document.movePlan?.destination) {
+    return;
+  }
+  const localMove = await moveLocalFile(document.sourcePath, document.movePlan.destination);
+  const finalized = await finalizeClientMove({
+    recordId: document.id,
+    requestId: document.requestId,
+    clientId: state.clientId,
+    result: localMove,
+  });
+  if (finalized.success) {
+    useDocumentStore.getState().applyMoveFinalized(finalized);
+  } else {
+    useDocumentStore.getState().applyClientMoveFailure(document.requestId, "move_failed", "File move failed");
+  }
+}
+
+async function retryDocument(requestId: string): Promise<void> {
+  const state = useDocumentStore.getState();
+  const upload = state.uploadsByRequestId[requestId];
+  if (!upload || !state.clientId) {
+    return;
+  }
+  state.markJobStage(requestId, "uploading");
+  const response = await processFile({
+    file: upload.file,
+    sourcePath: upload.sourcePath,
+    clientId: state.clientId,
+    requestId,
+    executeMove: Boolean(upload.sourcePath),
+    moveExecutor: "client",
+  });
+  const document = mapProcessResponseToUiDocument(response as ProcessResponse);
+  state.upsertDocument(document);
+  if (
+    response.move_status === "auto_pending_client" &&
+    response.move_plan.destination &&
+    document.sourcePath &&
+    response.record_id
+  ) {
+    const localMove = await moveLocalFile(document.sourcePath, response.move_plan.destination);
+    const finalized = await finalizeClientMove({
+      recordId: response.record_id,
+      requestId,
+      clientId: state.clientId,
+      result: localMove,
+    });
+    if (finalized.success) {
+      state.applyMoveFinalized(finalized);
+    }
+  }
+  if (response.move_status !== "awaiting_confirmation") {
+    state.clearRememberedUpload(requestId);
+  }
 }

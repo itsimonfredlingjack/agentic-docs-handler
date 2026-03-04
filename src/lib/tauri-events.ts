@@ -1,4 +1,4 @@
-import type { BackendConnectionPayload, BackendServerEvent } from "../types/documents";
+import type { BackendConnectionPayload, BackendServerEvent, MoveExecutionResult } from "../types/documents";
 
 type Unlisten = () => void | Promise<void>;
 
@@ -39,6 +39,38 @@ export async function requestReconnect(): Promise<void> {
   }
   const { invoke } = await import("@tauri-apps/api/core");
   await invoke("reconnect_backend_ws");
+}
+
+export async function moveLocalFile(sourcePath: string, destinationDir: string): Promise<MoveExecutionResult> {
+  if (!isTauriRuntime()) {
+    return {
+      success: false,
+      from_path: sourcePath,
+      to_path: destinationDir,
+      error: "tauri_runtime_required",
+    };
+  }
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<MoveExecutionResult>("move_local_file", {
+    sourcePath,
+    destinationDir,
+  });
+}
+
+export async function undoLocalFileMove(fromPath: string, toPath: string): Promise<MoveExecutionResult> {
+  if (!isTauriRuntime()) {
+    return {
+      success: false,
+      from_path: fromPath,
+      to_path: toPath,
+      error: "tauri_runtime_required",
+    };
+  }
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<MoveExecutionResult>("undo_local_file_move", {
+    fromPath,
+    toPath,
+  });
 }
 
 export async function listenToBackendConnection(

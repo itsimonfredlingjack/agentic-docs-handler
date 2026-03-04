@@ -155,6 +155,7 @@ class FakePipeline:
         content_type: str | None,
         execute_move: bool,
         source_path: str | None,
+        move_executor: str = "none",
     ) -> ProcessResponse:
         self.calls.append(
             {
@@ -199,6 +200,10 @@ class FakePipeline:
             ),
             timings={"classify_ms": 1.0, "extract_ms": 1.0, "organize_ms": 1.0},
             errors=[],
+            move_status="moved" if execute_move else "planned",
+            retryable=False,
+            error_code=None,
+            warnings=[],
         )
 
 
@@ -306,7 +311,7 @@ async def test_get_system_status_returns_readiness_and_model(tmp_path: Path) -> 
 
     result = await server.call_tool("get_system_status", {})
 
-    assert result.structuredContent["phase"] == 4
+    assert result.structuredContent["phase"] == 5
     assert result.structuredContent["readiness"]["ready"] is True
     assert result.structuredContent["model"] == services.config.ollama_model
 
@@ -357,6 +362,19 @@ async def test_classify_image_rejects_unsupported_image_type(tmp_path: Path) -> 
 
     assert result.isError is True
     assert "unsupported_image_type" in result.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_classify_document_returns_process_schema(tmp_path: Path) -> None:
+    services, pipeline, _ = build_services(tmp_path)
+    source_path = tmp_path / "invoice.txt"
+    server = create_mcp_server(services)
+
+    result = await server.call_tool("classify_document", {"source_path": str(source_path)})
+
+    assert result.structuredContent["classification"]["document_type"] == "invoice"
+    assert result.structuredContent["move_plan"]["destination"] == "/tmp/Fakturor/2026/03"
+    assert pipeline.calls[-1]["execute_move"] is False
 
 
 @pytest.mark.asyncio

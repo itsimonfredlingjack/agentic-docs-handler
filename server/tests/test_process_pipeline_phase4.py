@@ -140,5 +140,6 @@ async def test_audio_process_upload_returns_transcription_and_registry_record(tm
         "job.progress",
         "job.progress",
         "job.progress",
+        "job.progress",
         "job.completed",
     ]

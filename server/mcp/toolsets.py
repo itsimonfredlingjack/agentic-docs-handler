@@ -25,6 +25,7 @@ READ_TOOL_NAMES = (
     "get_validation_report",
     "classify_text",
     "classify_image",
+    "classify_document",
     "extract_fields",
     "preview_document_processing",
     "list_file_rules",

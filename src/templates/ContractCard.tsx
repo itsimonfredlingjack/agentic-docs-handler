@@ -2,6 +2,9 @@ import type { UiDocument } from "../types/documents";
 
 export function ContractCard({ document }: { document: UiDocument }) {
   const fields = document.extraction?.fields ?? {};
+  const parties = Array.isArray(fields.parties) ? fields.parties.join(", ") : String(fields.parties ?? fields.counterparties ?? "—");
+  const timeline = [fields.start_date, fields.end_date].filter(Boolean).join(" → ") || "—";
+  const deadlines = Array.isArray(fields.deadlines) ? fields.deadlines.join(", ") : String(fields.deadlines ?? fields.renewal_date ?? "—");
 
   return (
     <article className="glass-panel glass-panel-hover flex h-full flex-col gap-4 p-5">
@@ -21,11 +24,15 @@ export function ContractCard({ document }: { document: UiDocument }) {
       <dl className="space-y-3 text-sm">
         <div className="rounded-2xl bg-white/40 p-3">
           <dt className="font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-muted)]">Parter</dt>
-          <dd className="mt-1 text-[var(--text-primary)]">{String(fields.parties ?? fields.counterparties ?? "—")}</dd>
+          <dd className="mt-1 text-[var(--text-primary)]">{parties}</dd>
+        </div>
+        <div className="rounded-2xl bg-white/40 p-3">
+          <dt className="font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-muted)]">Start/Slut</dt>
+          <dd className="mt-1 text-[var(--text-primary)]">{timeline}</dd>
         </div>
         <div className="rounded-2xl bg-white/40 p-3">
           <dt className="font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-muted)]">Deadlines</dt>
-          <dd className="mt-1 text-[var(--text-primary)]">{String(fields.deadlines ?? fields.renewal_date ?? "—")}</dd>
+          <dd className="mt-1 text-[var(--text-primary)]">{deadlines}</dd>
         </div>
         <div className="rounded-2xl bg-white/40 p-3">
           <dt className="font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-muted)]">Uppsägning</dt>

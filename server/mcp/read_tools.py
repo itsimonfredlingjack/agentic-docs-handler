@@ -10,6 +10,7 @@ from mcp.types import CallToolResult, TextContent
 from server.clients.ollama_client import OllamaServiceError
 from server.mcp.schemas import (
     ActivityLogInput,
+    ClassifyDocumentInput,
     ClassifyImageInput,
     ClassifyTextInput,
     ExtractFieldsInput,
@@ -223,6 +224,30 @@ def register_read_tools(server: FastMCP, services: AppServices) -> None:
             return error_result(str(error))
 
     @server.tool(
+        name="classify_document",
+        description="Use this when you need the full process preview for a local document using the same schema family as /process.",
+        annotations=READ_ONLY_ANNOTATIONS,
+    )
+    async def classify_document(source_path: str) -> CallToolResult:
+        try:
+            validated = ClassifyDocumentInput(source_path=source_path)
+            path = validate_local_file(services, validated.source_path)
+            mime_type = detect_image_mime(path)
+            result = await services.pipeline.process_upload(
+                filename=path.name,
+                content=path.read_bytes(),
+                content_type=mime_type,
+                execute_move=False,
+                source_path=str(path),
+                move_executor="none",
+            )
+            return structured_result("Document classified successfully.", result.model_dump(mode="json"))
+        except (FileNotFoundError, ValueError, UnsupportedMediaTypeError) as error:
+            return error_result(str(error))
+        except (ClassificationValidationError, ExtractionValidationError, OllamaServiceError) as error:
+            return error_result(str(error))
+
+    @server.tool(
         name="extract_fields",
         description="Use this when you need structured extraction from text using a known classification.",
         annotations=READ_ONLY_ANNOTATIONS,
@@ -261,6 +286,7 @@ def register_read_tools(server: FastMCP, services: AppServices) -> None:
                 content_type=mime_type,
                 execute_move=False,
                 source_path=str(path),
+                move_executor="none",
             )
             return structured_result("Document processing preview generated.", result.model_dump(mode="json"))
         except (FileNotFoundError, ValueError, UnsupportedMediaTypeError) as error:

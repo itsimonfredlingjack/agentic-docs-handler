@@ -1,18 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 
-import { fetchActivity, fetchCounts, processFile } from "../lib/api";
+import { fetchActivity, fetchCounts, finalizeClientMove, processFile } from "../lib/api";
 import { buildQueuedDocument, mapProcessResponseToUiDocument } from "../lib/document-mappers";
 import { basename, inferSourceModality } from "../lib/mime";
-import { listenToWindowFileDrops } from "../lib/tauri-events";
+import { listenToWindowFileDrops, moveLocalFile } from "../lib/tauri-events";
 import { useDocumentStore } from "../store/documentStore";
-import type { ActivityEvent } from "../types/documents";
+import type { ActivityEvent, ProcessResponse } from "../types/documents";
 
 export function DropZone() {
   const clientId = useDocumentStore((state) => state.clientId);
   const activity = useDocumentStore((state) => state.activity);
   const queueUploads = useDocumentStore((state) => state.queueUploads);
+  const rememberUpload = useDocumentStore((state) => state.rememberUpload);
+  const clearRememberedUpload = useDocumentStore((state) => state.clearRememberedUpload);
   const upsertDocument = useDocumentStore((state) => state.upsertDocument);
   const markJobFailed = useDocumentStore((state) => state.markJobFailed);
+  const applyMoveFinalized = useDocumentStore((state) => state.applyMoveFinalized);
   const bootstrap = useDocumentStore((state) => state.bootstrap);
   const counts = useDocumentStore((state) => state.counts);
   const [isHovered, setHovered] = useState(false);
@@ -56,6 +59,9 @@ export function DropZone() {
     });
     lastTauriPathsRef.current = [];
     queueUploads(jobs.map((job) => buildQueuedDocument(job)));
+    jobs.forEach((job) => {
+      rememberUpload(job.requestId, { file: job.file, sourcePath: job.sourcePath });
+    });
 
     await Promise.allSettled(
       jobs.map(async (job) => {
@@ -66,8 +72,12 @@ export function DropZone() {
             clientId,
             requestId: job.requestId,
             executeMove: Boolean(job.sourcePath),
+            moveExecutor: "client",
           });
-          upsertDocument(mapProcessResponseToUiDocument(response));
+          await reconcileProcessResponse(response, clientId, upsertDocument, applyMoveFinalized);
+          if (response.move_status !== "awaiting_confirmation") {
+            clearRememberedUpload(job.requestId);
+          }
         } catch (error) {
           markJobFailed(job.requestId, error instanceof Error ? error.message : "upload_failed");
         }
@@ -135,6 +145,31 @@ export function DropZone() {
       </div>
     </section>
   );
+}
+
+async function reconcileProcessResponse(
+  response: ProcessResponse,
+  clientId: string,
+  upsertDocument: (document: ReturnType<typeof mapProcessResponseToUiDocument>) => void,
+  applyMoveFinalized: (payload: { success: boolean; record_id: string; request_id: string; from_path: string; to_path: string; undo_token: string | null; move_status: "not_requested" | "planned" | "awaiting_confirmation" | "auto_pending_client" | "moved" | "move_failed" | "undone"; }) => void,
+): Promise<void> {
+  const document = mapProcessResponseToUiDocument(response);
+  upsertDocument(document);
+  if (
+    response.move_status === "auto_pending_client" &&
+    response.move_plan.destination &&
+    document.sourcePath &&
+    response.record_id
+  ) {
+    const moveResult = await moveLocalFile(document.sourcePath, response.move_plan.destination);
+    const finalized = await finalizeClientMove({
+      recordId: response.record_id,
+      requestId: response.request_id,
+      clientId,
+      result: moveResult,
+    });
+    applyMoveFinalized(finalized);
+  }
 }
 
 function resolveSourcePath(file: File, index: number, tauriPaths: string[]): string | null {

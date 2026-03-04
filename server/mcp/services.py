@@ -36,7 +36,7 @@ class AppServices:
     realtime_manager: object | None = None
     activity_log_loader: Any | None = None
     root_status: dict[str, object] = field(
-        default_factory=lambda: {"name": "agentic-docs-handler", "status": "ok", "phase": 4}
+        default_factory=lambda: {"name": "agentic-docs-handler", "status": "ok", "phase": 5}
     )
 
     def prompt_paths(self) -> list[Path]:

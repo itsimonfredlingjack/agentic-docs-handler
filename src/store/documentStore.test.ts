@@ -34,6 +34,10 @@ const sampleDocument: UiDocument = {
   status: "ready",
   tags: ["receipt"],
   undoToken: "mv-1",
+  retryable: false,
+  errorCode: null,
+  warnings: [],
+  moveStatus: "moved",
 };
 
 describe("documentStore", () => {
@@ -66,6 +70,7 @@ describe("documentStore", () => {
       },
       sidebarFilter: "all",
       toasts: [],
+      uploadsByRequestId: {},
     });
   });
 
@@ -141,6 +146,7 @@ describe("documentStore", () => {
       from_path: "/tmp/sorted/receipt.txt",
       to_path: "/tmp/incoming/receipt.txt",
       request_id: "undo-1",
+      record_id: "doc-1",
     });
 
     expect(useDocumentStore.getState().documents["doc-1"].sourcePath).toBe("/tmp/incoming/receipt.txt");

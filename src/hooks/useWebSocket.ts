@@ -1,24 +1,36 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
+import { fetchActivity, fetchCounts, fetchDocuments } from "../lib/api";
 import { listenToBackendConnection, listenToBackendEvent } from "../lib/tauri-events";
 import { useDocumentStore } from "../store/documentStore";
 import type { BackendServerEvent, FileMoveToastItem, UndoMoveResponse } from "../types/documents";
 
 export function useWebSocket(): void {
+  const previousConnection = useRef<string>("connecting");
   const setConnectionState = useDocumentStore((state) => state.setConnectionState);
   const updateConnectionFromPayload = useDocumentStore((state) => state.updateConnectionFromPayload);
   const markJobStage = useDocumentStore((state) => state.markJobStage);
   const markJobFailed = useDocumentStore((state) => state.markJobFailed);
   const pushMoveToast = useDocumentStore((state) => state.pushMoveToast);
   const applyUndoSuccess = useDocumentStore((state) => state.applyUndoSuccess);
+  const resyncFromBackend = useDocumentStore((state) => state.resyncFromBackend);
 
   useEffect(() => {
     let unlistenConnection: (() => void | Promise<void>) | undefined;
     let unlistenEvents: (() => void | Promise<void>) | undefined;
 
     void listenToBackendConnection((payload) => {
+      const wasReconnecting = previousConnection.current === "reconnecting";
+      previousConnection.current = payload.state;
       updateConnectionFromPayload(payload);
       setConnectionState(payload.state);
+      if (wasReconnecting && payload.state === "connected") {
+        void Promise.all([fetchDocuments(50), fetchCounts(), fetchActivity(10)]).then(
+          ([documentsPayload, counts, activity]) => {
+            resyncFromBackend(documentsPayload.documents, counts, activity.events);
+          },
+        );
+      }
     }).then((unlisten) => {
       unlistenConnection = unlisten;
     });
@@ -38,14 +50,14 @@ export function useWebSocket(): void {
       void unlistenConnection?.();
       void unlistenEvents?.();
     };
-  }, [applyUndoSuccess, markJobFailed, markJobStage, pushMoveToast, setConnectionState, updateConnectionFromPayload]);
+  }, [applyUndoSuccess, markJobFailed, markJobStage, pushMoveToast, resyncFromBackend, setConnectionState, updateConnectionFromPayload]);
 }
 
 function handleServerEvent(
   payload: BackendServerEvent,
   handlers: {
-    markJobStage: (requestId: string, stage: "uploading" | "transcribing" | "classifying" | "extracting" | "organizing" | "indexing" | "completed" | "failed" | "ready" | "queued") => void;
-    markJobFailed: (requestId: string, error: string) => void;
+    markJobStage: (requestId: string, stage: "uploading" | "processing" | "transcribing" | "classified" | "classifying" | "extracting" | "organizing" | "indexing" | "awaiting_confirmation" | "moved" | "completed" | "failed" | "ready" | "queued") => void;
+    markJobFailed: (requestId: string, error: string, errorCode?: string | null) => void;
     pushMoveToast: (toast: FileMoveToastItem) => void;
     applyUndoSuccess: (payload: UndoMoveResponse) => void;
   },
@@ -79,6 +91,7 @@ function handleServerEvent(
       from_path: payload.from_path,
       to_path: payload.to_path,
       request_id: payload.request_id,
+      record_id: null,
     });
   }
 }

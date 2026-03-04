@@ -18,6 +18,9 @@ export function FileMovedCard({ document }: { document: UiDocument }) {
         <p className="text-[var(--text-primary)]">→</p>
         <p className="text-[var(--text-primary)]">{document.moveResult?.to_path ?? "—"}</p>
       </div>
+      {document.undoToken ? (
+        <p className="text-xs text-[var(--text-secondary)]">Undo available</p>
+      ) : null}
     </article>
   );
 }

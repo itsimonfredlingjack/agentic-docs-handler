@@ -14,6 +14,16 @@ DocumentType = Literal[
 ]
 SourceModality = Literal["text", "image", "audio"]
 FileActionType = Literal["none", "auto_moved", "needs_confirmation", "failed"]
+MoveExecutor = Literal["none", "client", "server"]
+MoveStatus = Literal[
+    "not_requested",
+    "planned",
+    "awaiting_confirmation",
+    "auto_pending_client",
+    "moved",
+    "move_failed",
+    "undone",
+]
 UiDocumentKind = Literal[
     "receipt",
     "contract",
@@ -82,6 +92,10 @@ class ProcessResponse(BaseModel):
     transcription: TranscriptionResponse | None = None
     ui_kind: UiDocumentKind | None = None
     undo_token: str | None = None
+    move_status: MoveStatus = "not_requested"
+    retryable: bool = False
+    error_code: str | None = None
+    warnings: list[str] = Field(default_factory=list)
 
 
 class LLMCallLogEntry(BaseModel):
@@ -162,6 +176,10 @@ class UiDocumentRecord(BaseModel):
     tags: list[str] = Field(default_factory=list)
     status: str = "ready"
     undo_token: str | None = None
+    move_status: MoveStatus = "not_requested"
+    retryable: bool = False
+    error_code: str | None = None
+    warnings: list[str] = Field(default_factory=list)
 
 
 class DocumentListResponse(BaseModel):
@@ -205,3 +223,33 @@ class UndoMoveResponse(BaseModel):
     from_path: str
     to_path: str
     request_id: str
+    record_id: str | None = None
+
+
+class FinalizeMoveRequest(BaseModel):
+    record_id: str
+    request_id: str
+    client_id: str | None = None
+    from_path: str
+    to_path: str
+    success: bool
+    error: str | None = None
+
+
+class FinalizeMoveResponse(BaseModel):
+    success: bool
+    record_id: str
+    request_id: str
+    from_path: str
+    to_path: str
+    undo_token: str | None = None
+    move_status: MoveStatus
+
+
+class CompleteUndoMoveRequest(BaseModel):
+    undo_token: str
+    client_id: str | None = None
+    from_path: str
+    to_path: str
+    success: bool
+    error: str | None = None

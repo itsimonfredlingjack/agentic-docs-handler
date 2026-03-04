@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import math
+import asyncio
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -190,23 +190,29 @@ class SearchPipeline:
         self.default_limit = default_limit
         self.candidate_limit = candidate_limit
         self.bootstrap_documents = list(bootstrap_documents or [])
-        self.documents: dict[str, IndexedDocument] = {
+        self._documents: dict[str, IndexedDocument] = {
             document.doc_id: document for document in self.bootstrap_documents
         }
-        self.rows: list[dict[str, Any]] = []
-        self.table: Any | None = None
+        self._rows: list[dict[str, Any]] = []
+        self._table: Any | None = None
         self._bootstrapped = False
+        self._mutation_lock = asyncio.Lock()
 
     def index_documents(self, documents: list[IndexedDocument]) -> None:
-        self.documents = {document.doc_id: document for document in documents}
-        self._rebuild_index()
+        self._documents = {document.doc_id: document for document in documents}
+        rows = self._rebuild_rows(list(self._documents.values()))
+        self._swap_snapshot(rows)
 
-    def upsert_document(self, document: IndexedDocument) -> None:
-        self.documents[document.doc_id] = document
-        self._rebuild_index()
+    async def upsert_document(self, document: IndexedDocument) -> None:
+        async with self._mutation_lock:
+            self._documents[document.doc_id] = document
+            doc_rows = self._build_document_rows(document)
+            next_rows = [row for row in self._rows if row["doc_id"] != document.doc_id]
+            next_rows.extend(doc_rows)
+            self._swap_snapshot(next_rows)
 
     async def search(self, query: str, limit: int | None = None) -> SearchResponse:
-        self._ensure_bootstrapped()
+        await self._ensure_bootstrapped()
         request_id = str(uuid4())
         rewritten_query = query
         if self.query_planner is not None:
@@ -215,7 +221,9 @@ class SearchPipeline:
             except OllamaServiceError:
                 rewritten_query = query
 
-        if not self.rows:
+        rows = list(self._rows)
+        table = self._table
+        if not rows or table is None:
             return SearchResponse(
                 query=query,
                 rewritten_query=rewritten_query,
@@ -225,14 +233,11 @@ class SearchPipeline:
 
         top_limit = limit or self.default_limit
         query_vector = self.embedder.encode_query(rewritten_query)
-        vector_rows = self.table.search(query_vector).limit(max(top_limit, self.candidate_limit)).to_list()
+        vector_rows = table.search(query_vector).limit(max(top_limit, self.candidate_limit)).to_list()
         vector_rank = {row["chunk_id"]: index + 1 for index, row in enumerate(vector_rows)}
 
         keyword_ranked = sorted(
-            (
-                (self._keyword_score(rewritten_query, row["content"]), row)
-                for row in self.rows
-            ),
+            ((self._keyword_score(rewritten_query, row["content"]), row) for row in rows),
             key=lambda item: item[0],
             reverse=True,
         )
@@ -245,7 +250,7 @@ class SearchPipeline:
 
         all_chunk_ids = set(vector_rank) | set(keyword_rank)
         scored_rows: list[SearchResult] = []
-        row_by_id = {row["chunk_id"]: row for row in self.rows}
+        row_by_id = {row["chunk_id"]: row for row in rows}
         for chunk_id in all_chunk_ids:
             row = row_by_id[chunk_id]
             vector_score = reciprocal_rank(vector_rank.get(chunk_id))
@@ -285,37 +290,46 @@ class SearchPipeline:
             results=top_results,
         )
 
-    def _ensure_bootstrapped(self) -> None:
+    async def _ensure_bootstrapped(self) -> None:
         if self._bootstrapped:
             return
-        self._rebuild_index()
+        async with self._mutation_lock:
+            if self._bootstrapped:
+                return
+            rows = self._rebuild_rows(list(self._documents.values()))
+            self._swap_snapshot(rows)
 
-    def _rebuild_index(self) -> None:
+    def _rebuild_rows(self, documents: list[IndexedDocument]) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
-        documents = list(self.documents.values())
         for document in documents:
-            chunks = self._chunk_text(document.text)
-            if not chunks:
-                continue
-            vectors = self.embedder.encode_documents(chunks)
-            for index, (chunk_text, vector) in enumerate(zip(chunks, vectors, strict=True)):
-                rows.append(
-                    {
-                        "chunk_id": f"{document.doc_id}:{index}",
-                        "doc_id": document.doc_id,
-                        "title": document.title,
-                        "source_path": document.source_path,
-                        "content": chunk_text,
-                        "metadata": document.metadata,
-                        "vector": vector,
-                    }
-                )
-        self.rows = rows
+            rows.extend(self._build_document_rows(document))
+        return rows
+
+    def _build_document_rows(self, document: IndexedDocument) -> list[dict[str, Any]]:
+        chunks = self._chunk_text(document.text)
+        if not chunks:
+            return []
+        vectors = self.embedder.encode_documents(chunks)
+        return [
+            {
+                "chunk_id": f"{document.doc_id}:{index}",
+                "doc_id": document.doc_id,
+                "title": document.title,
+                "source_path": document.source_path,
+                "content": chunk_text,
+                "metadata": document.metadata,
+                "vector": vector,
+            }
+            for index, (chunk_text, vector) in enumerate(zip(chunks, vectors, strict=True))
+        ]
+
+    def _swap_snapshot(self, rows: list[dict[str, Any]]) -> None:
+        self._rows = list(rows)
         self._bootstrapped = True
         if not rows:
-            self.table = None
+            self._table = None
             return
-        self.table = self.db.create_table(self.table_name, rows, mode="overwrite")
+        self._table = self.db.create_table(self.table_name, rows, mode="overwrite")
 
     def _chunk_text(self, text: str) -> list[str]:
         stripped = text.strip()

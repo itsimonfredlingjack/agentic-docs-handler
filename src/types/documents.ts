@@ -17,14 +17,29 @@ export type UiDocumentKind =
   | "generic"
   | "file_moved";
 
+export type MoveExecutor = "none" | "client" | "server";
+
+export type MoveStatus =
+  | "not_requested"
+  | "planned"
+  | "awaiting_confirmation"
+  | "auto_pending_client"
+  | "moved"
+  | "move_failed"
+  | "undone";
+
 export type JobStage =
   | "queued"
   | "uploading"
+  | "processing"
   | "transcribing"
+  | "classified"
   | "classifying"
   | "extracting"
   | "organizing"
   | "indexing"
+  | "awaiting_confirmation"
+  | "moved"
   | "completed"
   | "failed";
 
@@ -117,6 +132,10 @@ export type ProcessResponse = {
   transcription: TranscriptionResponse | null;
   ui_kind: UiDocumentKind | null;
   undo_token: string | null;
+  move_status: MoveStatus;
+  retryable: boolean;
+  error_code: string | null;
+  warnings: string[];
 };
 
 export type UiDocument = {
@@ -140,6 +159,10 @@ export type UiDocument = {
   status: JobStage | "ready";
   tags: string[];
   undoToken: string | null;
+  retryable: boolean;
+  errorCode: string | null;
+  warnings: string[];
+  moveStatus: MoveStatus;
 };
 
 export type DocumentListResponse = {
@@ -196,6 +219,24 @@ export type UndoMoveResponse = {
   from_path: string;
   to_path: string;
   request_id: string;
+  record_id?: string | null;
+};
+
+export type FinalizeMoveResponse = {
+  success: boolean;
+  record_id: string;
+  request_id: string;
+  from_path: string;
+  to_path: string;
+  undo_token: string | null;
+  move_status: MoveStatus;
+};
+
+export type MoveExecutionResult = {
+  success: boolean;
+  from_path: string;
+  to_path: string;
+  error?: string | null;
 };
 
 export type BackendConnectionPayload = {

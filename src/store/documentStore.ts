@@ -3,15 +3,21 @@ import { create } from "zustand";
 import type {
   ActivityEvent,
   BackendConnectionPayload,
+  ConnectionState,
   DocumentCounts,
+  FileMoveToastItem,
+  FinalizeMoveResponse,
   SearchResponse,
   SearchState,
   SidebarFilter,
   UiDocument,
-  FileMoveToastItem,
   UndoMoveResponse,
-  ConnectionState,
 } from "../types/documents";
+
+type UploadMemory = {
+  file: File;
+  sourcePath: string | null;
+};
 
 type DocumentStoreState = {
   clientId: string | null;
@@ -23,13 +29,20 @@ type DocumentStoreState = {
   search: SearchState;
   sidebarFilter: SidebarFilter;
   toasts: FileMoveToastItem[];
+  uploadsByRequestId: Record<string, UploadMemory>;
   bootstrap: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
+  resyncFromBackend: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
   setClientId: (clientId: string) => void;
   setConnectionState: (state: ConnectionState) => void;
   queueUploads: (localJobs: UiDocument[]) => void;
+  rememberUpload: (requestId: string, payload: UploadMemory) => void;
+  clearRememberedUpload: (requestId: string) => void;
   markJobStage: (requestId: string, stage: UiDocument["status"]) => void;
   upsertDocument: (document: UiDocument) => void;
-  markJobFailed: (requestId: string, error: string) => void;
+  markJobFailed: (requestId: string, error: string, errorCode?: string | null) => void;
+  setAwaitingConfirmation: (recordId: string) => void;
+  applyMoveFinalized: (payload: FinalizeMoveResponse) => void;
+  applyClientMoveFailure: (requestId: string, errorCode: string, message: string) => void;
   setSearchLoading: (query: string) => void;
   applySearchResponse: (response: SearchResponse) => void;
   clearSearch: () => void;
@@ -66,7 +79,7 @@ function upsertOrder(order: string[], id: string): string[] {
   return [id, ...order.filter((entry) => entry !== id)];
 }
 
-export const useDocumentStore = create<DocumentStoreState>((set, get) => ({
+export const useDocumentStore = create<DocumentStoreState>((set) => ({
   clientId: null,
   connectionState: "connecting",
   documents: {},
@@ -76,7 +89,15 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => ({
   search: emptySearch,
   sidebarFilter: "all",
   toasts: [],
+  uploadsByRequestId: {},
   bootstrap: (documents, counts, activity) =>
+    set({
+      documents: Object.fromEntries(documents.map((document) => [document.id, document])),
+      documentOrder: documents.map((document) => document.id),
+      counts,
+      activity,
+    }),
+  resyncFromBackend: (documents, counts, activity) =>
     set({
       documents: Object.fromEntries(documents.map((document) => [document.id, document])),
       documentOrder: documents.map((document) => document.id),
@@ -102,6 +123,19 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => ({
           processing: state.counts.processing + localJobs.length,
         },
       };
+    }),
+  rememberUpload: (requestId, payload) =>
+    set((state) => ({
+      uploadsByRequestId: {
+        ...state.uploadsByRequestId,
+        [requestId]: payload,
+      },
+    })),
+  clearRememberedUpload: (requestId) =>
+    set((state) => {
+      const uploadsByRequestId = { ...state.uploadsByRequestId };
+      delete uploadsByRequestId[requestId];
+      return { uploadsByRequestId };
     }),
   markJobStage: (requestId, stage) =>
     set((state) => {
@@ -132,7 +166,7 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => ({
       documentOrder = upsertOrder(documentOrder, document.id);
       return { documents, documentOrder };
     }),
-  markJobFailed: (requestId, error) =>
+  markJobFailed: (requestId, error, errorCode = null) =>
     set((state) => {
       const documents = { ...state.documents };
       const target = Object.values(documents).find((document) => document.requestId === requestId);
@@ -143,6 +177,58 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => ({
         ...target,
         status: "failed",
         summary: error,
+        updatedAt: new Date().toISOString(),
+        errorCode,
+      };
+      return { documents };
+    }),
+  setAwaitingConfirmation: (recordId) =>
+    set((state) => {
+      const target = state.documents[recordId];
+      if (!target) {
+        return state;
+      }
+      return {
+        documents: {
+          ...state.documents,
+          [recordId]: {
+            ...target,
+            status: "awaiting_confirmation",
+            moveStatus: "awaiting_confirmation",
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      };
+    }),
+  applyMoveFinalized: (payload) =>
+    set((state) => {
+      const documents = { ...state.documents };
+      const target = documents[payload.record_id];
+      if (target) {
+        documents[payload.record_id] = {
+          ...target,
+          sourcePath: payload.to_path,
+          undoToken: payload.undo_token,
+          moveStatus: payload.move_status,
+          status: "completed",
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return { documents };
+    }),
+  applyClientMoveFailure: (requestId, errorCode, message) =>
+    set((state) => {
+      const documents = { ...state.documents };
+      const target = Object.values(documents).find((document) => document.requestId === requestId);
+      if (!target) {
+        return state;
+      }
+      documents[target.id] = {
+        ...target,
+        status: "failed",
+        moveStatus: "move_failed",
+        errorCode,
+        summary: message,
         updatedAt: new Date().toISOString(),
       };
       return { documents };
@@ -192,7 +278,7 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => ({
   applyUndoSuccess: (payload) =>
     set((state) => {
       const documents = { ...state.documents };
-      const target = Object.values(documents).find(
+      const target = payload.record_id ? documents[payload.record_id] : Object.values(documents).find(
         (document) => document.moveResult?.to_path === payload.from_path,
       );
       if (target) {
@@ -200,6 +286,7 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => ({
           ...target,
           sourcePath: payload.to_path,
           undoToken: null,
+          moveStatus: "undone",
           moveResult: {
             attempted: true,
             success: true,

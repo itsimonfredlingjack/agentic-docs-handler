@@ -40,6 +40,10 @@ class PreviewDocumentProcessingInput(BaseModel):
     source_path: str = Field(min_length=1)
 
 
+class ClassifyDocumentInput(BaseModel):
+    source_path: str = Field(min_length=1)
+
+
 class OrganizeFileInput(BaseModel):
     source_path: str = Field(min_length=1)
 

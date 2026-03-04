@@ -21,7 +21,7 @@ def create_ws_router(*, realtime_manager: object) -> APIRouter:
             {
                 "type": "connection.ready",
                 "client_id": client_id,
-                "server_phase": 4,
+                "server_phase": 5,
             }
         )
 

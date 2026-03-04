@@ -15,6 +15,9 @@ from server.schemas import (
     ActivityResponse,
     DocumentCountsResponse,
     DocumentListResponse,
+    CompleteUndoMoveRequest,
+    FinalizeMoveRequest,
+    FinalizeMoveResponse,
     ProcessResponse,
     SearchResponse,
     TranscriptionResponse,
@@ -119,6 +122,7 @@ def create_router(
         source_path: str | None = Form(None),
         client_id: str | None = Form(None),
         client_request_id: str | None = Form(None),
+        move_executor: str = Form("none"),
     ) -> ProcessResponse:
         try:
             content = await file.read()
@@ -130,6 +134,7 @@ def create_router(
                 source_path=source_path,
                 client_id=client_id,
                 client_request_id=client_request_id,
+                move_executor=move_executor,
             )
         except UnsupportedMediaTypeError as error:
             raise HTTPException(
@@ -151,7 +156,7 @@ def create_router(
         except OllamaServiceError as error:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=str(error),
+                detail=error.code,
             ) from error
 
     @router.post("/moves/undo", response_model=UndoMoveResponse)
@@ -174,6 +179,99 @@ def create_router(
                     "client_id": payload.client_id,
                     "from_path": result.response.from_path,
                     "to_path": result.response.to_path,
+                },
+            )
+        return result.response
+
+    @router.post("/moves/finalize", response_model=FinalizeMoveResponse)
+    async def finalize_move(payload: FinalizeMoveRequest) -> FinalizeMoveResponse:
+        if document_registry is None:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="document_registry_unavailable")
+        try:
+            result = document_registry.finalize_client_move(
+                record_id=payload.record_id,
+                request_id=payload.request_id,
+                client_id=payload.client_id,
+                from_path=payload.from_path,
+                to_path=payload.to_path,
+                success=payload.success,
+                error=payload.error,
+            )
+        except KeyError as error:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+
+        if realtime_manager is not None and payload.client_id is not None:
+            if result.response.success:
+                await realtime_manager.emit_to_client(
+                    payload.client_id,
+                    {
+                        "type": "file.moved",
+                        "request_id": payload.request_id,
+                        "client_id": payload.client_id,
+                        "record_id": payload.record_id,
+                        "from_path": payload.from_path,
+                        "to_path": payload.to_path,
+                        "undo_token": result.response.undo_token,
+                    },
+                )
+                await realtime_manager.emit_to_client(
+                    payload.client_id,
+                    {
+                        "type": "job.progress",
+                        "request_id": payload.request_id,
+                        "client_id": payload.client_id,
+                        "stage": "moved",
+                        "message": "Filen flyttades",
+                    },
+                )
+                await realtime_manager.emit_to_client(
+                    payload.client_id,
+                    {
+                        "type": "job.completed",
+                        "request_id": payload.request_id,
+                        "client_id": payload.client_id,
+                        "record_id": payload.record_id,
+                        "ui_kind": result.record.kind if result.record is not None else "generic",
+                    },
+                )
+            else:
+                await realtime_manager.emit_to_client(
+                    payload.client_id,
+                    {
+                        "type": "job.failed",
+                        "request_id": payload.request_id,
+                        "client_id": payload.client_id,
+                        "message": payload.error or "move_failed",
+                    },
+                )
+        return result.response
+
+    @router.post("/moves/undo-complete", response_model=UndoMoveResponse)
+    async def complete_undo_move(payload: CompleteUndoMoveRequest) -> UndoMoveResponse:
+        if document_registry is None:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="document_registry_unavailable")
+        try:
+            result = document_registry.complete_client_undo(
+                undo_token=payload.undo_token,
+                from_path=payload.from_path,
+                to_path=payload.to_path,
+                success=payload.success,
+                error=payload.error,
+            )
+        except KeyError as error:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+        except ValueError as error:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
+
+        if realtime_manager is not None and payload.client_id is not None:
+            await realtime_manager.emit_to_client(
+                payload.client_id,
+                {
+                    "type": "file.move_undone",
+                    "request_id": result.response.request_id,
+                    "client_id": payload.client_id,
+                    "from_path": payload.from_path,
+                    "to_path": payload.to_path,
                 },
             )
         return result.response

@@ -35,6 +35,7 @@ class FakePipeline:
         source_path: str | None,
         client_id: str | None = None,
         client_request_id: str | None = None,
+        move_executor: str = "none",
     ) -> ProcessResponse:
         if self.raise_unsupported:
             raise ValueError("unsupported_media_type")
@@ -342,6 +343,7 @@ def test_ws_endpoint_emits_connection_ready_event() -> None:
 
     assert payload["type"] == "connection.ready"
     assert payload["client_id"] == "test-client"
+    assert payload["server_phase"] == 5
 
 
 def test_moves_undo_restores_file_from_registry(tmp_path: Path) -> None:
@@ -421,3 +423,142 @@ def test_moves_undo_restores_file_from_registry(tmp_path: Path) -> None:
     payload = response.json()
     assert payload["success"] is True
     assert Path(payload["to_path"]).exists()
+
+
+def test_moves_finalize_updates_registry(tmp_path: Path) -> None:
+    registry = DocumentRegistry(
+        documents_path=tmp_path / "ui_documents.jsonl",
+        move_history_path=tmp_path / "move_history.jsonl",
+    )
+    registry.upsert_document(
+        UiDocumentRecord(
+            id="doc-2",
+            request_id="req-2",
+            title="Invoice",
+            summary="Invoice summary",
+            mime_type="text/plain",
+            source_modality="text",
+            kind="invoice",
+            document_type="invoice",
+            template="invoice",
+            source_path=str(tmp_path / "invoice.txt"),
+            created_at="2026-03-04T10:00:00+00:00",
+            updated_at="2026-03-04T10:00:00+00:00",
+            classification=DocumentClassification(
+                document_type="invoice",
+                template="invoice",
+                title="Invoice",
+                summary="Invoice summary",
+                tags=["invoice"],
+                language="sv",
+                confidence=0.95,
+                ocr_text=None,
+                suggested_actions=[],
+            ),
+            extraction=ExtractionResult(fields={}, field_confidence={}, missing_fields=[]),
+            move_plan=MovePlan(rule_name="invoices", destination=str(tmp_path / "sorted"), auto_move_allowed=True, reason="rule_matched"),
+            move_result=MoveResult(attempted=False, success=False, from_path=str(tmp_path / "invoice.txt"), to_path=None, error=None),
+            tags=["invoice"],
+            status="move_planned",
+            move_status="auto_pending_client",
+        )
+    )
+    app = create_app(
+        pipeline=FakePipeline(),
+        document_registry=registry,
+        readiness_probe=FakeReadinessProbe(),
+        validation_report_loader=lambda: {"status": "missing"},
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/moves/finalize",
+            json={
+                "record_id": "doc-2",
+                "request_id": "req-2",
+                "client_id": "client-1",
+                "from_path": str(tmp_path / "invoice.txt"),
+                "to_path": str(tmp_path / "sorted" / "invoice.txt"),
+                "success": True,
+                "error": None,
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["move_status"] == "moved"
+    assert payload["undo_token"].startswith("mv_")
+
+
+def test_moves_undo_complete_marks_move_undone(tmp_path: Path) -> None:
+    registry = DocumentRegistry(
+        documents_path=tmp_path / "ui_documents.jsonl",
+        move_history_path=tmp_path / "move_history.jsonl",
+    )
+    registry.upsert_document(
+        UiDocumentRecord(
+            id="doc-3",
+            request_id="req-3",
+            title="Receipt",
+            summary="Receipt summary",
+            mime_type="text/plain",
+            source_modality="text",
+            kind="receipt",
+            document_type="receipt",
+            template="receipt",
+            source_path=str(tmp_path / "sorted" / "receipt.txt"),
+            created_at="2026-03-04T10:00:00+00:00",
+            updated_at="2026-03-04T10:00:00+00:00",
+            classification=DocumentClassification(
+                document_type="receipt",
+                template="receipt",
+                title="Receipt",
+                summary="Receipt summary",
+                tags=["receipt"],
+                language="sv",
+                confidence=0.95,
+                ocr_text=None,
+                suggested_actions=[],
+            ),
+            extraction=ExtractionResult(fields={}, field_confidence={}, missing_fields=[]),
+            move_plan=MovePlan(rule_name="receipts", destination=str(tmp_path / "sorted"), auto_move_allowed=True, reason="rule_matched"),
+            move_result=MoveResult(attempted=True, success=True, from_path=str(tmp_path / "incoming" / "receipt.txt"), to_path=str(tmp_path / "sorted" / "receipt.txt"), error=None),
+            tags=["receipt"],
+            status="completed",
+            undo_token="mv_seed",
+            move_status="moved",
+        )
+    )
+    move_entry = registry.record_move(
+        request_id="req-3",
+        record_id="doc-3",
+        from_path=str(tmp_path / "incoming" / "receipt.txt"),
+        to_path=str(tmp_path / "sorted" / "receipt.txt"),
+        client_id="client-1",
+        executor="client",
+    )
+    app = create_app(
+        pipeline=FakePipeline(),
+        document_registry=registry,
+        readiness_probe=FakeReadinessProbe(),
+        validation_report_loader=lambda: {"status": "missing"},
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/moves/undo-complete",
+            json={
+                "undo_token": move_entry.undo_token,
+                "client_id": "client-1",
+                "from_path": str(tmp_path / "sorted" / "receipt.txt"),
+                "to_path": str(tmp_path / "incoming" / "receipt.txt"),
+                "success": True,
+                "error": None,
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["record_id"] == "doc-3"

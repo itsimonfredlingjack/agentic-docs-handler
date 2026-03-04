@@ -48,9 +48,18 @@ export function mapProcessResponseToUiDocument(payload: ProcessResponse): UiDocu
     transcription: payload.transcription,
     movePlan: payload.move_plan,
     moveResult: payload.move_result,
-    status: payload.status === "failed_runtime" ? "failed" : "ready",
+    status:
+      payload.move_status === "awaiting_confirmation"
+        ? "awaiting_confirmation"
+        : payload.status === "failed_runtime"
+          ? "failed"
+          : "ready",
     tags: payload.classification.tags,
     undoToken: payload.undo_token,
+    retryable: payload.retryable,
+    errorCode: payload.error_code,
+    warnings: payload.warnings,
+    moveStatus: payload.move_status,
   };
 }
 
@@ -75,6 +84,10 @@ export function mapRegistryRecordToUiDocument(payload: {
   tags: string[];
   status: UiDocument["status"];
   undo_token: string | null;
+  retryable?: boolean;
+  error_code?: string | null;
+  warnings?: string[];
+  move_status?: UiDocument["moveStatus"];
 }): UiDocument {
   return {
     id: payload.id,
@@ -97,6 +110,10 @@ export function mapRegistryRecordToUiDocument(payload: {
     tags: payload.tags,
     status: payload.status,
     undoToken: payload.undo_token,
+    retryable: payload.retryable ?? false,
+    errorCode: payload.error_code ?? null,
+    warnings: payload.warnings ?? [],
+    moveStatus: payload.move_status ?? "not_requested",
   };
 }
 
@@ -137,6 +154,10 @@ export function buildQueuedDocument(args: {
     status: "uploading",
     tags: [],
     undoToken: null,
+    retryable: false,
+    errorCode: null,
+    warnings: [],
+    moveStatus: "not_requested",
   };
 }
 
@@ -173,5 +194,9 @@ export function mapSearchResultToGenericDocument(result: SearchResult): UiDocume
     status: "ready",
     tags: [],
     undoToken: null,
+    retryable: false,
+    errorCode: null,
+    warnings: [],
+    moveStatus: "not_requested",
   };
 }

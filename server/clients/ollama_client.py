@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
@@ -12,8 +13,16 @@ from openai import APIConnectionError, APITimeoutError, AsyncOpenAI
 from server.logging_config import LLMLogWriter
 
 
+@dataclass(slots=True)
 class OllamaServiceError(RuntimeError):
-    """Raised when the upstream Ollama service cannot serve a request."""
+    code: str
+    retryable: bool
+    upstream: str
+    message: str
+    status_code: int | None = None
+
+    def __str__(self) -> str:
+        return self.message
 
 
 class AsyncOllamaClient:
@@ -70,7 +79,7 @@ class AsyncOllamaClient:
                 }
             except (APIConnectionError, APITimeoutError, httpx.HTTPError) as error:
                 if attempt >= 1:
-                    raise OllamaServiceError(str(error)) from error
+                    raise self._map_error(error) from error
                 attempt += 1
 
     async def chat_json(
@@ -126,7 +135,7 @@ class AsyncOllamaClient:
                 return content
             except (APIConnectionError, APITimeoutError, httpx.HTTPError) as error:
                 if attempt >= 1:
-                    raise OllamaServiceError(str(error)) from error
+                    raise self._map_error(error) from error
                 attempt += 1
 
     def readiness(self) -> dict[str, bool]:
@@ -146,3 +155,27 @@ class AsyncOllamaClient:
         }
         model_ready = self.model in available_models
         return {"ollama": True, "model": model_ready}
+
+    def _map_error(self, error: Exception) -> OllamaServiceError:
+        if isinstance(error, APITimeoutError):
+            return OllamaServiceError(
+                code="ollama_timeout",
+                retryable=True,
+                upstream="ollama",
+                message="ollama_timeout",
+            )
+        if isinstance(error, APIConnectionError):
+            return OllamaServiceError(
+                code="ollama_unavailable",
+                retryable=True,
+                upstream="ollama",
+                message="ollama_unavailable",
+            )
+        status_code = getattr(getattr(error, "response", None), "status_code", None)
+        return OllamaServiceError(
+            code="ollama_upstream_error",
+            retryable=True,
+            upstream="ollama",
+            message=str(error),
+            status_code=status_code,
+        )
