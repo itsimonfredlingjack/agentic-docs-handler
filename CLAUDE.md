@@ -1,121 +1,88 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file mirrors the repo guidance in `AGENTS.md`. Treat `AGENTS.md` as canonical for workflows and commands, and keep both files aligned when editing repo instructions.
 
 ## What This Is
 
-Local AI-powered document handler. Users drop files (PDF, images, audio) into a Tauri desktop app → FastAPI backend classifies via Qwen 3.5 9B (Ollama), extracts structured fields, sorts to destination folders via YAML rules, and indexes for hybrid RAG search. Everything runs locally, zero cloud.
+Local AI-powered document handler. Files come through a Tauri desktop app, a FastAPI backend classifies and extracts with Qwen via Ollama, documents are organized by YAML rules, indexed for hybrid search, and exposed through an MCP surface for ChatGPT.
 
 ## Architecture
 
-```
+```text
 Mac (Tauri 2 + React 19)
   ├── Rust WS bridge → ws://ai-server:9000/ws
   ├── React UI → HTTP to ai-server:9000
   └── ai-server (FastAPI :9000)
-        ├── Ollama :11434 (Qwen 3.5 9B, Q4_K_M)
-        ├── sentence-transformers (nomic-embed-text, CPU)
-        ├── LanceDB (vector DB, disk)
-        ├── FileOrganizer (YAML rules → move file)
-        └── HTTP → ai-server2:8090 (Whisper large-v3-turbo, RTX 2060)
+        ├── Ollama :11434
+        ├── sentence-transformers + LanceDB
+        ├── FileOrganizer (YAML rules)
+        ├── MCP mounted at /mcp
+        └── Whisper proxy → ai-server2:8090
 ```
 
-**Layer rule**: `pipelines/` is the core logic layer. `api/` and `mcp/` import from `pipelines/`. Pipelines never import from api or mcp layers.
+Layer rule:
 
-**Pipeline flow**: File dropped → MIME detect → text/image/audio branch:
-- Text (PDF/DOCX/TXT) → Qwen classifies → Qwen extracts fields → FileOrganizer → LanceDB index
-- Image → downscale to max 1280px → Qwen vision (native, no OCR) → FileOrganizer → LanceDB
-- Audio → Whisper transcribes (ai-server2) → Qwen classifies transcription → FileOrganizer → LanceDB
-
-HTTP response returns after classification+extraction; indexing runs in background.
+- `server/pipelines/` is the core logic layer.
+- `server/api/` and `server/mcp/` may import from `server/pipelines/`.
+- `server/pipelines/` must never import from `server/api/`, `server/mcp/`, or UI layers.
 
 ## Commands
 
 ```bash
-# Backend tests (run from repo root)
 PYTHONPATH=. pytest server/tests -q
-
-# Single backend test file
 PYTHONPATH=. pytest server/tests/test_api.py -q
-
-# Single test by name
 PYTHONPATH=. pytest server/tests/test_api.py -k "test_process_pdf" -q
-
-# Frontend tests
 npm test
-
-# Frontend tests in watch mode
 npm run test:watch
-
-# Type-check + build frontend
 npm run build
-
-# Rust/Tauri check
 cargo check --manifest-path src-tauri/Cargo.toml
-
-# Dev frontend only (Vite on :1420)
 npm run dev
-
-# Dev with Tauri shell
 npm run tauri dev
-
-# Start backend (on ai-server)
 uvicorn server.main:app --host 0.0.0.0 --port 9000
-
-# Deploy backend to ai-server
+npm --prefix apps/chatgpt-widget run build
 bash scripts/deploy_ai_server.sh
-
-# Deploy Whisper to ai-server2
 bash scripts/deploy_whisper_server.sh
-
-# Full verification before shipping
 PYTHONPATH=. pytest server/tests -q && npm test && npm run build && cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
+## Core Workflow Notes
+
+- Local setup: `python3.14 -m venv .venv`, activate it, `pip install -r server/requirements.txt`, then `npm install`.
+- Backend-only development: start `uvicorn`, then use `/healthz`, `/readyz`, `/validation/report`, `/search`, `/documents`, `/documents/counts`, and `/activity` for spot checks.
+- Frontend and Tauri: `npm run dev` for the renderer, `npm run tauri dev` for the desktop shell, `cargo check --manifest-path src-tauri/Cargo.toml` for Rust-side validation.
+- Verification before shipping: run the full verification chain; also run `npm --prefix apps/chatgpt-widget run build` if widget or MCP UI resources changed.
+- Deploy: `scripts/deploy_ai_server.sh` is the source of truth for `ai-server` deploy behavior and warmup; `scripts/deploy_whisper_server.sh` is the source of truth for `ai-server2` and the whisper runtime.
+
+## MCP And ChatGPT
+
+- MCP is mounted inside the FastAPI process at `/mcp`.
+- ChatGPT upload flow uses fileParam tools such as `analyze_uploaded_document`, `transcribe_uploaded_audio`, and `preview_organize_uploaded`.
+- Organization through ChatGPT must follow the two-step guard:
+  `preview_organize_uploaded` -> `confirm_organize_uploaded`
+- `confirm_organize_uploaded` requires the returned `confirm_token` plus an `idempotency_key`.
+- Session follow-up uses `search_session_documents` and `fetch_session_document`.
+- Widget asset build command: `npm --prefix apps/chatgpt-widget run build`
+
 ## Key Files
 
-- `server/config.py` — Central config via pydantic-settings. All env vars prefixed `ADH_`. The `LLM_MODEL` constant lives here.
-- `server/schemas.py` — All Pydantic models: `ProcessResponse`, `DocumentClassification`, `ExtractionResult`, `UiDocumentRecord`, type literals (`DocumentType`, `SourceModality`, `MoveStatus`, etc.)
-- `server/main.py` — App factory (`create_app`). Wires all services: OllamaClient, classifiers, extractors, pipeline, search, registry, MCP.
-- `server/clients/ollama_client.py` — All Ollama calls go through `AsyncOllamaClient`. Has retry logic, JSON repair, concurrency semaphore.
-- `server/pipelines/process_pipeline.py` — Main orchestrator: classify → extract → organize → index. Handles text/image/audio routing.
-- `server/pipelines/file_organizer.py` — Reads `server/file_rules.yaml` to decide destination paths.
-- `server/pipelines/search.py` — Hybrid RAG: embedding + BM25 + LLM query rewrite + answer generation.
-- `server/document_registry.py` — In-memory document store with JSONL persistence for UI read-model.
-- `server/prompts/` — System prompts for classifier, extractor (per doc type), and search.
-- `server/file_rules.yaml` — Per-document-type sorting rules (destination folders, naming patterns).
-- `src/store/documentStore.ts` — Zustand store. Single source of truth for all UI state.
-- `src/types/documents.ts` — TypeScript types mirrored from backend schemas.
-- `src/hooks/useWebSocket.ts` — WS hook with auto-reconnect and event routing.
-- `src-tauri/src/main.rs` — Tauri setup, exposes `get_client_id`, `get_backend_base_url`, `reconnect_backend_ws` commands.
-
-## Backend Test Patterns
-
-Tests use `FastAPI.TestClient` with `create_app()`. Pipeline dependencies are faked via simple stub classes (e.g., `FakePipeline`). No external services needed — all Ollama/Whisper calls are mocked. Test framework: pytest + pytest-asyncio.
-
-## Frontend Stack
-
-React 19 + Vite 7 + Tailwind 3 + Zustand 5. Tests via Vitest + Testing Library + jsdom. TypeScript strict mode. No external UI library — custom frost-glass components.
-
-## Design Language
-
-"Frost Glass" — light theme, macOS-native feel. `backdrop-filter: blur(40px)`, 16px border-radius, Apple color palette per document type, SF Pro system fonts, animations 150–300ms. Full spec in `agentic-docs-design-spec.md`.
-
-## Document Types
-
-`receipt`, `contract`, `invoice`, `meeting_notes`, `generic`, `unsupported`. Each has a dedicated extractor prompt in `server/prompts/extractors/` and a frontend template card in `src/templates/`.
-
-## Environment Variables
-
-All prefixed `ADH_`. See `.env.example` for the full list. Key ones:
-- `ADH_OLLAMA_BASE_URL` / `ADH_OLLAMA_MODEL` — LLM endpoint
-- `ADH_WHISPER_BASE_URL` — Whisper server on ai-server2
-- `ADH_LANCEDB_PATH` — Vector DB storage
-- `ADH_UI_DOCUMENTS_PATH` — JSONL persistence for document registry
+- `server/main.py` - app factory and service wiring
+- `server/pipelines/process_pipeline.py` - main processing orchestration
+- `server/pipelines/search.py` - hybrid search
+- `server/document_registry.py` - UI document read model
+- `server/realtime.py` - per-client WebSocket routing
+- `server/mcp/app.py` - MCP mount
+- `server/mcp/services.py` - shared MCP service container
+- `server/mcp/chatgpt_tools.py` - ChatGPT upload and write-guard tools
+- `src/store/documentStore.ts` - UI state source of truth
+- `src/hooks/useWebSocket.ts` - renderer WebSocket integration
+- `src-tauri/src/main.rs` - Tauri commands and bootstrap
+- `src-tauri/src/ws_client.rs` - Rust WebSocket bridge
 
 ## Gotchas
 
-- Ollama concurrency is 1 (`ollama_max_concurrency=1`). Parallel LLM calls queue, causing wait times.
-- PDF without extractable text falls back to image pipeline (works but slower).
-- Backend runs on ai-server (remote), not on Mac. Mac only runs Tauri frontend.
-- MCP server is mounted at `/mcp` inside the same FastAPI process — not a separate service.
+- `PYTHONPATH=.` is required for pytest commands.
+- The real backend normally runs on `ai-server`; the Mac mainly runs the Tauri frontend.
+- Ollama concurrency is effectively `1`, so LLM-heavy work queues.
+- PDFs without extractable text fall back to the image pipeline.
+- ChatGPT upload staging is cleaned up by a TTL-based background loop.
+- Env vars are prefixed `ADH_`; check `.env.example` before adding config.
