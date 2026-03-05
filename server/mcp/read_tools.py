@@ -8,7 +8,6 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import CallToolResult, TextContent
 
 from server.clients.ollama_client import OllamaServiceError
-from server.mcp.apps_widget import WIDGET_RESOURCE_URI
 from server.mcp.schemas import (
     ActivityLogInput,
     ClassifyDocumentInput,
@@ -29,17 +28,6 @@ from server.pipelines.process_pipeline import UnsupportedMediaTypeError
 from server.pipelines.whisper_proxy import WhisperProxyError
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
-MAX_WIDGET_RESULTS = 20
-
-WIDGET_TOOL_META: dict[str, object] = {
-    "ui": {
-        "resourceUri": WIDGET_RESOURCE_URI,
-        "visibility": ["model", "app"],
-    },
-    "openai/outputTemplate": WIDGET_RESOURCE_URI,
-    "openai/toolInvocation/invoking": "Opening docs search widget...",
-    "openai/toolInvocation/invoked": "Docs search widget ready.",
-}
 
 
 def text_result(text: str) -> CallToolResult:
@@ -91,25 +79,6 @@ def build_search_payload(services: AppServices, query: str) -> dict[str, object]
     }
 
 
-def clamp_widget_limit(limit: int) -> int:
-    return max(1, min(limit, MAX_WIDGET_RESULTS))
-
-
-def build_widget_seed_payload(services: AppServices, query: str, limit: int) -> dict[str, object]:
-    normalized_limit = clamp_widget_limit(limit)
-    normalized_query = query.strip()
-    payload: dict[str, object] = {
-        "query": normalized_query,
-        "limit": normalized_limit,
-        "results": [],
-        "selectedDocument": None,
-    }
-    if normalized_query:
-        search_payload = build_search_payload(services, normalized_query)
-        payload["results"] = search_payload["results"][:normalized_limit]
-    return payload
-
-
 def detect_image_mime(path: Path) -> str:
     mime_type, _ = mimetypes.guess_type(path.name)
     return mime_type or "application/octet-stream"
@@ -131,31 +100,6 @@ def register_read_tools(server: FastMCP, services: AppServices) -> None:
     async def search(query: str) -> CallToolResult:
         payload = build_search_payload(services, SearchInput(query=query).query)
         return text_result(json.dumps(payload, ensure_ascii=True))
-
-    @server.tool(
-        name="render_search_widget",
-        title="Render docs search widget",
-        description="Use this to render the interactive ChatGPT widget for document search and fetch.",
-        annotations=READ_ONLY_ANNOTATIONS,
-        meta=WIDGET_TOOL_META,
-    )
-    async def render_search_widget(query: str | None = None, limit: int = 5) -> CallToolResult:
-        normalized_query = query or ""
-        payload = build_widget_seed_payload(services, normalized_query, limit)
-        if payload["results"]:
-            message = "Widget seeded with search results."
-        else:
-            message = "Widget ready for search."
-        return structured_result(
-            message,
-            payload,
-            meta={
-                "widget": {
-                    "resourceUri": WIDGET_RESOURCE_URI,
-                    "stateVersion": 1,
-                }
-            },
-        )
 
     @server.tool(
         name="search_documents",

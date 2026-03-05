@@ -6,7 +6,6 @@ from fastapi import FastAPI
 from mcp.server.fastmcp import FastMCP
 from starlette.routing import Route
 
-from server.mcp.apps_widget import register_widget_resource
 from server.mcp.read_tools import register_read_tools
 from server.mcp.services import AppServices
 from server.mcp.write_tools import register_write_tools
@@ -33,7 +32,6 @@ def create_mcp_server(services: AppServices) -> FastMCP:
     )
     register_read_tools(server, services)
     register_write_tools(server, services)
-    register_widget_resource(server)
     return server
 
 

@@ -18,7 +18,6 @@ WRITE_ANNOTATIONS = ToolAnnotations(
 
 READ_TOOL_NAMES = (
     "search",
-    "render_search_widget",
     "search_documents",
     "transcribe_audio",
     "fetch",
