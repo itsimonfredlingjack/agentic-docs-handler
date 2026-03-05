@@ -15,6 +15,7 @@ export function FileGrid() {
   const documentOrder = useDocumentStore((state) => state.documentOrder);
   const sidebarFilter = useDocumentStore((state) => state.sidebarFilter);
   const search = useDocumentStore((state) => state.search);
+  const setSelectedDocument = useDocumentStore((state) => state.setSelectedDocument);
 
   const documentList = documentOrder.map((id) => documents[id]).filter(Boolean);
   const filteredDocuments = search.active
@@ -35,7 +36,19 @@ export function FileGrid() {
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-3 lg:grid-cols-2">
       {filteredDocuments.map((document) => (
-        <div key={document.id} className={document.kind === "audio" ? "xl:col-span-2" : ""}>
+        <div
+          key={document.id}
+          className={`cursor-pointer ${document.kind === "audio" ? "xl:col-span-2" : ""}`}
+          role="button"
+          tabIndex={0}
+          onClick={() => setSelectedDocument(document.id)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setSelectedDocument(document.id);
+            }
+          }}
+        >
           {renderDocument(document, search.active ? search.orphanResults.find((result) => `search:${result.doc_id}` === document.id) : undefined)}
         </div>
       ))}
@@ -66,6 +79,10 @@ function renderDocument(document: UiDocument, orphanResult?: ReturnType<typeof u
           <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)]">{document.title}</h3>
         </div>
         <p className="text-sm text-[var(--text-secondary)]">{processingMeta.message}</p>
+        <div className="flex items-center gap-2">
+          <span className="status-dot bg-[var(--accent-primary)]" style={{ animation: "pulse-dot 1.5s ease-in-out infinite" }} />
+          <span className="text-xs text-[var(--text-muted)]">{processingMeta.label}</span>
+        </div>
         <div className="processing-bar" />
         <RequestIdMeta document={document} />
       </article>
@@ -129,8 +146,9 @@ function FailureCard({ document }: { document: UiDocument }) {
       {document.retryable ? (
         <button
           type="button"
-          className="w-fit rounded-2xl bg-[var(--accent-primary)] px-4 py-2 text-sm font-semibold text-white"
-          onClick={() => {
+          className="focus-ring w-fit rounded-2xl bg-[var(--accent-primary)] px-4 py-2 text-sm font-semibold text-white transition-all duration-150 hover:opacity-90"
+          onClick={(e) => {
+            e.stopPropagation();
             void retryDocument(document.requestId);
           }}
         >
@@ -165,16 +183,17 @@ function PendingMoveCard({ document }: { document: UiDocument }) {
         <p className="mt-1 break-all">{document.movePlan?.destination ?? "—"}</p>
       </div>
       {pendingMoveError ? (
-        <p className="rounded-2xl border border-red-200/70 bg-red-50/80 px-3 py-2 text-sm text-red-700">
+        <p className="rounded-2xl border border-[rgba(255,55,95,0.18)] bg-[rgba(255,55,95,0.08)] px-3 py-2 text-sm text-[#ff375f]">
           {pendingMoveError}
         </p>
       ) : null}
       <div className="flex gap-3">
         <button
           type="button"
-          className="rounded-2xl bg-[var(--accent-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+          className="focus-ring rounded-2xl bg-[var(--accent-primary)] px-4 py-2 text-sm font-semibold text-white transition-all duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           disabled={isBusy}
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             void confirmMove(document);
           }}
         >
@@ -182,9 +201,10 @@ function PendingMoveCard({ document }: { document: UiDocument }) {
         </button>
         <button
           type="button"
-          className="rounded-2xl border border-black/5 bg-white/50 px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] transition hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-60"
+          className="focus-ring rounded-2xl border border-black/5 bg-white/50 px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] transition-all duration-150 hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-60"
           disabled={isBusy}
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             void dismissMove(document);
           }}
         >

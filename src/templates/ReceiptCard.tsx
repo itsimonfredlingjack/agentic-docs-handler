@@ -39,7 +39,7 @@ export function ReceiptCard({ document, variant = "receipt" }: ReceiptCardProps)
 
       <dl className="grid grid-cols-2 gap-3 text-sm">
         <div className="rounded-2xl bg-white/40 p-3">
-          <dt className="font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-muted)]">
+          <dt className="font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
             {variant === "invoice" ? "Amount" : "Belopp"}
           </dt>
           <dd className="mt-1 font-semibold text-[var(--text-primary)]">
@@ -47,7 +47,7 @@ export function ReceiptCard({ document, variant = "receipt" }: ReceiptCardProps)
           </dd>
         </div>
         <div className="rounded-2xl bg-white/40 p-3">
-          <dt className="font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-muted)]">
+          <dt className="font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
             {variant === "invoice" ? "Due date" : "Datum"}
           </dt>
           <dd className="mt-1 font-semibold text-[var(--text-primary)]">
@@ -55,7 +55,7 @@ export function ReceiptCard({ document, variant = "receipt" }: ReceiptCardProps)
           </dd>
         </div>
         <div className="rounded-2xl bg-white/40 p-3">
-          <dt className="font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-muted)]">
+          <dt className="font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
             {variant === "invoice" ? "Invoice #" : "Moms"}
           </dt>
           <dd className="mt-1 font-semibold text-[var(--text-primary)]">
@@ -63,7 +63,7 @@ export function ReceiptCard({ document, variant = "receipt" }: ReceiptCardProps)
           </dd>
         </div>
         <div className="rounded-2xl bg-white/40 p-3">
-          <dt className="font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-muted)]">
+          <dt className="font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
             {variant === "invoice" ? "Sender" : "Vendor"}
           </dt>
           <dd className="mt-1 font-semibold text-[var(--text-primary)]">

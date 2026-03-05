@@ -62,6 +62,17 @@ fn reconnect_backend_ws(state: State<'_, AppRuntimeState>) {
 }
 
 #[tauri::command]
+fn show_in_folder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    std::process::Command::new("open")
+        .arg("-R")
+        .arg(&path)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 fn move_local_file(source_path: String, destination_dir: String) -> MoveExecutionResult {
     let destination_path = Path::new(&destination_dir).join(
         Path::new(&source_path)
@@ -172,6 +183,7 @@ fn main() {
             get_client_id,
             get_backend_base_url,
             reconnect_backend_ws,
+            show_in_folder,
             move_local_file,
             undo_local_file_move,
             stage_local_upload,

@@ -37,6 +37,8 @@ type DocumentStoreState = {
   toasts: FileMoveToastItem[];
   uploadsByRequestId: Record<string, UploadMemory>;
   pendingMoveStateByRecordId: Record<string, PendingMoveUiState>;
+  selectedDocumentId: string | null;
+  setSelectedDocument: (id: string | null) => void;
   bootstrap: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
   resyncFromBackend: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
   setClientId: (clientId: string) => void;
@@ -102,6 +104,8 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
   toasts: [],
   uploadsByRequestId: {},
   pendingMoveStateByRecordId: {},
+  selectedDocumentId: null,
+  setSelectedDocument: (id) => set({ selectedDocumentId: id }),
   bootstrap: (documents, counts, activity) =>
     set({
       documents: Object.fromEntries(documents.map((document) => [document.id, document])),

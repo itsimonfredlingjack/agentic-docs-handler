@@ -33,6 +33,7 @@ export function Sidebar() {
               key={item.id}
               type="button"
               className={`sidebar-pill flex items-center justify-between text-left ${active ? "is-active" : ""}`}
+              aria-label={`Filter: ${item.label}`}
               onClick={() => setSidebarFilter(item.id)}
             >
               <span>{item.label}</span>

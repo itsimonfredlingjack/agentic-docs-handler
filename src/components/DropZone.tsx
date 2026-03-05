@@ -121,7 +121,7 @@ export function DropZone() {
   return (
     <section className="glass-panel flex flex-col gap-5 p-5">
       <div
-        className={`rounded-[24px] border border-dashed px-6 py-10 text-center transition ${isHovered ? "border-[var(--accent-primary)] bg-white/55 shadow-glass-hover" : "border-white/60 bg-white/35"}`}
+        className={`rounded-[24px] border border-dashed px-6 py-7 text-center transition-all duration-200 ease-out ${isHovered ? "border-[var(--accent-primary)] bg-white/55 shadow-glass-hover" : "border-white/60 bg-white/35"}`}
         onDragOver={(event) => {
           event.preventDefault();
           setHovered(true);
@@ -143,7 +143,7 @@ export function DropZone() {
         <div className="mt-5 flex justify-center">
           <button
             type="button"
-            className="rounded-2xl bg-[var(--accent-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+            className="focus-ring rounded-2xl bg-[var(--accent-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
             onClick={() => fileInputRef.current?.click()}
           >
             Browse files
@@ -167,7 +167,7 @@ export function DropZone() {
           <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Recent activity</p>
           <p className="font-mono text-[11px] text-[var(--text-muted)]">{activity.length} events</p>
         </div>
-        <div className="mt-3 space-y-2">
+        <div className="mt-3 space-y-3">
           {activity.slice(0, 5).map((event) => (
             <ActivityRow key={event.id} event={event} />
           ))}

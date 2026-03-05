@@ -33,14 +33,15 @@ export function SearchBar() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Vad letar du efter?"
-          className="w-full bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+          aria-label="Sök dokument"
+          className="focus-ring w-full bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
         />
-        <span className="rounded-xl border border-black/5 bg-white/50 px-2 py-1 font-mono text-[11px] text-[var(--text-secondary)]">
+        <span className="hidden rounded-xl border border-black/5 bg-white/50 px-2 py-1 font-mono text-[11px] text-[var(--text-secondary)] md:inline">
           ⌘K
         </span>
       </label>
       {searchState.active && searchState.answer ? (
-        <div className="glass-panel px-4 py-3">
+        <div className="glass-panel px-4 py-3 transition-opacity duration-300">
           <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Smart search</p>
           <p className="mt-2 text-sm leading-6 text-[var(--text-primary)]">
             {searchState.loading ? "Söker i dokumenten..." : searchState.answer}

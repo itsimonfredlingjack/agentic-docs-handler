@@ -14,7 +14,7 @@ export function ContractCard({ document }: { document: UiDocument }) {
           <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Contract</p>
           <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)]">{document.title}</h3>
         </div>
-        <span className="glass-badge border-[rgba(88,86,214,0.22)] bg-[rgba(88,86,214,0.10)] text-[var(--contract-color)]">
+        <span className="glass-badge text-[var(--contract-color)]" style={{ borderColor: "rgba(88,86,214,0.22)", backgroundColor: "rgba(88,86,214,0.10)" }}>
           <span className="status-dot bg-[var(--contract-color)]" />
           contract
         </span>
@@ -24,19 +24,19 @@ export function ContractCard({ document }: { document: UiDocument }) {
 
       <dl className="space-y-3 text-sm">
         <div className="rounded-2xl bg-white/40 p-3">
-          <dt className="font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-muted)]">Parter</dt>
+          <dt className="font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Parter</dt>
           <dd className="mt-1 text-[var(--text-primary)]">{parties}</dd>
         </div>
         <div className="rounded-2xl bg-white/40 p-3">
-          <dt className="font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-muted)]">Start/Slut</dt>
+          <dt className="font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Start/Slut</dt>
           <dd className="mt-1 text-[var(--text-primary)]">{timeline}</dd>
         </div>
         <div className="rounded-2xl bg-white/40 p-3">
-          <dt className="font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-muted)]">Deadlines</dt>
+          <dt className="font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Deadlines</dt>
           <dd className="mt-1 text-[var(--text-primary)]">{deadlines}</dd>
         </div>
         <div className="rounded-2xl bg-white/40 p-3">
-          <dt className="font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-muted)]">Uppsägning</dt>
+          <dt className="font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Uppsägning</dt>
           <dd className="mt-1 text-[var(--text-primary)]">
             {String(fields.termination ?? fields.notice_period ?? "—")}
           </dd>

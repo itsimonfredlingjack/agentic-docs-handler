@@ -11,7 +11,7 @@ export function AudioTranscript({ document }: { document: UiDocument }) {
           <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Audio</p>
           <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)]">{document.title}</h3>
         </div>
-        <span className="glass-badge border-[rgba(48,176,199,0.22)] bg-[rgba(48,176,199,0.10)] text-[var(--audio-color)]">
+        <span className="glass-badge text-[var(--audio-color)]" style={{ borderColor: "rgba(48,176,199,0.22)", backgroundColor: "rgba(48,176,199,0.10)" }}>
           <span className="status-dot bg-[var(--audio-color)]" />
           audio
         </span>

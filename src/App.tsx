@@ -1,5 +1,6 @@
 import { useEffect, startTransition } from "react";
 
+import { DetailPanel } from "./components/DetailPanel";
 import { DropZone } from "./components/DropZone";
 import { FileGrid } from "./components/FileGrid";
 import { FileMoveToast } from "./components/FileMoveToast";
@@ -61,6 +62,7 @@ export default function App() {
         </main>
       </div>
       <FileMoveToast />
+      <DetailPanel />
     </div>
   );
 }

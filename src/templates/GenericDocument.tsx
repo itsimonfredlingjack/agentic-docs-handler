@@ -21,7 +21,7 @@ export function GenericDocument({ document, searchResult }: GenericDocumentProps
           <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Document</p>
           <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)]">{document.title}</h3>
         </div>
-        <span className="glass-badge border-[rgba(142,142,147,0.22)] bg-[rgba(142,142,147,0.10)] text-[var(--text-secondary)]">
+        <span className="glass-badge text-[var(--text-secondary)]" style={{ borderColor: "rgba(142,142,147,0.22)", backgroundColor: "rgba(142,142,147,0.10)" }}>
           <span className="status-dot bg-[var(--report-color)]" />
           {badgeLabel}
         </span>
@@ -32,7 +32,7 @@ export function GenericDocument({ document, searchResult }: GenericDocumentProps
       </p>
 
       {visibleWarnings.length > 0 ? (
-        <div className="rounded-2xl bg-[rgba(255,159,10,0.12)] p-3 text-xs text-[var(--text-primary)]">
+        <div className="rounded-2xl p-3 text-xs text-[var(--text-primary)]" style={{ backgroundColor: "rgba(255,159,10,0.10)", border: "1px solid rgba(255,159,10,0.18)" }}>
           {visibleWarnings.join(", ")}
         </div>
       ) : null}
