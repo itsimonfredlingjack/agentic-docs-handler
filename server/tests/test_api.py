@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import os
+import time
 from io import BytesIO
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from server.api.routes import _maybe_cleanup_staging, _CLEANUP_MAX_AGE_SECONDS
 from server.config import AppConfig
 from server.document_registry import DocumentRegistry
 from server.main import create_app
@@ -782,3 +785,79 @@ def test_moves_dismiss_returns_422_for_non_pending_record(tmp_path: Path) -> Non
         )
 
     assert response.status_code == 422
+
+
+def test_process_stages_uploaded_file_and_provides_fallback_source_path(tmp_path: Path) -> None:
+    staging = tmp_path / "staging"
+    app = create_app(
+        config=AppConfig(staging_dir=staging),
+        pipeline=FakePipeline(),
+        readiness_probe=FakeReadinessProbe(),
+        validation_report_loader=lambda: {"status": "missing"},
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/process",
+            files={"file": ("invoice.txt", BytesIO(b"invoice content"), "text/plain")},
+            data={"execute_move": "false"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    from_path = payload["move_result"]["from_path"]
+    assert from_path is not None
+    assert str(staging) in from_path
+    assert "invoice.txt" in from_path
+
+    staged_files = list(staging.iterdir())
+    assert len(staged_files) == 1
+    assert staged_files[0].read_bytes() == b"invoice content"
+
+
+def test_process_prefers_client_source_path_over_staging(tmp_path: Path) -> None:
+    staging = tmp_path / "staging"
+    app = create_app(
+        config=AppConfig(staging_dir=staging),
+        pipeline=FakePipeline(),
+        readiness_probe=FakeReadinessProbe(),
+        validation_report_loader=lambda: {"status": "missing"},
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/process",
+            files={"file": ("invoice.txt", BytesIO(b"invoice content"), "text/plain")},
+            data={"execute_move": "false", "source_path": "/client/path/invoice.txt"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["move_result"]["from_path"] == "/client/path/invoice.txt"
+
+    staged_files = list(staging.iterdir())
+    assert len(staged_files) == 1
+
+
+def test_staging_cleanup_removes_stale_files(tmp_path: Path) -> None:
+    staging = tmp_path / "staging"
+    staging.mkdir()
+
+    old_file = staging / "old-file.txt"
+    old_file.write_text("old")
+    old_mtime = time.time() - _CLEANUP_MAX_AGE_SECONDS - 60
+    os.utime(old_file, (old_mtime, old_mtime))
+
+    new_file = staging / "new-file.txt"
+    new_file.write_text("new")
+
+    import server.api.routes as routes_mod
+    original_ts = routes_mod._last_cleanup_ts
+    routes_mod._last_cleanup_ts = 0.0
+    try:
+        _maybe_cleanup_staging(staging)
+    finally:
+        routes_mod._last_cleanup_ts = original_ts
+
+    assert not old_file.exists()
+    assert new_file.exists()

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 import logging
 import time
+from pathlib import Path
+from uuid import uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import JSONResponse
@@ -31,6 +34,38 @@ from server.schemas import (
 
 logger = logging.getLogger(__name__)
 
+_SANITIZE_RE = re.compile(r"[^a-zA-Z0-9._-]")
+_last_cleanup_ts: float = 0.0
+_CLEANUP_INTERVAL_SECONDS = 3600.0
+_CLEANUP_MAX_AGE_SECONDS = 86400.0
+
+
+def _stage_upload(staging_dir: Path, filename: str, content: bytes) -> Path:
+    staging_dir.mkdir(parents=True, exist_ok=True)
+    sanitized = _SANITIZE_RE.sub("_", Path(filename).name) or "upload.bin"
+    staged_path = staging_dir / f"{uuid4()}-{sanitized}"
+    staged_path.write_bytes(content)
+    return staged_path
+
+
+def _maybe_cleanup_staging(staging_dir: Path) -> None:
+    global _last_cleanup_ts
+    now = time.time()
+    if now - _last_cleanup_ts < _CLEANUP_INTERVAL_SECONDS:
+        return
+    _last_cleanup_ts = now
+    if not staging_dir.is_dir():
+        return
+    for entry in staging_dir.iterdir():
+        if not entry.is_file():
+            continue
+        try:
+            age = now - entry.stat().st_mtime
+            if age > _CLEANUP_MAX_AGE_SECONDS:
+                entry.unlink()
+        except OSError:
+            pass
+
 
 def create_router(
     *,
@@ -42,6 +77,7 @@ def create_router(
     realtime_manager: object | None,
     readiness_probe: Callable[[], dict[str, object]],
     validation_report_loader: Callable[[], dict[str, object]],
+    staging_dir: Path | None = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -132,26 +168,48 @@ def create_router(
         move_executor: str = Form("none"),
     ) -> ProcessResponse:
         started = time.perf_counter()
+        staged_path: Path | None = None
         try:
             content = await file.read()
+            filename = file.filename or "upload.bin"
+
+            if staging_dir is not None:
+                staged_path = _stage_upload(staging_dir, filename, content)
+                _maybe_cleanup_staging(staging_dir)
+
+            resolved_source_path = source_path if source_path else (str(staged_path) if staged_path else None)
+
             logger.info(
-                "api.process.received filename=%s mime_type=%s client_id=%s client_request_id=%s move_executor=%s",
-                file.filename or "upload.bin",
+                "api.process.received filename=%s mime_type=%s client_id=%s client_request_id=%s move_executor=%s staged=%s",
+                filename,
                 file.content_type,
                 client_id,
                 client_request_id,
                 move_executor,
+                staged_path is not None,
             )
             response = await pipeline.process_upload(
-                filename=file.filename or "upload.bin",
+                filename=filename,
                 content=content,
                 content_type=file.content_type,
                 execute_move=execute_move,
-                source_path=source_path,
+                source_path=resolved_source_path,
                 client_id=client_id,
                 client_request_id=client_request_id,
                 move_executor=move_executor,
             )
+
+            if (
+                staged_path is not None
+                and move_executor == "server"
+                and response.move_result.success
+            ):
+                try:
+                    staged_path.unlink(missing_ok=True)
+                    staged_path = None
+                except OSError:
+                    pass
+
             elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
             logger.info(
                 "api.process.completed request_id=%s record_id=%s client_id=%s elapsed_ms=%s move_status=%s",

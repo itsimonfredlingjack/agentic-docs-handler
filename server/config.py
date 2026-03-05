@@ -54,6 +54,7 @@ class AppConfig(BaseSettings):
     mcp_mount_path: str = "/mcp"
     mcp_allowed_roots: list[Path] = Field(default_factory=lambda: [REPO_ROOT])
     mcp_max_image_bytes: int = 4 * 1024 * 1024
+    staging_dir: Path = Path("/tmp/agentic-docs/server-staging")
     whisper_base_url: str = "http://ai-server2:8090"
     whisper_timeout_seconds: float = 300.0
 
