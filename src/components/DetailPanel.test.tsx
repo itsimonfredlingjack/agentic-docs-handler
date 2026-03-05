@@ -76,16 +76,16 @@ describe("DetailPanel", () => {
   it("is hidden when no document is selected", () => {
     seedStore(null);
     render(<DetailPanel />);
-    expect(screen.queryByRole("complementary", { name: "Document details" })).not.toHaveClass(
-      "detail-panel--open",
+    expect(screen.queryByRole("dialog", { name: "Document details" })).not.toHaveClass(
+      "detail-modal--open",
     );
   });
 
   it("opens when selectedDocumentId is set", () => {
     seedStore("doc-1");
     render(<DetailPanel />);
-    expect(screen.getByRole("complementary", { name: "Document details" })).toHaveClass(
-      "detail-panel--open",
+    expect(screen.getByRole("dialog", { name: "Document details" })).toHaveClass(
+      "detail-modal--open",
     );
   });
 
@@ -101,8 +101,8 @@ describe("DetailPanel", () => {
   it("closes on Escape key", async () => {
     seedStore("doc-1");
     render(<DetailPanel />);
-    expect(screen.getByRole("complementary", { name: "Document details" })).toHaveClass(
-      "detail-panel--open",
+    expect(screen.getByRole("dialog", { name: "Document details" })).toHaveClass(
+      "detail-modal--open",
     );
     await userEvent.keyboard("{Escape}");
     expect(useDocumentStore.getState().selectedDocumentId).toBeNull();

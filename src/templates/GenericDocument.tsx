@@ -1,5 +1,4 @@
 import type { SearchResult, UiDocument } from "../types/documents";
-import { RequestIdMeta } from "../components/RequestIdMeta";
 
 type GenericDocumentProps = {
   document: UiDocument;
@@ -7,7 +6,6 @@ type GenericDocumentProps = {
 };
 
 export function GenericDocument({ document, searchResult }: GenericDocumentProps) {
-  const tags = document.tags.length > 0 ? document.tags : Object.keys(document.extraction?.fields ?? {});
   const visibleWarnings = document.warnings.filter((warning) => !isInternalPipelineFlag(warning));
   const isFallbackUnknown =
     document.kind === "generic" &&
@@ -15,44 +13,20 @@ export function GenericDocument({ document, searchResult }: GenericDocumentProps
   const badgeLabel = isFallbackUnknown ? "unknown" : document.kind;
 
   return (
-    <article className="glass-panel glass-panel-hover flex h-full flex-col gap-4 p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Document</p>
-          <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)]">{document.title}</h3>
-        </div>
-        <span className="glass-badge text-[var(--text-secondary)]" style={{ borderColor: "rgba(142,142,147,0.22)", backgroundColor: "rgba(142,142,147,0.10)" }}>
+    <article className="glass-panel glass-panel-hover flex h-full flex-col gap-2 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-sm font-semibold text-[var(--text-primary)] line-clamp-1">{document.title}</h3>
+        <span className="glass-badge shrink-0 text-[var(--text-secondary)]" style={{ borderColor: "rgba(142,142,147,0.22)", backgroundColor: "rgba(142,142,147,0.10)" }}>
           <span className="status-dot bg-[var(--report-color)]" />
           {badgeLabel}
         </span>
       </div>
-
-      <p className="text-sm leading-6 text-[var(--text-secondary)]">
+      <p className="text-sm text-[var(--text-secondary)] line-clamp-1">
         {searchResult?.snippet ?? document.summary}
       </p>
-
       {visibleWarnings.length > 0 ? (
-        <div className="rounded-2xl p-3 text-xs text-[var(--text-primary)]" style={{ backgroundColor: "rgba(255,159,10,0.10)", border: "1px solid rgba(255,159,10,0.18)" }}>
-          {visibleWarnings.join(", ")}
-        </div>
+        <p className="text-xs text-[var(--meeting-color)]">{visibleWarnings.join(", ")}</p>
       ) : null}
-
-      {searchResult ? (
-        <div className="rounded-2xl bg-white/45 p-3 text-sm font-mono text-[var(--text-secondary)]">
-          <p>{searchResult.source_path}</p>
-          <p className="mt-1">score {searchResult.score.toFixed(3)}</p>
-        </div>
-      ) : null}
-
-      <div className="flex flex-wrap gap-2">
-        {tags.slice(0, 5).map((tag) => (
-          <span key={tag} className="glass-badge text-[var(--text-secondary)]">
-            <span className="status-dot bg-[var(--report-color)]" />
-            {tag}
-          </span>
-        ))}
-      </div>
-      <RequestIdMeta document={document} />
     </article>
   );
 }

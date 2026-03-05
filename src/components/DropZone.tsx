@@ -5,11 +5,10 @@ import { buildQueuedDocument, mapProcessResponseToUiDocument } from "../lib/docu
 import { basename, inferSourceModality } from "../lib/mime";
 import { cleanupStagedUploads, listenToWindowFileDrops, moveLocalFile, stageLocalUpload } from "../lib/tauri-events";
 import { useDocumentStore } from "../store/documentStore";
-import type { ActivityEvent, ProcessResponse } from "../types/documents";
+import type { ProcessResponse } from "../types/documents";
 
 export function DropZone() {
   const clientId = useDocumentStore((state) => state.clientId);
-  const activity = useDocumentStore((state) => state.activity);
   const queueUploads = useDocumentStore((state) => state.queueUploads);
   const rememberUpload = useDocumentStore((state) => state.rememberUpload);
   const clearRememberedUpload = useDocumentStore((state) => state.clearRememberedUpload);
@@ -161,18 +160,6 @@ export function DropZone() {
           }}
         />
       </div>
-
-      <div>
-        <div className="flex items-center justify-between">
-          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Recent activity</p>
-          <p className="font-mono text-[11px] text-[var(--text-muted)]">{activity.length} events</p>
-        </div>
-        <div className="mt-3 space-y-3">
-          {activity.slice(0, 5).map((event) => (
-            <ActivityRow key={event.id} event={event} />
-          ))}
-        </div>
-      </div>
     </section>
   );
 }
@@ -211,17 +198,3 @@ function resolveSourcePath(file: File, index: number, tauriPaths: string[]): str
   return exactName ?? tauriPaths[index] ?? null;
 }
 
-function ActivityRow({ event }: { event: ActivityEvent }) {
-  return (
-    <div className="flex items-center justify-between rounded-2xl bg-white/35 px-4 py-3 text-sm">
-      <div className="flex items-center gap-3">
-        <span className="status-dot bg-[var(--accent-primary)]" />
-        <div>
-          <p className="font-semibold text-[var(--text-primary)]">{event.title}</p>
-          <p className="text-xs text-[var(--text-secondary)]">{event.type}</p>
-        </div>
-      </div>
-      <p className="font-mono text-[11px] text-[var(--text-muted)]">{new Date(event.timestamp).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}</p>
-    </div>
-  );
-}

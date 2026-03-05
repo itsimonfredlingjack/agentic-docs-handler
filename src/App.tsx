@@ -1,5 +1,6 @@
 import { useEffect, startTransition } from "react";
 
+import { ActivitySidebar } from "./components/ActivitySidebar";
 import { DetailPanel } from "./components/DetailPanel";
 import { DropZone } from "./components/DropZone";
 import { FileGrid } from "./components/FileGrid";
@@ -60,6 +61,7 @@ export default function App() {
           <DropZone />
           <FileGrid />
         </main>
+        <ActivitySidebar />
       </div>
       <FileMoveToast />
       <DetailPanel />

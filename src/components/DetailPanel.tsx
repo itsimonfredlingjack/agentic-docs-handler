@@ -42,7 +42,7 @@ async function openInFinder(path: string): Promise<void> {
     const { invoke } = await import("@tauri-apps/api/core");
     await invoke("show_in_folder", { path });
   } catch {
-    // Not in Tauri context — ignore
+    // Not in Tauri context
   }
 }
 
@@ -62,19 +62,14 @@ export function DetailPanel() {
   useEffect(() => {
     if (!isOpen) return;
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        close();
-      }
+      if (e.key === "Escape") close();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isOpen, close]);
 
-  // Auto-close if document is removed
   useEffect(() => {
-    if (selectedDocumentId && !document) {
-      setSelectedDocument(null);
-    }
+    if (selectedDocumentId && !document) setSelectedDocument(null);
   }, [selectedDocumentId, document, setSelectedDocument]);
 
   return (
@@ -83,17 +78,18 @@ export function DetailPanel() {
         className={`detail-backdrop ${isOpen ? "detail-backdrop--open" : ""}`}
         onClick={close}
       />
-      <aside
-        className={`detail-panel ${isOpen ? "detail-panel--open" : ""}`}
+      <div
+        className={`detail-modal ${isOpen ? "detail-modal--open" : ""}`}
+        role="dialog"
         aria-label="Document details"
       >
-        {document ? <DetailPanelContent document={document} onClose={close} /> : null}
-      </aside>
+        {document ? <ModalContent document={document} onClose={close} /> : null}
+      </div>
     </>
   );
 }
 
-function DetailPanelContent({ document, onClose }: { document: UiDocument; onClose: () => void }) {
+function ModalContent({ document, onClose }: { document: UiDocument; onClose: () => void }) {
   const accent = getKindAccent(document.kind);
   const fields = document.extraction?.fields ?? {};
   const fieldEntries = Object.entries(fields).filter(
@@ -104,17 +100,14 @@ function DetailPanelContent({ document, onClose }: { document: UiDocument; onClo
     (document.kind === "audio" || document.kind === "meeting_notes");
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto">
+    <div className="flex max-h-[80vh] flex-col overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-black/5 px-5 py-4">
         <span
           className="glass-badge"
           style={{ backgroundColor: `color-mix(in srgb, ${accent} 14%, transparent)`, color: accent }}
         >
-          <span
-            className="status-dot"
-            style={{ backgroundColor: accent, width: 6, height: 6 }}
-          />
+          <span className="status-dot" style={{ backgroundColor: accent, width: 6, height: 6 }} />
           {formatKindLabel(document.kind)}
         </span>
         <button
@@ -130,16 +123,13 @@ function DetailPanelContent({ document, onClose }: { document: UiDocument; onClo
       </div>
 
       {/* Body */}
-      <div className="flex flex-1 flex-col gap-5 px-5 py-5">
-        {/* Title */}
+      <div className="flex flex-col gap-4 px-5 py-5">
         <h2 className="text-lg font-bold text-[var(--text-primary)]">{document.title}</h2>
 
-        {/* Summary */}
         {document.summary ? (
           <p className="text-sm leading-6 text-[var(--text-secondary)]">{document.summary}</p>
         ) : null}
 
-        {/* Extracted fields */}
         {fieldEntries.length > 0 ? (
           <div className="rounded-2xl bg-white/40 p-4">
             <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
@@ -160,7 +150,6 @@ function DetailPanelContent({ document, onClose }: { document: UiDocument; onClo
           </div>
         ) : null}
 
-        {/* Transcription */}
         {hasTranscription ? (
           <div className="rounded-2xl bg-white/40 p-4">
             <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
@@ -174,7 +163,6 @@ function DetailPanelContent({ document, onClose }: { document: UiDocument; onClo
           </div>
         ) : null}
 
-        {/* Tags */}
         {document.tags.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {document.tags.map((tag) => (
@@ -185,7 +173,6 @@ function DetailPanelContent({ document, onClose }: { document: UiDocument; onClo
           </div>
         ) : null}
 
-        {/* File location */}
         {document.sourcePath ? (
           <div className="rounded-2xl bg-white/40 p-4">
             <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
@@ -197,7 +184,6 @@ function DetailPanelContent({ document, onClose }: { document: UiDocument; onClo
           </div>
         ) : null}
 
-        {/* Move plan */}
         {document.movePlan?.destination ? (
           <div className="rounded-2xl bg-white/40 p-4">
             <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
@@ -224,39 +210,23 @@ function DetailPanelContent({ document, onClose }: { document: UiDocument; onClo
           </div>
         ) : null}
 
-        {/* Warnings */}
         {document.warnings.length > 0 ? (
           <div className="rounded-2xl border border-[rgba(255,159,10,0.18)] bg-[rgba(255,159,10,0.08)] p-3">
             {document.warnings.map((warning, i) => (
-              <p key={i} className="text-sm text-[var(--meeting-color)]">
-                {warning}
-              </p>
+              <p key={i} className="text-sm text-[var(--meeting-color)]">{warning}</p>
             ))}
           </div>
         ) : null}
 
-        {/* Open in Finder */}
         {document.sourcePath ? (
           <button
             type="button"
-            className="focus-ring w-fit rounded-2xl border border-black/5 bg-white/50 px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] transition-all duration-150 hover:bg-white/70"
-            onClick={() => {
-              void openInFinder(document.sourcePath!);
-            }}
+            className="focus-ring w-fit rounded-xl border border-black/5 bg-white/50 px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] transition-all duration-150 hover:bg-white/70"
+            onClick={() => void openInFinder(document.sourcePath!)}
           >
             Open in Finder
           </button>
         ) : null}
-
-        {/* Meta footer */}
-        <div className="mt-auto border-t border-black/5 pt-4 text-[11px] text-[var(--text-muted)]">
-          <div className="grid grid-cols-2 gap-2">
-            <span>Request: {document.requestId.slice(0, 8)}</span>
-            <span>Record: {document.id.slice(0, 8)}</span>
-            <span>Modality: {document.sourceModality}</span>
-            <span>MIME: {document.mimeType}</span>
-          </div>
-        </div>
       </div>
     </div>
   );

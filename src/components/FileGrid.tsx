@@ -6,7 +6,6 @@ import { AudioTranscript } from "../templates/AudioTranscript";
 import { ContractCard } from "../templates/ContractCard";
 import { FileMovedCard } from "../templates/FileMovedCard";
 import { ReceiptCard } from "../templates/ReceiptCard";
-import { RequestIdMeta } from "./RequestIdMeta";
 import { useDocumentStore } from "../store/documentStore";
 import type { ProcessResponse, UiDocument } from "../types/documents";
 
@@ -73,18 +72,16 @@ function renderDocument(document: UiDocument, orphanResult?: ReturnType<typeof u
   if (document.status === "uploading" || document.status === "processing" || document.status === "classifying" || document.status === "classified" || document.status === "extracting" || document.status === "indexing" || document.status === "organizing" || document.status === "transcribing") {
     const processingMeta = getProcessingMeta(document.status);
     return (
-      <article className="glass-panel flex h-full flex-col gap-4 p-5">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">{processingMeta.label}</p>
-          <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)]">{document.title}</h3>
+      <article className="glass-panel flex h-full flex-col gap-2 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)] line-clamp-1">{document.title}</h3>
+          <span className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] shrink-0">
+            <span className="status-dot bg-[var(--accent-primary)]" style={{ animation: "pulse-dot 1.5s ease-in-out infinite" }} />
+            {processingMeta.label}
+          </span>
         </div>
-        <p className="text-sm text-[var(--text-secondary)]">{processingMeta.message}</p>
-        <div className="flex items-center gap-2">
-          <span className="status-dot bg-[var(--accent-primary)]" style={{ animation: "pulse-dot 1.5s ease-in-out infinite" }} />
-          <span className="text-xs text-[var(--text-muted)]">{processingMeta.label}</span>
-        </div>
+        <p className="text-sm text-[var(--text-secondary)] line-clamp-1">{processingMeta.message}</p>
         <div className="processing-bar" />
-        <RequestIdMeta document={document} />
       </article>
     );
   }
@@ -137,16 +134,19 @@ function getProcessingMeta(status: UiDocument["status"]): { label: string; messa
 
 function FailureCard({ document }: { document: UiDocument }) {
   return (
-    <article className="glass-panel flex h-full flex-col gap-4 p-5">
-      <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Failed</p>
-        <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)]">{document.title}</h3>
+    <article className="glass-panel flex h-full flex-col gap-2 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-sm font-semibold text-[var(--text-primary)] line-clamp-1">{document.title}</h3>
+        <span className="glass-badge shrink-0 border-[rgba(255,55,95,0.22)] bg-[rgba(255,55,95,0.10)] text-[var(--invoice-color)]">
+          <span className="status-dot bg-[var(--invoice-color)]" />
+          failed
+        </span>
       </div>
-      <p className="text-sm text-[var(--text-secondary)]">{document.errorCode === "audio_processing_unavailable" ? "Audio processing unavailable" : document.summary}</p>
+      <p className="text-sm text-[var(--text-secondary)] line-clamp-1">{document.errorCode === "audio_processing_unavailable" ? "Audio processing unavailable" : document.summary}</p>
       {document.retryable ? (
         <button
           type="button"
-          className="focus-ring w-fit rounded-2xl bg-[var(--accent-primary)] px-4 py-2 text-sm font-semibold text-white transition-all duration-150 hover:opacity-90"
+          className="focus-ring w-fit rounded-xl bg-[var(--accent-primary)] px-3 py-1.5 text-xs font-semibold text-white transition-all duration-150 hover:opacity-90"
           onClick={(e) => {
             e.stopPropagation();
             void retryDocument(document.requestId);
@@ -155,7 +155,6 @@ function FailureCard({ document }: { document: UiDocument }) {
           Retry
         </button>
       ) : null}
-      <RequestIdMeta document={document} />
     </article>
   );
 }
@@ -170,27 +169,22 @@ function PendingMoveCard({ document }: { document: UiDocument }) {
   const isBusy = pendingMoveAction !== "idle";
 
   return (
-    <article className="glass-panel glass-panel-hover flex h-full flex-col gap-4 p-5">
-      <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Move confirmation</p>
-        <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)]">{document.title}</h3>
+    <article className="glass-panel glass-panel-hover flex h-full flex-col gap-2 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-sm font-semibold text-[var(--text-primary)] line-clamp-1">{document.title}</h3>
+        <span className="glass-badge shrink-0 border-[rgba(255,159,10,0.22)] bg-[rgba(255,159,10,0.10)] text-[var(--meeting-color)]">
+          <span className="status-dot bg-[var(--meeting-color)]" />
+          confirm
+        </span>
       </div>
-      <p className="text-sm text-[var(--text-secondary)]">{document.summary}</p>
-      <div className="rounded-2xl bg-white/45 p-3 font-mono text-xs text-[var(--text-secondary)]">
-        <p className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Source</p>
-        <p className="mt-1 break-all">{document.sourcePath ?? "—"}</p>
-        <p className="mt-3 text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Destination</p>
-        <p className="mt-1 break-all">{document.movePlan?.destination ?? "—"}</p>
-      </div>
+      <p className="font-mono text-xs text-[var(--text-muted)] line-clamp-1">→ {document.movePlan?.destination ?? "—"}</p>
       {pendingMoveError ? (
-        <p className="rounded-2xl border border-[rgba(255,55,95,0.18)] bg-[rgba(255,55,95,0.08)] px-3 py-2 text-sm text-[#ff375f]">
-          {pendingMoveError}
-        </p>
+        <p className="text-xs text-[#ff375f]">{pendingMoveError}</p>
       ) : null}
-      <div className="flex gap-3">
+      <div className="flex gap-2">
         <button
           type="button"
-          className="focus-ring rounded-2xl bg-[var(--accent-primary)] px-4 py-2 text-sm font-semibold text-white transition-all duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="focus-ring rounded-xl bg-[var(--accent-primary)] px-3 py-1.5 text-xs font-semibold text-white transition-all duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           disabled={isBusy}
           onClick={(e) => {
             e.stopPropagation();
@@ -201,7 +195,7 @@ function PendingMoveCard({ document }: { document: UiDocument }) {
         </button>
         <button
           type="button"
-          className="focus-ring rounded-2xl border border-black/5 bg-white/50 px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] transition-all duration-150 hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-60"
+          className="focus-ring rounded-xl border border-black/5 bg-white/50 px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] transition-all duration-150 hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-60"
           disabled={isBusy}
           onClick={(e) => {
             e.stopPropagation();
@@ -211,7 +205,6 @@ function PendingMoveCard({ document }: { document: UiDocument }) {
           {pendingMoveAction === "dismissing" ? "Saving..." : "Not now"}
         </button>
       </div>
-      <RequestIdMeta document={document} />
     </article>
   );
 }
