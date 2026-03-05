@@ -118,6 +118,7 @@ async def test_mcp_client_lists_tools_and_calls_search() -> None:
 
     names = {tool.name for tool in tools.tools}
     assert "search" in names
+    assert "render_search_widget" in names
     assert "transcribe_audio" in names
     assert "organize_file" in names
     assert result.isError is False

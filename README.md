@@ -29,7 +29,7 @@ Ingår inte:
 
 - dark mode
 - system tray / The Orb
-- widget UI
+- full widget UI (utover search/fetch-MVP)
 - AI-actionknappar
 - waveform player
 
@@ -286,6 +286,7 @@ Nuvarande status i repo:
 - LanceDB search live
 - Whisper-proxy live
 - MCP live på `/mcp`
+- ChatGPT widget MVP live via `render_search_widget` (search -> fetch)
 - Tauri desktop-shell scaffoldad och kopplad till backend via hybridmodell:
   - WS för events
   - HTTP för data
@@ -296,4 +297,4 @@ Efter Fas 4 är de naturliga nästa spåren:
 
 1. manuell live-validering av hela Tauri-flödet på Mac mot `ai-server`
 2. polish av animationer, spacing och responsive detaljer
-3. Fas 5+: system tray, widget UI och AI-actions
+3. Fas 5+: utoka widget UI bortom search/fetch-MVP, system tray och AI-actions
