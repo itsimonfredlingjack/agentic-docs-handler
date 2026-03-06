@@ -99,6 +99,7 @@ def create_app(
     config.validation_log_dir.mkdir(parents=True, exist_ok=True)
     config.ui_documents_path.parent.mkdir(parents=True, exist_ok=True)
     config.move_history_path.parent.mkdir(parents=True, exist_ok=True)
+    config.chatgpt_upload_staging_dir.mkdir(parents=True, exist_ok=True)
     config.staging_dir.mkdir(parents=True, exist_ok=True)
 
     ollama_client: AsyncOllamaClient | None = None

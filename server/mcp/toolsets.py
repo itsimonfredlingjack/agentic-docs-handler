@@ -21,6 +21,12 @@ READ_TOOL_NAMES = (
     "search_documents",
     "transcribe_audio",
     "fetch",
+    "render_docs_console",
+    "analyze_uploaded_document",
+    "transcribe_uploaded_audio",
+    "search_session_documents",
+    "fetch_session_document",
+    "preview_organize_uploaded",
     "get_system_status",
     "get_validation_report",
     "classify_text",
@@ -32,4 +38,4 @@ READ_TOOL_NAMES = (
     "get_activity_log",
 )
 
-WRITE_TOOL_NAMES = ("organize_file",)
+WRITE_TOOL_NAMES = ("organize_file", "confirm_organize_uploaded")
