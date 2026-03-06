@@ -70,6 +70,7 @@ export function mapProcessResponseToUiDocument(payload: ProcessResponse): UiDocu
     errorCode: payload.error_code,
     warnings: sanitizeWarnings(payload.warnings),
     moveStatus: payload.move_status,
+    timings: payload.timings,
     diagnostics: payload.diagnostics ?? null,
   };
 }

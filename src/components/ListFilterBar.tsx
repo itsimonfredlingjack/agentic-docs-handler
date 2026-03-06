@@ -28,7 +28,8 @@ export function ListFilterBar() {
           <button
             key={filter.id}
             type="button"
-            className={`filter-pill ${active ? "is-active" : ""}`}
+            className={`filter-pill focus-ring ${active ? "is-active" : ""}`}
+            aria-pressed={active}
             onClick={() => setSidebarFilter(filter.id)}
           >
             {filter.label}

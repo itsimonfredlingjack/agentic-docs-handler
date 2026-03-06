@@ -28,10 +28,10 @@ describe("TopBar search", () => {
 
   it("focuses the search input on cmd+k", async () => {
     const user = userEvent.setup();
-    render(<TopBar onDropClick={vi.fn()} />);
+    render(<TopBar onDropClick={vi.fn()} viewMode="tinder" onToggleView={vi.fn()} onShowShortcuts={vi.fn()} onToggleActivity={vi.fn()} activityOpen={false} />);
 
     await user.keyboard("{Meta>}k{/Meta}");
 
-    expect(screen.getByPlaceholderText("Search documents...")).toHaveFocus();
+    expect(screen.getByPlaceholderText(/Search documents/)).toHaveFocus();
   });
 });

@@ -8,7 +8,9 @@ import {
   DetailPaneExtraction,
   DetailPaneOrganized,
   DetailPaneSource,
+  DetailPaneSuggestedActions,
   DetailPaneTags,
+  DetailPaneTimings,
   DetailPaneTranscription,
   DetailPaneWarnings,
 } from "./DetailPaneSections";
@@ -160,7 +162,7 @@ export function DetailPane() {
     <div key={selectedDocumentId} className="detail-pane">
       {isProcessing && <div className="processing-bar" />}
 
-      <div className="flex flex-col gap-5 p-5 overflow-y-auto flex-1">
+      <div className="flex flex-col gap-5 p-5 flex-1">
         {/* Processing state */}
         {isProcessing && <ProcessingBanner status={document.status} />}
 
@@ -173,6 +175,9 @@ export function DetailPane() {
         {/* AI Extraction — THE HERO */}
         <DetailPaneExtraction document={document} />
 
+        {/* Suggested actions from classifier */}
+        <DetailPaneSuggestedActions document={document} />
+
         {/* Transcription */}
         <DetailPaneTranscription document={document} />
 
@@ -181,6 +186,9 @@ export function DetailPane() {
 
         {/* Awaiting confirmation actions */}
         {isAwaitingConfirmation && <ConfirmationActions document={document} />}
+
+        {/* Pipeline timings */}
+        <DetailPaneTimings document={document} />
 
         {/* Tags */}
         <DetailPaneTags document={document} />
@@ -192,7 +200,7 @@ export function DetailPane() {
         {document.sourcePath && (
           <button
             type="button"
-            className="focus-ring w-fit rounded-xl border border-black/5 bg-white/50 px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] transition-all duration-150 hover:bg-white/70"
+            className="focus-ring w-fit rounded-xl border border-[var(--border-subtle)] bg-[var(--btn-bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] transition-all duration-150 hover:bg-[var(--btn-bg-hover)]"
             onClick={() => void openInFinder(document.sourcePath!)}
           >
             Open in Finder
@@ -273,7 +281,7 @@ function ConfirmationActions({ document }: { document: UiDocument }) {
         </button>
         <button
           type="button"
-          className="focus-ring rounded-xl border border-black/5 bg-white/50 px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] transition-all duration-150 hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-60"
+          className="focus-ring rounded-xl border border-[var(--border-subtle)] bg-[var(--btn-bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] transition-all duration-150 hover:bg-[var(--btn-bg-hover)] disabled:cursor-not-allowed disabled:opacity-60"
           disabled={isBusy}
           onClick={() => void dismissMove(document)}
         >

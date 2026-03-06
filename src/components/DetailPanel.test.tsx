@@ -34,8 +34,8 @@ const sampleDocument: UiDocument = {
     suggested_actions: [],
   },
   extraction: {
-    fields: { vendor: "Staples", total: "$42.50" },
-    field_confidence: { vendor: 0.9, total: 0.95 },
+    fields: { vendor: "Staples", amount: "$42.50" },
+    field_confidence: { vendor: 0.9, amount: 0.95 },
     missing_fields: [],
   },
   transcription: null,

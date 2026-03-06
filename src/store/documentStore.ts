@@ -38,7 +38,11 @@ type DocumentStoreState = {
   uploadsByRequestId: Record<string, UploadMemory>;
   pendingMoveStateByRecordId: Record<string, PendingMoveUiState>;
   selectedDocumentId: string | null;
+  selectedDocumentIds: Set<string>;
   setSelectedDocument: (id: string | null) => void;
+  toggleDocumentSelection: (id: string) => void;
+  rangeSelectDocuments: (id: string, orderedIds: string[]) => void;
+  clearMultiSelect: () => void;
   bootstrap: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
   resyncFromBackend: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
   setClientId: (clientId: string) => void;
@@ -105,7 +109,35 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
   uploadsByRequestId: {},
   pendingMoveStateByRecordId: {},
   selectedDocumentId: null,
-  setSelectedDocument: (id) => set({ selectedDocumentId: id }),
+  selectedDocumentIds: new Set(),
+  setSelectedDocument: (id) => set({ selectedDocumentId: id, selectedDocumentIds: new Set() }),
+  toggleDocumentSelection: (id) =>
+    set((state) => {
+      const next = new Set(state.selectedDocumentIds);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      // If this is the first multi-select and nothing was selected, also set primary
+      const primary = next.size > 0 ? (state.selectedDocumentId ?? id) : null;
+      return { selectedDocumentIds: next, selectedDocumentId: primary };
+    }),
+  rangeSelectDocuments: (id, orderedIds) =>
+    set((state) => {
+      const anchor = state.selectedDocumentId;
+      if (!anchor) return { selectedDocumentId: id, selectedDocumentIds: new Set([id]) };
+      const anchorIdx = orderedIds.indexOf(anchor);
+      const targetIdx = orderedIds.indexOf(id);
+      if (anchorIdx === -1 || targetIdx === -1) return state;
+      const start = Math.min(anchorIdx, targetIdx);
+      const end = Math.max(anchorIdx, targetIdx);
+      const range = new Set(orderedIds.slice(start, end + 1));
+      // Merge with existing selection
+      const next = new Set([...state.selectedDocumentIds, ...range]);
+      return { selectedDocumentIds: next };
+    }),
+  clearMultiSelect: () => set({ selectedDocumentIds: new Set() }),
   bootstrap: (documents, counts, activity) =>
     set({
       documents: Object.fromEntries(documents.map((document) => [document.id, document])),

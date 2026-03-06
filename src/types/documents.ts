@@ -170,6 +170,7 @@ export type UiDocument = {
   errorCode: string | null;
   warnings: string[];
   moveStatus: MoveStatus;
+  timings?: Record<string, number>;
   diagnostics?: ProcessDiagnostics | null;
 };
 

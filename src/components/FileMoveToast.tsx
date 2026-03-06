@@ -38,7 +38,7 @@ export function FileMoveToast() {
           </div>
           <button
             type="button"
-            className="focus-ring rounded-xl border border-black/5 bg-white/60 px-3 py-2 text-xs font-semibold text-[var(--accent-primary)] transition-all duration-150 hover:bg-white/80"
+            className="focus-ring rounded-xl border border-[var(--border-subtle)] bg-[var(--btn-bg-active)] px-3 py-2 text-xs font-semibold text-[var(--accent-primary)] transition-all duration-150 hover:bg-[var(--btn-bg-hover)]"
             onClick={async () => {
               if (!clientId) {
                 return;
