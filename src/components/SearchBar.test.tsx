@@ -19,19 +19,19 @@ vi.mock("../hooks/useSearch", () => ({
   }),
 }));
 
-import { SearchBar } from "./SearchBar";
+import { TopBar } from "./TopBar";
 
-describe("SearchBar", () => {
+describe("TopBar search", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("focuses the input on cmd+k", async () => {
+  it("focuses the search input on cmd+k", async () => {
     const user = userEvent.setup();
-    render(<SearchBar />);
+    render(<TopBar onDropClick={vi.fn()} />);
 
     await user.keyboard("{Meta>}k{/Meta}");
 
-    expect(screen.getByPlaceholderText("Vad letar du efter?")).toHaveFocus();
+    expect(screen.getByPlaceholderText("Search documents...")).toHaveFocus();
   });
 });

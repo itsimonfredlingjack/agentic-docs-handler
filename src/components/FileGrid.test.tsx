@@ -22,7 +22,7 @@ vi.mock("../lib/tauri-events", () => ({
   moveLocalFile,
 }));
 
-import { FileGrid } from "./FileGrid";
+import { DetailPane } from "./DetailPane";
 import { useDocumentStore } from "../store/documentStore";
 import type { UiDocument } from "../types/documents";
 
@@ -74,7 +74,7 @@ const pendingDocument: UiDocument = {
   moveStatus: "awaiting_confirmation",
 };
 
-describe("FileGrid pending move actions", () => {
+describe("DetailPane pending move actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useDocumentStore.setState({
@@ -82,6 +82,7 @@ describe("FileGrid pending move actions", () => {
       connectionState: "connected",
       documents: { [pendingDocument.id]: pendingDocument },
       documentOrder: [pendingDocument.id],
+      selectedDocumentId: "doc-pending",
       counts: {
         all: 1,
         processing: 1,
@@ -119,7 +120,7 @@ describe("FileGrid pending move actions", () => {
       }),
     );
 
-    render(<FileGrid />);
+    render(<DetailPane />);
 
     await user.click(screen.getByRole("button", { name: "Not now" }));
 
@@ -152,7 +153,7 @@ describe("FileGrid pending move actions", () => {
       }),
     );
 
-    render(<FileGrid />);
+    render(<DetailPane />);
 
     await user.click(screen.getByRole("button", { name: "Confirm move" }));
 

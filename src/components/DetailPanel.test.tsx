@@ -1,12 +1,11 @@
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
-import { DetailPanel } from "./DetailPanel";
+import { DetailPane } from "./DetailPane";
 import { useDocumentStore } from "../store/documentStore";
 import type { UiDocument } from "../types/documents";
 
@@ -68,50 +67,42 @@ function seedStore(selectedId: string | null = null) {
   });
 }
 
-describe("DetailPanel", () => {
+describe("DetailPane", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("is hidden when no document is selected", () => {
+  it("shows placeholder when no document is selected", () => {
     seedStore(null);
-    render(<DetailPanel />);
-    expect(screen.queryByRole("dialog", { name: "Document details" })).not.toHaveClass(
-      "detail-modal--open",
-    );
+    render(<DetailPane />);
+    expect(screen.getByText("Select a document to view details")).toBeInTheDocument();
   });
 
-  it("opens when selectedDocumentId is set", () => {
+  it("shows title, summary, and extracted fields when a document is selected", () => {
     seedStore("doc-1");
-    render(<DetailPanel />);
-    expect(screen.getByRole("dialog", { name: "Document details" })).toHaveClass(
-      "detail-modal--open",
-    );
-  });
-
-  it("shows title, summary, and extracted fields", () => {
-    seedStore("doc-1");
-    render(<DetailPanel />);
+    render(<DetailPane />);
     expect(screen.getByText("Office Supplies Receipt")).toBeInTheDocument();
     expect(screen.getByText("Paper and pens from Staples.")).toBeInTheDocument();
     expect(screen.getByText("Staples")).toBeInTheDocument();
     expect(screen.getByText("$42.50")).toBeInTheDocument();
   });
 
-  it("closes on Escape key", async () => {
+  it("shows tags", () => {
     seedStore("doc-1");
-    render(<DetailPanel />);
-    expect(screen.getByRole("dialog", { name: "Document details" })).toHaveClass(
-      "detail-modal--open",
-    );
-    await userEvent.keyboard("{Escape}");
-    expect(useDocumentStore.getState().selectedDocumentId).toBeNull();
+    render(<DetailPane />);
+    expect(screen.getByText("receipt")).toBeInTheDocument();
+    expect(screen.getByText("office")).toBeInTheDocument();
   });
 
-  it("closes on close button click", async () => {
+  it("shows Open in Finder button when sourcePath exists", () => {
     seedStore("doc-1");
-    render(<DetailPanel />);
-    await userEvent.click(screen.getByRole("button", { name: "Close detail panel" }));
-    expect(useDocumentStore.getState().selectedDocumentId).toBeNull();
+    render(<DetailPane />);
+    expect(screen.getByRole("button", { name: "Open in Finder" })).toBeInTheDocument();
+  });
+
+  it("shows AI Extraction section label", () => {
+    seedStore("doc-1");
+    render(<DetailPane />);
+    expect(screen.getByText("AI Extraction")).toBeInTheDocument();
   });
 });

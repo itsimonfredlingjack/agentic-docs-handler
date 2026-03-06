@@ -1,20 +1,26 @@
-import { useEffect, startTransition } from "react";
+import { useEffect, useRef, useState, startTransition } from "react";
 
-import { ActivitySidebar } from "./components/ActivitySidebar";
-import { DetailPanel } from "./components/DetailPanel";
-import { DropZone } from "./components/DropZone";
-import { FileGrid } from "./components/FileGrid";
+import { DropOverlay } from "./components/DropOverlay";
 import { FileMoveToast } from "./components/FileMoveToast";
-import { SearchBar } from "./components/SearchBar";
-import { Sidebar } from "./components/Sidebar";
+import { HeroDropZone } from "./components/HeroDropZone";
+import { SplitView } from "./components/SplitView";
+import { TopBar } from "./components/TopBar";
+import { useFileSubmit } from "./hooks/useFileSubmit";
+import { useWebSocket } from "./hooks/useWebSocket";
 import { fetchActivity, fetchCounts, fetchDocuments } from "./lib/api";
 import { getClientId } from "./lib/tauri-events";
 import { useDocumentStore } from "./store/documentStore";
-import { useWebSocket } from "./hooks/useWebSocket";
 
 export default function App() {
   const bootstrap = useDocumentStore((state) => state.bootstrap);
   const setClientId = useDocumentStore((state) => state.setClientId);
+  const documentCount = useDocumentStore((state) => state.documentOrder.length);
+  const { submitFiles, openFilePicker, handleInputChange, fileInputRef, tauriDragOver } = useFileSubmit();
+
+  // Counter-based drag tracking avoids flicker from child enter/leave bubbling
+  const dragCounterRef = useRef(0);
+  const [browserDragOver, setBrowserDragOver] = useState(false);
+  const dragOver = browserDragOver || tauriDragOver;
 
   useWebSocket();
 
@@ -29,42 +35,85 @@ export default function App() {
           fetchCounts(),
           fetchActivity(10),
         ]);
-        if (cancelled) {
-          return;
-        }
+        if (cancelled) return;
         setClientId(clientId);
         startTransition(() => {
           bootstrap(documentsPayload.documents, counts, activity.events);
         });
       } catch (error) {
-        if (!cancelled) {
-          console.error("app.bootstrap.failed", error);
-        }
+        if (!cancelled) console.error("app.bootstrap.failed", error);
       }
     }
 
     void load();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [bootstrap, setClientId]);
 
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current++;
+    if (dragCounterRef.current === 1) setBrowserDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) setBrowserDragOver(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setBrowserDragOver(false);
+    void submitFiles(Array.from(e.dataTransfer.files));
+  };
+
+  const handleHeroDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setBrowserDragOver(false);
+    void submitFiles(Array.from(e.dataTransfer.files));
+  };
+
   return (
-    <div className="min-h-screen bg-frost px-4 py-4 text-[var(--text-primary)]">
-      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[1600px] gap-4">
-        <div className="hidden md:block">
-          <Sidebar />
-        </div>
-        <main className="flex min-h-0 flex-1 flex-col gap-4">
-          <SearchBar />
-          <DropZone />
-          <FileGrid />
-        </main>
-        <ActivitySidebar />
-      </div>
+    <div
+      className="app-shell"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+    >
+      <TopBar onDropClick={openFilePicker} />
+
+      {documentCount === 0 ? (
+        <HeroDropZone onDrop={handleHeroDrop} onBrowse={openFilePicker} />
+      ) : (
+        <SplitView />
+      )}
+
+      <DropOverlay
+        visible={dragOver}
+        onDrop={handleDrop}
+        onDragOver={(e) => e.preventDefault()}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          dragCounterRef.current = 0;
+          setBrowserDragOver(false);
+        }}
+      />
+
       <FileMoveToast />
-      <DetailPanel />
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        multiple
+        onChange={handleInputChange}
+      />
     </div>
   );
 }
