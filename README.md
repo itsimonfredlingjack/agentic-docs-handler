@@ -221,10 +221,33 @@ Nuvarande MCP-tools:
 - `list_file_rules`
 - `get_activity_log`
 - `organize_file`
+- `render_docs_console`
+- `analyze_uploaded_document`
+- `transcribe_uploaded_audio`
+- `search_session_documents`
+- `fetch_session_document`
+- `preview_organize_uploaded`
+- `confirm_organize_uploaded`
 
 Publik MCP-URL i nuvarande setup:
 
 - [https://docsgpt.fredlingautomation.dev/mcp](https://docsgpt.fredlingautomation.dev/mcp)
+
+## ChatGPT App (Internal Powerhouse)
+
+Nya ChatGPT-optimerade verktyg samexisterar med path-baserade verktyg:
+
+- path-baserade verktyg (bakåtkompatibla): `classify_image`, `transcribe_audio`, `organize_file`
+- fileParam-verktyg för ChatGPT uploads: `analyze_uploaded_document`, `transcribe_uploaded_audio`, `preview_organize_uploaded`
+- tvåstegs write-guard: `preview_organize_uploaded` -> `confirm_organize_uploaded` med `confirm_token` + `idempotency_key`
+- sessionsverktyg: `search_session_documents`, `fetch_session_document`
+- renderverktyg + widgetresource: `render_docs_console` -> `ui://widget/docs-console-v1.html`
+
+Widget-build:
+
+```bash
+npm --prefix apps/chatgpt-widget run build
+```
 
 ## Test och verifiering
 
