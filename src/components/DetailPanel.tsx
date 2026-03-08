@@ -78,13 +78,13 @@ export function DetailPanel() {
         className={`detail-backdrop ${isOpen ? "detail-backdrop--open" : ""}`}
         onClick={close}
       />
-      <div
-        className={`detail-modal ${isOpen ? "detail-modal--open" : ""}`}
+      <aside
+        className={`detail-panel ${isOpen ? "detail-panel--open" : ""}`}
         role="dialog"
         aria-label="Document details"
       >
         {document ? <ModalContent document={document} onClose={close} /> : null}
-      </div>
+      </aside>
     </>
   );
 }
@@ -100,7 +100,7 @@ function ModalContent({ document, onClose }: { document: UiDocument; onClose: ()
     (document.kind === "audio" || document.kind === "meeting_notes");
 
   return (
-    <div className="flex max-h-[80vh] flex-col overflow-y-auto">
+    <div className="flex h-full flex-col overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-black/5 px-5 py-4">
         <span
@@ -123,7 +123,7 @@ function ModalContent({ document, onClose }: { document: UiDocument; onClose: ()
       </div>
 
       {/* Body */}
-      <div className="flex flex-col gap-4 px-5 py-5">
+      <div className="flex flex-1 flex-col gap-4 px-5 py-5">
         <h2 className="text-lg font-bold text-[var(--text-primary)]">{document.title}</h2>
 
         {document.summary ? (
@@ -227,6 +227,18 @@ function ModalContent({ document, onClose }: { document: UiDocument; onClose: ()
             Open in Finder
           </button>
         ) : null}
+
+        <div className="mt-auto rounded-2xl border border-black/5 bg-white/30 p-3">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+            Meta
+          </p>
+          <div className="grid grid-cols-2 gap-2 text-[11px] text-[var(--text-secondary)]">
+            <span className="font-mono">Req {document.requestId.slice(0, 8)}</span>
+            <span className="font-mono">Doc {document.id.slice(0, 8)}</span>
+            <span className="uppercase">{document.sourceModality}</span>
+            <span className="line-clamp-1">{document.mimeType}</span>
+          </div>
+        </div>
       </div>
     </div>
   );

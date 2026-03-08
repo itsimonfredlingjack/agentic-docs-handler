@@ -11,19 +11,19 @@
   --button-radius: 10px;
   --glass-bg: rgba(255, 255, 255, 0.65);
   --glass-bg-hover: rgba(255, 255, 255, 0.82);
-  --glass-border: rgba(255, 255, 255, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.6);
   --glass-blur: blur(40px) saturate(1.8);
   --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.04);
   --glass-shadow-hover: 0 8px 40px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
-  --bg-gradient: linear-gradient(145deg, #f5f0ec 0%, #e8e3f3 30%, #dce8f5 55%, #f0ece5 80%, #ece5f0 100%);
+  --bg-gradient: linear-gradient(140deg, #f7f3ea 0%, #eef3fb 34%, #e7f3f0 66%, #f6efe6 100%);
   --text-primary: #1d1d1f;
-  --text-secondary: #6e6e73;
-  --text-muted: #86868b;
+  --text-secondary: #56565d;
+  --text-muted: #6e6e74;
   --text-disabled: #aeaeb2;
-  --accent-gradient: linear-gradient(135deg, #5856d6, #af52de);
-  --accent-primary: #5856d6;
+  --accent-gradient: linear-gradient(135deg, #2f6fed, #24a096);
+  --accent-primary: #2f6fed;
   --receipt-color: #34c759;
-  --contract-color: #5856d6;
+  --contract-color: #2f6fed;
   --invoice-color: #ff375f;
   --meeting-color: #ff9f0a;
   --report-color: #8e8e93;
@@ -82,7 +82,7 @@ input {
   .glass-panel-hover:hover {
     background: var(--glass-bg-hover);
     box-shadow: var(--glass-shadow-hover);
-    transform: translateY(-2px);
+    transform: translateY(-1.5px);
   }
 
   .glass-panel-hover:focus-visible {
@@ -106,7 +106,7 @@ input {
   .processing-bar {
     height: 3px;
     border-radius: 999px;
-    background: linear-gradient(90deg, transparent 0%, #5856d6 25%, #af52de 50%, #5856d6 75%, transparent 100%);
+    background: linear-gradient(90deg, transparent 0%, #2f6fed 25%, #24a096 50%, #2f6fed 75%, transparent 100%);
     background-size: 200% 100%;
     animation: aurora 2.5s ease-in-out infinite;
   }
@@ -147,36 +147,36 @@ input {
     backdrop-filter: blur(0px);
     pointer-events: none;
     opacity: 0;
-    transition: opacity var(--transition-smooth), background-color var(--transition-smooth), backdrop-filter var(--transition-smooth);
+    transition:
+      opacity var(--transition-smooth),
+      background-color var(--transition-smooth),
+      backdrop-filter var(--transition-smooth);
   }
   .detail-backdrop--open {
-    background: rgba(0, 0, 0, 0.25);
-    backdrop-filter: blur(8px);
+    background: rgba(12, 17, 25, 0.15);
+    backdrop-filter: blur(6px);
     pointer-events: auto;
     opacity: 1;
   }
-  .detail-modal {
+  .detail-panel {
     position: fixed;
     z-index: 45;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) scale(0.97);
-    width: min(560px, calc(100vw - 3rem));
-    max-height: 80vh;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--detail-panel-width);
     background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--card-radius);
+    border-left: 1px solid var(--glass-border);
     backdrop-filter: var(--glass-blur);
     box-shadow: var(--glass-shadow-hover);
+    transform: translateX(100%);
     overflow: hidden;
-    opacity: 0;
     pointer-events: none;
-    transition: opacity 200ms ease, transform 200ms ease;
+    transition: transform var(--transition-smooth);
   }
-  .detail-modal--open {
-    opacity: 1;
+  .detail-panel--open {
     pointer-events: auto;
-    transform: translate(-50%, -50%) scale(1);
+    transform: translateX(0);
   }
 
   .toast-panel {
@@ -223,7 +223,39 @@ input {
 }
 
 .focus-ring:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: 2px;
+  outline: 2px solid color-mix(in srgb, var(--accent-primary) 88%, white);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 20%, transparent);
   border-radius: var(--button-radius);
+}
+
+@media (max-width: 1000px) {
+  :root {
+    --detail-panel-width: min(100vw, 560px);
+  }
+
+  .detail-panel {
+    width: min(100vw, 560px);
+  }
+}
+
+@media (max-width: 720px) {
+  :root {
+    --detail-panel-width: 100vw;
+  }
+
+  .detail-panel {
+    width: 100vw;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

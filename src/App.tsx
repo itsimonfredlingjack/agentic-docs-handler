@@ -1,6 +1,5 @@
 import { useEffect, startTransition } from "react";
 
-import { ActivitySidebar } from "./components/ActivitySidebar";
 import { DetailPanel } from "./components/DetailPanel";
 import { DropZone } from "./components/DropZone";
 import { FileGrid } from "./components/FileGrid";
@@ -53,15 +52,16 @@ export default function App() {
   return (
     <div className="min-h-screen bg-frost px-4 py-4 text-[var(--text-primary)]">
       <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[1600px] gap-4">
-        <div className="hidden md:block">
+        <div className="hidden lg:block">
           <Sidebar />
         </div>
         <main className="flex min-h-0 flex-1 flex-col gap-4">
           <SearchBar />
-          <DropZone />
+          <section className="space-y-4">
+            <DropZone />
+          </section>
           <FileGrid />
         </main>
-        <ActivitySidebar />
       </div>
       <FileMoveToast />
       <DetailPanel />

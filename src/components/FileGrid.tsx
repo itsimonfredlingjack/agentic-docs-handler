@@ -1,10 +1,10 @@
 import { dismissPendingMove, finalizeClientMove, processFile } from "../lib/api";
 import { mapProcessResponseToUiDocument, mapSearchResultToGenericDocument } from "../lib/document-mappers";
 import { moveLocalFile } from "../lib/tauri-events";
-import { GenericDocument } from "../templates/GenericDocument";
 import { AudioTranscript } from "../templates/AudioTranscript";
 import { ContractCard } from "../templates/ContractCard";
 import { FileMovedCard } from "../templates/FileMovedCard";
+import { GenericDocument } from "../templates/GenericDocument";
 import { ReceiptCard } from "../templates/ReceiptCard";
 import { useDocumentStore } from "../store/documentStore";
 import type { ProcessResponse, UiDocument } from "../types/documents";
@@ -17,45 +17,70 @@ export function FileGrid() {
   const setSelectedDocument = useDocumentStore((state) => state.setSelectedDocument);
 
   const documentList = documentOrder.map((id) => documents[id]).filter(Boolean);
-  const filteredDocuments = search.active
-    ? [
-        ...search.resultIds.map((id) => documents[id]).filter(Boolean),
-        ...search.orphanResults.map((result) => mapSearchResultToGenericDocument(result)),
-      ]
+  const useSearchResults = search.status === "ready" || search.status === "empty";
+
+  const filteredDocuments = useSearchResults
+    ? search.status === "ready"
+      ? [
+          ...search.resultIds.map((id) => documents[id]).filter(Boolean),
+          ...search.orphanResults.map((result) => mapSearchResultToGenericDocument(result)),
+        ]
+      : []
     : documentList.filter((document) => matchesFilter(document, sidebarFilter));
 
   if (filteredDocuments.length === 0) {
     return (
-      <div className="glass-panel flex min-h-[260px] items-center justify-center p-10 text-center text-sm text-[var(--text-secondary)]">
-        Droppa ett dokument eller skriv en fråga för att fylla den här vyn.
+      <div
+        id="document-canvas"
+        className="glass-panel flex min-h-[260px] items-center justify-center p-10 text-center text-sm text-[var(--text-secondary)]"
+      >
+        {search.status === "empty"
+          ? "No documents matched this query yet."
+          : "Drop a document or ask the copilot to start filling this workspace."}
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-3 lg:grid-cols-2">
-      {filteredDocuments.map((document) => (
-        <div
-          key={document.id}
-          className={`cursor-pointer ${document.kind === "audio" ? "xl:col-span-2" : ""}`}
-          role="button"
-          tabIndex={0}
-          onClick={() => setSelectedDocument(document.id)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              setSelectedDocument(document.id);
-            }
-          }}
-        >
-          {renderDocument(document, search.active ? search.orphanResults.find((result) => `search:${result.doc_id}` === document.id) : undefined)}
-        </div>
-      ))}
-    </div>
+    <section id="document-canvas" className="space-y-3">
+      <div className="flex items-center justify-between gap-3 px-1">
+        <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+          {useSearchResults ? "Matched documents" : "Document canvas"}
+        </p>
+        <p className="font-mono text-[11px] text-[var(--text-muted)]">{filteredDocuments.length}</p>
+      </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {filteredDocuments.map((document) => (
+          <div
+            key={document.id}
+            className={`cursor-pointer ${document.kind === "audio" ? "xl:col-span-2" : ""}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => setSelectedDocument(document.id)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setSelectedDocument(document.id);
+              }
+            }}
+          >
+            {renderDocument(
+              document,
+              search.status === "ready"
+                ? search.orphanResults.find((result) => `search:${result.doc_id}` === document.id)
+                : undefined,
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
-function matchesFilter(document: UiDocument, filter: ReturnType<typeof useDocumentStore.getState>["sidebarFilter"]): boolean {
+function matchesFilter(
+  document: UiDocument,
+  filter: ReturnType<typeof useDocumentStore.getState>["sidebarFilter"],
+): boolean {
   if (filter === "all") {
     return true;
   }
@@ -68,19 +93,39 @@ function matchesFilter(document: UiDocument, filter: ReturnType<typeof useDocume
   return document.kind === filter;
 }
 
-function renderDocument(document: UiDocument, orphanResult?: ReturnType<typeof useDocumentStore.getState>["search"]["orphanResults"][number]) {
-  if (document.status === "uploading" || document.status === "processing" || document.status === "classifying" || document.status === "classified" || document.status === "extracting" || document.status === "indexing" || document.status === "organizing" || document.status === "transcribing") {
+function renderDocument(
+  document: UiDocument,
+  orphanResult?: ReturnType<typeof useDocumentStore.getState>["search"]["orphanResults"][number],
+) {
+  if (
+    document.status === "uploading" ||
+    document.status === "processing" ||
+    document.status === "classifying" ||
+    document.status === "classified" ||
+    document.status === "extracting" ||
+    document.status === "indexing" ||
+    document.status === "organizing" ||
+    document.status === "transcribing"
+  ) {
     const processingMeta = getProcessingMeta(document.status);
     return (
-      <article className="glass-panel flex h-full flex-col gap-2 p-4">
+      <article className="glass-panel flex h-full flex-col gap-3 p-4">
         <div className="flex items-start justify-between gap-3">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)] line-clamp-1">{document.title}</h3>
-          <span className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] shrink-0">
-            <span className="status-dot bg-[var(--accent-primary)]" style={{ animation: "pulse-dot 1.5s ease-in-out infinite" }} />
-            {processingMeta.label}
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+              {processingMeta.label}
+            </p>
+            <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)] line-clamp-2">{document.title}</h3>
+          </div>
+          <span className="flex items-center gap-1.5 rounded-full border border-[rgba(47,111,237,0.24)] bg-[rgba(47,111,237,0.10)] px-2 py-0.5 text-[11px] font-medium text-[var(--accent-primary)]">
+            <span
+              className="status-dot bg-[var(--accent-primary)]"
+              style={{ animation: "pulse-dot 1.5s ease-in-out infinite" }}
+            />
+            Running
           </span>
         </div>
-        <p className="text-sm text-[var(--text-secondary)] line-clamp-1">{processingMeta.message}</p>
+        <p className="text-sm text-[var(--text-secondary)] line-clamp-2">{processingMeta.message}</p>
         <div className="processing-bar" />
       </article>
     );
@@ -106,7 +151,7 @@ function renderDocument(document: UiDocument, orphanResult?: ReturnType<typeof u
   if (document.kind === "file_moved" || document.moveStatus === "moved" || document.moveResult?.success) {
     return <FileMovedCard document={document} />;
   }
-  return <GenericDocument document={document} searchResult={orphanResult} />;
+  return <GenericDocument document={document} searchResult={orphanResult} indexedOnly={Boolean(orphanResult)} />;
 }
 
 function getProcessingMeta(status: UiDocument["status"]): { label: string; message: string } {
@@ -134,15 +179,20 @@ function getProcessingMeta(status: UiDocument["status"]): { label: string; messa
 
 function FailureCard({ document }: { document: UiDocument }) {
   return (
-    <article className="glass-panel flex h-full flex-col gap-2 p-4">
+    <article className="glass-panel flex h-full flex-col gap-3 border border-[rgba(255,55,95,0.24)] bg-[rgba(255,255,255,0.72)] p-4">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-semibold text-[var(--text-primary)] line-clamp-1">{document.title}</h3>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--invoice-color)]">Failure</p>
+          <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)] line-clamp-2">{document.title}</h3>
+        </div>
         <span className="glass-badge shrink-0 border-[rgba(255,55,95,0.22)] bg-[rgba(255,55,95,0.10)] text-[var(--invoice-color)]">
           <span className="status-dot bg-[var(--invoice-color)]" />
           failed
         </span>
       </div>
-      <p className="text-sm text-[var(--text-secondary)] line-clamp-1">{document.errorCode === "audio_processing_unavailable" ? "Audio processing unavailable" : document.summary}</p>
+      <p className="text-sm text-[var(--text-secondary)] line-clamp-2">
+        {document.errorCode === "audio_processing_unavailable" ? "Audio processing unavailable" : document.summary}
+      </p>
       {document.retryable ? (
         <button
           type="button"
@@ -169,18 +219,23 @@ function PendingMoveCard({ document }: { document: UiDocument }) {
   const isBusy = pendingMoveAction !== "idle";
 
   return (
-    <article className="glass-panel glass-panel-hover flex h-full flex-col gap-2 p-4">
+    <article className="glass-panel glass-panel-hover flex h-full flex-col gap-3 border border-[rgba(255,159,10,0.26)] bg-[rgba(255,255,255,0.76)] p-4">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-semibold text-[var(--text-primary)] line-clamp-1">{document.title}</h3>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--meeting-color)]">
+            Move confirmation
+          </p>
+          <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)] line-clamp-2">{document.title}</h3>
+        </div>
         <span className="glass-badge shrink-0 border-[rgba(255,159,10,0.22)] bg-[rgba(255,159,10,0.10)] text-[var(--meeting-color)]">
           <span className="status-dot bg-[var(--meeting-color)]" />
           confirm
         </span>
       </div>
-      <p className="font-mono text-xs text-[var(--text-muted)] line-clamp-1">→ {document.movePlan?.destination ?? "—"}</p>
-      {pendingMoveError ? (
-        <p className="text-xs text-[#ff375f]">{pendingMoveError}</p>
-      ) : null}
+      <p className="font-mono text-xs text-[var(--text-muted)] line-clamp-2">
+        → {document.movePlan?.destination ?? "—"}
+      </p>
+      {pendingMoveError ? <p className="text-xs text-[#ff375f]">{pendingMoveError}</p> : null}
       <div className="flex gap-2">
         <button
           type="button"
@@ -248,10 +303,7 @@ async function confirmMove(document: UiDocument): Promise<void> {
     useDocumentStore.getState().setPendingMoveError(document.id, "move_failed");
     useDocumentStore.getState().setPendingMoveAction(document.id, "idle");
   } catch (error) {
-    state.setPendingMoveError(
-      document.id,
-      error instanceof Error ? error.message : "move_failed",
-    );
+    state.setPendingMoveError(document.id, error instanceof Error ? error.message : "move_failed");
     state.setPendingMoveAction(document.id, "idle");
   }
 }
@@ -269,10 +321,7 @@ async function dismissMove(document: UiDocument): Promise<void> {
     const response = await dismissPendingMove(document.id, document.requestId, state.clientId);
     useDocumentStore.getState().applyMoveDismissed(response);
   } catch (error) {
-    state.setPendingMoveError(
-      document.id,
-      error instanceof Error ? error.message : "move_dismiss_failed",
-    );
+    state.setPendingMoveError(document.id, error instanceof Error ? error.message : "move_dismiss_failed");
     state.setPendingMoveAction(document.id, "idle");
   }
 }

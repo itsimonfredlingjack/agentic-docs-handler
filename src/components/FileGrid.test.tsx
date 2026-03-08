@@ -98,8 +98,8 @@ describe("FileGrid pending move actions", () => {
         query: "",
         rewrittenQuery: "",
         answer: "",
-        loading: false,
-        active: false,
+        status: "idle",
+        error: null,
         resultIds: [],
         orphanResults: [],
       },
@@ -172,5 +172,37 @@ describe("FileGrid pending move actions", () => {
       });
       await Promise.resolve();
     });
+  });
+
+  it("labels orphan search results as indexed-only", () => {
+    useDocumentStore.setState((state) => ({
+      ...state,
+      documents: {},
+      documentOrder: [],
+      search: {
+        query: "external",
+        rewrittenQuery: "external",
+        answer: "Found one indexed result.",
+        status: "ready",
+        error: null,
+        resultIds: [],
+        orphanResults: [
+          {
+            doc_id: "external-doc",
+            title: "External reference",
+            source_path: "/tmp/external.txt",
+            snippet: "external snippet",
+            score: 0.8,
+            vector_score: 0.5,
+            keyword_score: 0.3,
+            metadata: {},
+          },
+        ],
+      },
+    }));
+
+    render(<FileGrid />);
+
+    expect(screen.getByText("Indexed-only result")).toBeInTheDocument();
   });
 });

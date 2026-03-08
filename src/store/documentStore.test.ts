@@ -63,14 +63,14 @@ describe("documentStore", () => {
         query: "",
         rewrittenQuery: "",
         answer: "",
-        loading: false,
-        active: false,
+        status: "idle",
+        error: null,
         resultIds: [],
         orphanResults: [],
       },
       sidebarFilter: "all",
       toasts: [],
-  uploadsByRequestId: {},
+      uploadsByRequestId: {},
       pendingMoveStateByRecordId: {},
     });
   });
@@ -119,8 +119,34 @@ describe("documentStore", () => {
     store.applySearchResponse(response);
 
     const state = useDocumentStore.getState();
+    expect(state.search.status).toBe("ready");
+    expect(state.search.error).toBeNull();
     expect(state.search.resultIds).toEqual(["doc-1"]);
     expect(state.search.orphanResults).toHaveLength(1);
+  });
+
+  it("marks empty search responses with empty status", () => {
+    const store = useDocumentStore.getState();
+    store.bootstrap([sampleDocument], stateCounts(), []);
+    store.applySearchResponse({
+      query: "nonexistent",
+      rewritten_query: "nonexistent",
+      answer: "",
+      results: [],
+    });
+
+    expect(useDocumentStore.getState().search.status).toBe("empty");
+  });
+
+  it("tracks loading and error search transitions", () => {
+    const store = useDocumentStore.getState();
+    store.setSearchLoading("rent");
+    expect(useDocumentStore.getState().search.status).toBe("loading");
+    store.setSearchError("rent", "search_unavailable");
+
+    const search = useDocumentStore.getState().search;
+    expect(search.status).toBe("error");
+    expect(search.error).toBe("search_unavailable");
   });
 
   it("applies undo response to moved document", () => {

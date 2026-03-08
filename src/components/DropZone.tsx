@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 
 import { fetchActivity, fetchCounts, finalizeClientMove, processFile } from "../lib/api";
 import { buildQueuedDocument, mapProcessResponseToUiDocument } from "../lib/document-mappers";
-import { basename, inferSourceModality } from "../lib/mime";
+import { basename } from "../lib/mime";
 import { cleanupStagedUploads, listenToWindowFileDrops, moveLocalFile, stageLocalUpload } from "../lib/tauri-events";
 import { useDocumentStore } from "../store/documentStore";
-import type { ProcessResponse } from "../types/documents";
+import type { ActivityEvent, ProcessResponse } from "../types/documents";
 
 export function DropZone() {
   const clientId = useDocumentStore((state) => state.clientId);
+  const activity = useDocumentStore((state) => state.activity);
   const queueUploads = useDocumentStore((state) => state.queueUploads);
   const rememberUpload = useDocumentStore((state) => state.rememberUpload);
   const clearRememberedUpload = useDocumentStore((state) => state.clearRememberedUpload);
@@ -160,6 +161,20 @@ export function DropZone() {
           }}
         />
       </div>
+
+      <div className="rounded-2xl border border-black/5 bg-white/30 p-3.5">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Recent activity</p>
+          <p className="font-mono text-[11px] text-[var(--text-muted)]">{activity.length}</p>
+        </div>
+        <div className="mt-3 space-y-2.5">
+          {activity.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">New file events will appear here once processing starts.</p>
+          ) : (
+            activity.slice(0, 5).map((event) => <ActivityRow key={event.id} event={event} />)
+          )}
+        </div>
+      </div>
     </section>
   );
 }
@@ -198,3 +213,33 @@ function resolveSourcePath(file: File, index: number, tauriPaths: string[]): str
   return exactName ?? tauriPaths[index] ?? null;
 }
 
+function dotColor(type: string): string {
+  if (type.includes("classified") || type.includes("completed")) return "var(--receipt-color)";
+  if (type.includes("transcrib")) return "var(--audio-color)";
+  if (type.includes("moved")) return "var(--contract-color)";
+  if (type.includes("failed") || type.includes("error")) return "var(--invoice-color)";
+  return "var(--accent-primary)";
+}
+
+function ActivityRow({ event }: { event: ActivityEvent }) {
+  const time = new Date(event.timestamp).toLocaleTimeString("sv-SE", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-xl border border-black/5 bg-white/45 px-3 py-2">
+      <div className="flex min-w-0 items-start gap-2">
+        <span
+          className="status-dot mt-1 shrink-0"
+          style={{ backgroundColor: dotColor(event.type), width: 7, height: 7 }}
+        />
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-[var(--text-primary)] line-clamp-1">{event.title}</p>
+          <p className="text-[11px] text-[var(--text-muted)] line-clamp-1">{event.type}</p>
+        </div>
+      </div>
+      <p className="font-mono text-[10px] text-[var(--text-muted)]">{time}</p>
+    </div>
+  );
+}

@@ -347,12 +347,14 @@ export type FileMoveToastItem = {
   createdAt: string;
 };
 
+export type SearchStatus = "idle" | "loading" | "ready" | "empty" | "error";
+
 export type SearchState = {
   query: string;
   rewrittenQuery: string;
   answer: string;
-  loading: boolean;
-  active: boolean;
+  status: SearchStatus;
+  error: string | null;
   resultIds: string[];
   orphanResults: SearchResult[];
 };

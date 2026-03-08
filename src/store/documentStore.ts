@@ -57,6 +57,7 @@ type DocumentStoreState = {
   applyMoveDismissed: (payload: DismissMoveResponse) => void;
   applyClientMoveFailure: (requestId: string, errorCode: string, message: string) => void;
   setSearchLoading: (query: string) => void;
+  setSearchError: (query: string, error: string) => void;
   applySearchResponse: (response: SearchResponse) => void;
   clearSearch: () => void;
   setSidebarFilter: (filter: SidebarFilter) => void;
@@ -82,8 +83,8 @@ const emptySearch: SearchState = {
   query: "",
   rewrittenQuery: "",
   answer: "",
-  loading: false,
-  active: false,
+  status: "idle",
+  error: null,
   resultIds: [],
   orphanResults: [],
 };
@@ -302,8 +303,17 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
       search: {
         ...state.search,
         query,
-        loading: true,
-        active: true,
+        status: "loading",
+        error: null,
+      },
+    })),
+  setSearchError: (query, error) =>
+    set((state) => ({
+      search: {
+        ...state.search,
+        query,
+        status: "error",
+        error,
       },
     })),
   applySearchResponse: (response) =>
@@ -317,13 +327,15 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
           orphanResults.push(result);
         }
       }
+      const hasResults = resultIds.length + orphanResults.length > 0;
+      const hasAnswer = response.answer.trim().length > 0;
       return {
         search: {
           query: response.query,
           rewrittenQuery: response.rewritten_query,
           answer: response.answer,
-          loading: false,
-          active: true,
+          status: hasResults || hasAnswer ? "ready" : "empty",
+          error: null,
           resultIds,
           orphanResults,
         },

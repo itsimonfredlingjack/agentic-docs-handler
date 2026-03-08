@@ -60,8 +60,8 @@ function seedStore(selectedId: string | null = null) {
       query: "",
       rewrittenQuery: "",
       answer: "",
-      loading: false,
-      active: false,
+      status: "idle",
+      error: null,
       resultIds: [],
       orphanResults: [],
     },
@@ -77,7 +77,7 @@ describe("DetailPanel", () => {
     seedStore(null);
     render(<DetailPanel />);
     expect(screen.queryByRole("dialog", { name: "Document details" })).not.toHaveClass(
-      "detail-modal--open",
+      "detail-panel--open",
     );
   });
 
@@ -85,7 +85,7 @@ describe("DetailPanel", () => {
     seedStore("doc-1");
     render(<DetailPanel />);
     expect(screen.getByRole("dialog", { name: "Document details" })).toHaveClass(
-      "detail-modal--open",
+      "detail-panel--open",
     );
   });
 
@@ -102,7 +102,7 @@ describe("DetailPanel", () => {
     seedStore("doc-1");
     render(<DetailPanel />);
     expect(screen.getByRole("dialog", { name: "Document details" })).toHaveClass(
-      "detail-modal--open",
+      "detail-panel--open",
     );
     await userEvent.keyboard("{Escape}");
     expect(useDocumentStore.getState().selectedDocumentId).toBeNull();

@@ -6,6 +6,7 @@ import { useDocumentStore } from "../store/documentStore";
 export function useSearch() {
   const searchState = useDocumentStore((state) => state.search);
   const setSearchLoading = useDocumentStore((state) => state.setSearchLoading);
+  const setSearchError = useDocumentStore((state) => state.setSearchError);
   const applySearchResponse = useDocumentStore((state) => state.applySearchResponse);
   const clearSearch = useDocumentStore((state) => state.clearSearch);
   const [query, setQuery] = useState(searchState.query);
@@ -24,15 +25,16 @@ export function useSearch() {
         startTransition(() => {
           applySearchResponse(response);
         });
-      } catch {
-        clearSearch();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "search_unavailable";
+        setSearchError(deferredQuery, message);
       }
     }, 300);
 
     return () => {
       window.clearTimeout(handle);
     };
-  }, [applySearchResponse, clearSearch, deferredQuery, setSearchLoading]);
+  }, [applySearchResponse, clearSearch, deferredQuery, setSearchError, setSearchLoading]);
 
   return {
     query,
