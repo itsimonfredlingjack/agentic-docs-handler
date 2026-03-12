@@ -682,6 +682,25 @@ input {
   color: var(--invoice-color, #ff375f);
 }
 
+/* ── Activity Feed ────────────────────────────────── */
+.activity-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.activity-feed__group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.activity-feed__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

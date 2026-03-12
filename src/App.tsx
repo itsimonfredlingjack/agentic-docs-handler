@@ -1,11 +1,13 @@
-import { useEffect, startTransition } from "react";
+import { useEffect, startTransition, useState } from "react";
 
 import { DetailPanel } from "./components/DetailPanel";
 import { DropZone } from "./components/DropZone";
-import { FileGrid } from "./components/FileGrid";
+import { ActivityFeed } from "./components/ActivityFeed";
 import { FileMoveToast } from "./components/FileMoveToast";
+import { MobileFilterSheet } from "./components/MobileFilterSheet";
 import { SearchBar } from "./components/SearchBar";
 import { Sidebar } from "./components/Sidebar";
+import { getSidebarFilterLabel } from "./components/sidebarFilters";
 import { fetchActivity, fetchCounts, fetchDocuments } from "./lib/api";
 import { getClientId } from "./lib/tauri-events";
 import { useDocumentStore } from "./store/documentStore";
@@ -14,6 +16,8 @@ import { useWebSocket } from "./hooks/useWebSocket";
 export default function App() {
   const bootstrap = useDocumentStore((state) => state.bootstrap);
   const setClientId = useDocumentStore((state) => state.setClientId);
+  const sidebarFilter = useDocumentStore((state) => state.sidebarFilter);
+  const [isFilterSheetOpen, setFilterSheetOpen] = useState(false);
 
   useWebSocket();
 
@@ -50,19 +54,27 @@ export default function App() {
   }, [bootstrap, setClientId]);
 
   return (
-    <div className="min-h-screen bg-frost px-4 py-4 text-[var(--text-primary)]">
-      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[1600px] gap-4">
-        <div className="hidden lg:block">
+    <div className="min-h-screen bg-frost text-[var(--text-primary)]">
+      <div className="mx-auto flex min-h-screen max-w-[1720px] gap-6 px-[var(--canvas-padding)] py-[var(--canvas-padding)]">
+        <div className="hidden shrink-0 lg:block">
           <Sidebar />
         </div>
-        <main className="flex min-h-0 flex-1 flex-col gap-4">
-          <SearchBar />
-          <section className="space-y-4">
-            <DropZone />
+        <main className="flex min-h-0 flex-1 flex-col gap-6">
+          <SearchBar
+            activeFilterLabel={getSidebarFilterLabel(sidebarFilter)}
+            onOpenFilters={() => setFilterSheetOpen(true)}
+          />
+          <section className="grid min-h-0 grid-cols-1 gap-4 xl:grid-cols-[var(--control-rail-width)_minmax(0,1fr)]">
+            <div className="min-h-0">
+              <DropZone />
+            </div>
+            <div className="min-h-0">
+              <ActivityFeed />
+            </div>
           </section>
-          <FileGrid />
         </main>
       </div>
+      <MobileFilterSheet open={isFilterSheetOpen} onClose={() => setFilterSheetOpen(false)} />
       <FileMoveToast />
       <DetailPanel />
     </div>

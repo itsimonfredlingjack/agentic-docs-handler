@@ -5,11 +5,10 @@ import { buildQueuedDocument, mapProcessResponseToUiDocument } from "../lib/docu
 import { basename } from "../lib/mime";
 import { cleanupStagedUploads, listenToWindowFileDrops, moveLocalFile, stageLocalUpload } from "../lib/tauri-events";
 import { useDocumentStore } from "../store/documentStore";
-import type { ActivityEvent, ProcessResponse } from "../types/documents";
+import type { ProcessResponse } from "../types/documents";
 
 export function DropZone() {
   const clientId = useDocumentStore((state) => state.clientId);
-  const activity = useDocumentStore((state) => state.activity);
   const queueUploads = useDocumentStore((state) => state.queueUploads);
   const rememberUpload = useDocumentStore((state) => state.rememberUpload);
   const clearRememberedUpload = useDocumentStore((state) => state.clearRememberedUpload);
@@ -119,62 +118,61 @@ export function DropZone() {
   };
 
   return (
-    <section className="glass-panel flex flex-col gap-5 p-5">
-      <div
-        className={`rounded-[24px] border border-dashed px-6 py-7 text-center transition-all duration-200 ease-out ${isHovered ? "border-[var(--accent-primary)] bg-white/55 shadow-glass-hover" : "border-white/60 bg-white/35"}`}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setHovered(true);
-        }}
-        onDragLeave={(event) => {
-          event.preventDefault();
-          setHovered(false);
-        }}
-        onDrop={(event) => {
-          event.preventDefault();
-          setHovered(false);
-          void submitFiles(Array.from(event.dataTransfer.files));
-        }}
-      >
-        <p className="text-3xl text-[var(--accent-primary)]">↑</p>
-        <h2 className="mt-4 text-lg font-semibold text-[var(--text-primary)]">Drop files here</h2>
-        <p className="mt-2 text-sm text-[var(--text-secondary)]">PDF, DOCX, images and audio are supported.</p>
-        <p className="mt-4 font-mono text-xs text-[var(--text-muted)]">.pdf · .docx · .jpg · .png · .wav · .mp3</p>
-        <div className="mt-5 flex justify-center">
-          <button
-            type="button"
-            className="focus-ring rounded-2xl bg-[var(--accent-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            Browse files
-          </button>
+    <section className="space-y-4">
+      <article className="glass-panel p-4">
+        <div className="mb-3">
+          <p className="section-kicker">Inmatning</p>
+          <h2 className="mt-1 section-heading">Lägg till dokument</h2>
+          <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+            Dra in filer eller välj manuellt. Systemet klassificerar, extraherar och föreslår sortering.
+          </p>
         </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          multiple
-          onChange={(event) => {
-            const fileList = event.target.files ? Array.from(event.target.files) : [];
-            void submitFiles(fileList);
-            event.currentTarget.value = "";
+        <div
+          className={`control-card rounded-[16px] border border-dashed px-4 py-8 text-center transition-all duration-300 ease-out ${
+            isHovered
+              ? "border-[var(--accent-primary)] bg-[var(--accent-surface)] scale-[1.02] shadow-xl"
+              : "border-[rgba(17,31,58,0.2)]"
+          }`}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setHovered(true);
           }}
-        />
-      </div>
-
-      <div className="rounded-2xl border border-black/5 bg-white/30 p-3.5">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Recent activity</p>
-          <p className="font-mono text-[11px] text-[var(--text-muted)]">{activity.length}</p>
+          onDragLeave={(event) => {
+            event.preventDefault();
+            setHovered(false);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            setHovered(false);
+            void submitFiles(Array.from(event.dataTransfer.files));
+          }}
+        >
+          <p className="text-2xl text-[var(--accent-primary)]">↑</p>
+          <h3 className="mt-3 text-base font-semibold text-[var(--text-primary)]">Släpp filer här</h3>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">Stöd för PDF, DOCX, bilder och ljud.</p>
+          <p className="mt-3 font-mono text-[11px] text-[var(--text-muted)]">.pdf · .docx · .jpg · .png · .wav · .mp3</p>
+          <div className="mt-4 flex justify-center">
+            <button
+              type="button"
+              className="focus-ring action-primary px-4 py-2 text-sm"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              Välj filer
+            </button>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            multiple
+            onChange={(event) => {
+              const fileList = event.target.files ? Array.from(event.target.files) : [];
+              void submitFiles(fileList);
+              event.currentTarget.value = "";
+            }}
+          />
         </div>
-        <div className="mt-3 space-y-2.5">
-          {activity.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">New file events will appear here once processing starts.</p>
-          ) : (
-            activity.slice(0, 5).map((event) => <ActivityRow key={event.id} event={event} />)
-          )}
-        </div>
-      </div>
+      </article>
     </section>
   );
 }
@@ -213,33 +211,3 @@ function resolveSourcePath(file: File, index: number, tauriPaths: string[]): str
   return exactName ?? tauriPaths[index] ?? null;
 }
 
-function dotColor(type: string): string {
-  if (type.includes("classified") || type.includes("completed")) return "var(--receipt-color)";
-  if (type.includes("transcrib")) return "var(--audio-color)";
-  if (type.includes("moved")) return "var(--contract-color)";
-  if (type.includes("failed") || type.includes("error")) return "var(--invoice-color)";
-  return "var(--accent-primary)";
-}
-
-function ActivityRow({ event }: { event: ActivityEvent }) {
-  const time = new Date(event.timestamp).toLocaleTimeString("sv-SE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-  return (
-    <div className="flex items-start justify-between gap-3 rounded-xl border border-black/5 bg-white/45 px-3 py-2">
-      <div className="flex min-w-0 items-start gap-2">
-        <span
-          className="status-dot mt-1 shrink-0"
-          style={{ backgroundColor: dotColor(event.type), width: 7, height: 7 }}
-        />
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-[var(--text-primary)] line-clamp-1">{event.title}</p>
-          <p className="text-[11px] text-[var(--text-muted)] line-clamp-1">{event.type}</p>
-        </div>
-      </div>
-      <p className="font-mono text-[10px] text-[var(--text-muted)]">{time}</p>
-    </div>
-  );
-}
