@@ -6,6 +6,7 @@ type Props = {
   document: UiDocument;
   onSelect?: () => void;
   onRetry?: () => void;
+  onUndo?: () => void;
 };
 
 function kindDotColor(kind: UiDocumentKind): string {
@@ -25,7 +26,7 @@ function kindDotColor(kind: UiDocumentKind): string {
   }
 }
 
-export function DocumentRow({ document, onSelect, onRetry }: Props) {
+export function DocumentRow({ document, onSelect, onRetry, onUndo }: Props) {
   const userStatus = mapToUserStatus(document);
   const statusLabel = userStatusLabel(userStatus);
   const statusColor = userStatusColor(userStatus);
@@ -86,6 +87,27 @@ export function DocumentRow({ document, onSelect, onRetry }: Props) {
               → {dest.split("/").slice(-3).join("/")}
             </span>
           )}
+        </div>
+      )}
+
+      {/* Undo move */}
+      {document.moveStatus === "moved" && document.undoToken && onUndo && (
+        <div className="mt-2 flex items-center justify-between gap-2 pl-[14px]">
+          <span className="text-xs text-[var(--text-muted)]">
+            {document.moveResult?.from_path
+              ? `Flyttad från ${document.moveResult.from_path.split("/").pop()}`
+              : "Flyttad"}
+          </span>
+          <button
+            type="button"
+            className="action-secondary shrink-0 px-3 py-1 text-xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              onUndo();
+            }}
+          >
+            Ångra flytt
+          </button>
         </div>
       )}
 

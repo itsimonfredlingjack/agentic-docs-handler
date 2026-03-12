@@ -85,6 +85,39 @@ describe("DocumentRow", () => {
     expect(screen.getByText(/fakturor\/faktura\.pdf/)).toBeInTheDocument();
   });
 
+  it("shows undo button for moved document with undoToken", () => {
+    const onUndo = vi.fn();
+    render(
+      <DocumentRow
+        document={{
+          ...baseDoc,
+          moveResult: { attempted: true, success: true, from_path: "/tmp/faktura.pdf", to_path: "/dst/faktura.pdf", error: null },
+          moveStatus: "moved",
+          undoToken: "undo-abc",
+        }}
+        onUndo={onUndo}
+      />,
+    );
+    expect(screen.getByText("Ångra flytt")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Ångra flytt"));
+    expect(onUndo).toHaveBeenCalledOnce();
+  });
+
+  it("does not show undo button when no undoToken", () => {
+    render(
+      <DocumentRow
+        document={{
+          ...baseDoc,
+          moveResult: { attempted: true, success: true, from_path: "/tmp/faktura.pdf", to_path: "/dst/faktura.pdf", error: null },
+          moveStatus: "moved",
+          undoToken: null,
+        }}
+        onUndo={() => {}}
+      />,
+    );
+    expect(screen.queryByText("Ångra flytt")).toBeNull();
+  });
+
   it("is clickable when completed", () => {
     const onSelect = vi.fn();
     render(<DocumentRow document={baseDoc} onSelect={onSelect} />);

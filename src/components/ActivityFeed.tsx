@@ -4,9 +4,9 @@ import { DocumentRow } from "./DocumentRow";
 import { TimeGroupHeader } from "./TimeGroupHeader";
 import { groupByTime } from "../lib/feed-utils";
 import { mapSearchResultToGenericDocument } from "../lib/document-mappers";
-import { processFile, finalizeClientMove } from "../lib/api";
+import { processFile, finalizeClientMove, completeClientUndo } from "../lib/api";
 import { mapProcessResponseToUiDocument } from "../lib/document-mappers";
-import { moveLocalFile } from "../lib/tauri-events";
+import { moveLocalFile, undoLocalFileMove } from "../lib/tauri-events";
 import type { UiDocument } from "../types/documents";
 import type { ProcessResponse } from "../types/documents";
 import { isProcessingStatus } from "../lib/status";
@@ -100,6 +100,11 @@ export function ActivityFeed() {
                       ? () => void retryDocument(doc.requestId)
                       : undefined
                   }
+                  onUndo={
+                    doc.moveStatus === "moved" && doc.undoToken
+                      ? () => void undoDocument(doc)
+                      : undefined
+                  }
                 />
               ))}
             </div>
@@ -145,4 +150,16 @@ async function retryDocument(requestId: string): Promise<void> {
   if (response.move_status !== "awaiting_confirmation") {
     state.clearRememberedUpload(requestId);
   }
+}
+
+async function undoDocument(doc: UiDocument): Promise<void> {
+  const state = useDocumentStore.getState();
+  if (!doc.undoToken || !state.clientId || !doc.moveResult?.to_path || !doc.moveResult?.from_path) return;
+  const moveResult = await undoLocalFileMove(doc.moveResult.to_path, doc.moveResult.from_path);
+  const payload = await completeClientUndo({
+    undoToken: doc.undoToken,
+    clientId: state.clientId,
+    result: moveResult,
+  });
+  state.applyUndoSuccess(payload);
 }
