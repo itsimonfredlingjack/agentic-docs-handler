@@ -1,7 +1,16 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { useDocumentStore } from "../store/documentStore";
 import { isProcessingStatus } from "../lib/status";
 import type { UiDocument } from "../types/documents";
+
+const KIND_LABELS: Record<string, string> = {
+  receipt: "Kvitto",
+  contract: "Avtal",
+  invoice: "Faktura",
+  meeting_notes: "Mötesanteckning",
+  audio: "Ljud",
+  file_moved: "Flyttad",
+};
 
 const MINI_STEPPER_STAGES = [
   "uploading",
@@ -111,6 +120,24 @@ function RailCard({ doc }: { doc: UiDocument }) {
   );
 }
 
+function CompletionReceipt({ doc }: { doc: UiDocument }) {
+  const isFailed = doc.status === "failed";
+  const kindLabel = KIND_LABELS[doc.kind] ?? "Dokument";
+  return (
+    <div className="rail-card rail-card--done" data-testid="rail-card-done">
+      <div className="flex items-center gap-2">
+        <span style={{ color: isFailed ? "var(--invoice-color)" : "var(--receipt-color)", fontSize: 16 }}>
+          {isFailed ? "✕" : "✓"}
+        </span>
+        <span className="rail-card__title">{doc.title}</span>
+      </div>
+      <div className="rail-card__stage" style={{ color: isFailed ? "var(--invoice-color)" : "var(--receipt-color)" }}>
+        {isFailed ? "Misslyckades" : kindLabel}
+      </div>
+    </div>
+  );
+}
+
 export function ProcessingRail() {
   const documents = useDocumentStore((s) => s.documents);
   const documentOrder = useDocumentStore((s) => s.documentOrder);
@@ -121,18 +148,61 @@ export function ProcessingRail() {
       .filter((doc): doc is UiDocument => Boolean(doc) && isProcessingStatus(doc));
   }, [documents, documentOrder]);
 
-  if (processingDocs.length === 0) {
+  // Track previously-processing IDs to detect completions
+  const prevProcessingIds = useRef<Set<string>>(new Set());
+  const [recentlyCompleted, setRecentlyCompleted] = useState<Map<string, UiDocument>>(new Map());
+
+  useEffect(() => {
+    const currentIds = new Set(processingDocs.map((d) => d.id));
+    const newlyCompleted = new Map<string, UiDocument>();
+
+    for (const prevId of prevProcessingIds.current) {
+      if (!currentIds.has(prevId)) {
+        const doc = documents[prevId];
+        if (doc) {
+          newlyCompleted.set(prevId, doc);
+        }
+      }
+    }
+
+    prevProcessingIds.current = currentIds;
+
+    if (newlyCompleted.size > 0) {
+      setRecentlyCompleted((prev) => {
+        const next = new Map(prev);
+        for (const [id, doc] of newlyCompleted) {
+          next.set(id, doc);
+        }
+        return next;
+      });
+
+      // Remove after 2 seconds
+      const ids = [...newlyCompleted.keys()];
+      const timer = setTimeout(() => {
+        setRecentlyCompleted((prev) => {
+          const next = new Map(prev);
+          for (const id of ids) {
+            next.delete(id);
+          }
+          return next;
+        });
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [processingDocs, documents]);
+
+  if (processingDocs.length === 0 && recentlyCompleted.size === 0) {
     return null;
   }
 
   return (
-    <div
-      className="processing-rail"
-      role="region"
-      aria-label="Aktiva jobb"
-    >
+    <div className="processing-rail" role="region" aria-label="Aktiva jobb">
       {processingDocs.map((doc) => (
         <RailCard key={doc.id} doc={doc} />
+      ))}
+      {[...recentlyCompleted.values()].map((doc) => (
+        <CompletionReceipt key={`done-${doc.id}`} doc={doc} />
       ))}
     </div>
   );

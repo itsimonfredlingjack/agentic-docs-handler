@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { ProcessingRail } from "./ProcessingRail";
 import { useDocumentStore } from "../store/documentStore";
 import type { UiDocument } from "../types/documents";
@@ -107,5 +107,30 @@ describe("ProcessingRail", () => {
     seedStore([doc]);
     const { container } = render(<ProcessingRail />);
     expect(container.querySelector(".processing-bar")).not.toBeNull();
+  });
+
+  it("shows completion receipt for recently-completed document", () => {
+    const processingDoc = makeDoc({ status: "classifying", title: "faktura.pdf" });
+    useDocumentStore.setState({
+      documents: { "doc-1": processingDoc },
+      documentOrder: ["doc-1"],
+      stageHistory: { "req-1": [{ stage: "uploading", at: 1000 }, { stage: "classifying", at: 2000 }] },
+    });
+    const { rerender } = render(<ProcessingRail />);
+    expect(screen.getByText("faktura.pdf")).toBeInTheDocument();
+
+    const completedVersion = {
+      ...processingDoc,
+      status: "completed" as const,
+      kind: "invoice" as const,
+      documentType: "invoice",
+    };
+    useDocumentStore.setState({
+      documents: { "doc-1": completedVersion },
+      documentOrder: ["doc-1"],
+      stageHistory: { "req-1": [{ stage: "uploading", at: 1000 }, { stage: "completed", at: 5000 }] },
+    });
+    rerender(<ProcessingRail />);
+    expect(screen.getByText(/Faktura/)).toBeInTheDocument();
   });
 });
