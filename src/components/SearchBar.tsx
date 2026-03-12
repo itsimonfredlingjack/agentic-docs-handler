@@ -9,18 +9,18 @@ type SourceChip = {
   indexedOnly: boolean;
 };
 
-function statusLabel(status: ReturnType<typeof useSearch>["searchState"]["status"]): string {
+function statusLabel(status: ReturnType<typeof useSearch>["searchState"]["status"], resultCount: number): string {
   switch (status) {
     case "loading":
-      return "Söker";
+      return "Söker...";
     case "ready":
-      return "Svar klart";
+      return resultCount > 0 ? `${resultCount} träffar` : "Inga träffar";
     case "empty":
       return "Inga träffar";
     case "error":
       return "Sökfel";
     default:
-      return "AI-sök";
+      return "Sök";
   }
 }
 
@@ -117,12 +117,12 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
       </div>
 
       {showPanel ? (
-        <div className="glass-panel space-y-3 px-4 py-4">
+        <div className="glass-panel space-y-3 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <p className="section-kicker">AI-sök</p>
+              <p className="section-kicker">Sökresultat</p>
               <span className="rounded-full border border-black/10 bg-white/45 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-                {statusLabel(searchState.status)}
+                {statusLabel(searchState.status, resultCount)}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -137,7 +137,7 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
                     });
                   }}
                 >
-                  Visa träffar ({resultCount})
+                  Visa träffar
                 </button>
               ) : null}
               {hasQuery ? (
@@ -152,34 +152,16 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
             </div>
           </div>
 
-          <div className="control-card px-3.5 py-3">
-            {searchState.status === "idle" && hasQuery ? (
-              <p className="text-sm leading-6 text-[var(--text-secondary)]">Förbereder sökning...</p>
-            ) : null}
-            {searchState.status === "loading" ? (
-              <p className="text-sm leading-6 text-[var(--text-secondary)]">Söker i indexerade dokument...</p>
-            ) : null}
-            {searchState.status === "ready" ? (
-              <p className="text-sm leading-6 text-[var(--text-primary)]">
-                {searchState.answer || `Hittade ${resultCount} matchande dokument.`}
-              </p>
-            ) : null}
-            {searchState.status === "empty" ? (
-              <p className="text-sm leading-6 text-[var(--text-secondary)]">
-                Inga matchningar ännu. Testa bredare sökord eller annan leverantör/datum.
-              </p>
-            ) : null}
-            {searchState.status === "error" ? (
-              <p className="text-sm leading-6 text-[var(--invoice-color)]">
-                Söktjänsten är tillfälligt otillgänglig. {searchState.error ? `(${searchState.error})` : ""}
-              </p>
-            ) : null}
-            {searchState.rewrittenQuery && searchState.rewrittenQuery !== searchState.query ? (
-              <p className="mt-2 font-mono text-[11px] text-[var(--text-muted)]">
-                Omskriven fråga: {searchState.rewrittenQuery}
-              </p>
-            ) : null}
-          </div>
+          {searchState.status === "error" ? (
+            <p className="text-sm leading-6 text-[var(--invoice-color)]">
+              Söktjänsten är tillfälligt otillgänglig. {searchState.error ? `(${searchState.error})` : ""}
+            </p>
+          ) : null}
+          {searchState.status === "empty" ? (
+            <p className="text-sm leading-6 text-[var(--text-secondary)]">
+              Inga matchningar. Testa bredare sökord eller annan leverantör/datum.
+            </p>
+          ) : null}
 
           {searchState.status === "ready" && sourceChips.length > 0 ? (
             <div className="flex flex-wrap gap-2">

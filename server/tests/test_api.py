@@ -109,7 +109,7 @@ class FakeUnreadyProbe:
 
 
 class FakeSearchService:
-    async def search(self, query: str, limit: int = 5) -> SearchResponse:
+    async def search(self, query: str, limit: int = 5, *, mode: str = "full") -> SearchResponse:
         return SearchResponse(
             query=query,
             rewritten_query=f"{query} rewritten",

@@ -48,8 +48,8 @@ export async function fetchActivity(limit = 10): Promise<ActivityResponse> {
   return fetchJson<ActivityResponse>(`/activity?limit=${limit}`);
 }
 
-export async function searchDocuments(query: string, limit = 8): Promise<SearchResponse> {
-  const params = new URLSearchParams({ query, limit: String(limit) });
+export async function searchDocuments(query: string, limit = 8, mode: "fast" | "full" = "fast"): Promise<SearchResponse> {
+  const params = new URLSearchParams({ query, limit: String(limit), mode });
   return fetchJson<SearchResponse>(`/search?${params.toString()}`);
 }
 

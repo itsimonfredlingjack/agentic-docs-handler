@@ -269,6 +269,41 @@ async def test_search_pipeline_limits_keyword_scoring_to_posting_list_candidates
     assert all("invoice" in text.casefold() for text in observed_texts)
 
 
+@pytest.mark.asyncio
+async def test_search_fast_mode_skips_llm_calls(tmp_path) -> None:
+    planner = FakeQueryPlanner()
+    generator = FakeAnswerGenerator()
+    pipeline = SearchPipeline(
+        db_path=tmp_path / "lancedb",
+        embedder=FakeEmbedder(),
+        query_planner=planner,
+        answer_generator=generator,
+    )
+    pipeline.index_documents(
+        [
+            IndexedDocument(
+                doc_id="invoice-1",
+                title="Invoice March",
+                source_path="docs/invoice.txt",
+                text="Invoice for March 2026. Amount 900 SEK.",
+                metadata={"document_type": "invoice"},
+            ),
+        ]
+    )
+
+    fast_result = await pipeline.search("invoice", mode="fast")
+
+    assert fast_result.results
+    assert fast_result.rewritten_query == "invoice"  # no rewrite
+    # Fallback uses raw query, not "rewritten" suffix from FakeQueryPlanner
+    assert "invoice rewritten" not in fast_result.answer
+
+    full_result = await pipeline.search("invoice", mode="full")
+
+    assert full_result.rewritten_query == "invoice rewritten"  # planner ran
+    assert "Top match for invoice rewritten" in full_result.answer  # generator ran
+
+
 def test_sentence_transformer_embedder_passes_trust_remote_code(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
 

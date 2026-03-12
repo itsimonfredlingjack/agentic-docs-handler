@@ -29,7 +29,7 @@ export function useSearch() {
         const message = error instanceof Error ? error.message : "search_unavailable";
         setSearchError(deferredQuery, message);
       }
-    }, 300);
+    }, 100);
 
     return () => {
       window.clearTimeout(handle);

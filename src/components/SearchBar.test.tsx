@@ -31,11 +31,11 @@ describe("SearchBar", () => {
 
   it("focuses the input on cmd+k", async () => {
     const user = userEvent.setup();
-    render(<SearchBar />);
+    render(<SearchBar activeFilterLabel="Alla" onOpenFilters={() => undefined} />);
 
     await user.keyboard("{Meta>}k{/Meta}");
 
-    expect(screen.getByPlaceholderText("Ask your docs anything...")).toHaveFocus();
+    expect(screen.getByPlaceholderText("Fråga dina dokument...")).toHaveFocus();
   });
 
   it("shows an error state and clear action", () => {
@@ -55,9 +55,77 @@ describe("SearchBar", () => {
       clearSearch,
     });
 
-    render(<SearchBar />);
+    render(<SearchBar activeFilterLabel="Alla" onOpenFilters={() => undefined} />);
 
-    expect(screen.getByText(/Search is temporarily unavailable/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Clear query" })).toBeInTheDocument();
+    expect(screen.getByText(/Söktjänsten är tillfälligt otillgänglig/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rensa" })).toBeInTheDocument();
+  });
+
+  it("shows result count when ready with results", () => {
+    mockUseSearch.mockReturnValue({
+      query: "kvitto",
+      setQuery: vi.fn(),
+      searchState: {
+        query: "kvitto",
+        rewrittenQuery: "kvitto",
+        answer: "",
+        status: "ready",
+        error: null,
+        resultIds: ["doc-1", "doc-2", "doc-3"],
+        orphanResults: [],
+      },
+      clearSearch: vi.fn(),
+    });
+
+    render(<SearchBar activeFilterLabel="Alla" onOpenFilters={() => undefined} />);
+
+    expect(screen.getByText("3 träffar")).toBeInTheDocument();
+    expect(screen.getByText("Sökresultat")).toBeInTheDocument();
+  });
+
+  it("shows empty state when no matches", () => {
+    mockUseSearch.mockReturnValue({
+      query: "nonsense",
+      setQuery: vi.fn(),
+      searchState: {
+        query: "nonsense",
+        rewrittenQuery: "nonsense",
+        answer: "",
+        status: "empty",
+        error: null,
+        resultIds: [],
+        orphanResults: [],
+      },
+      clearSearch: vi.fn(),
+    });
+
+    render(<SearchBar activeFilterLabel="Alla" onOpenFilters={() => undefined} />);
+
+    expect(screen.getByText("Inga träffar")).toBeInTheDocument();
+  });
+
+  it("clears search on Escape", async () => {
+    const user = userEvent.setup();
+    const clearSearch = vi.fn();
+    mockUseSearch.mockReturnValue({
+      query: "hyresavtal",
+      setQuery: vi.fn(),
+      searchState: {
+        query: "hyresavtal",
+        rewrittenQuery: "",
+        answer: "",
+        status: "ready",
+        error: null,
+        resultIds: [],
+        orphanResults: [],
+      },
+      clearSearch,
+    });
+
+    render(<SearchBar activeFilterLabel="Alla" onOpenFilters={() => undefined} />);
+
+    await user.keyboard("{Escape}");
+
+    expect(clearSearch).toHaveBeenCalledTimes(1);
   });
 });

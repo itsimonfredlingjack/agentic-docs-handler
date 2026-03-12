@@ -236,11 +236,11 @@ class SearchPipeline:
                 elapsed_ms,
             )
 
-    async def search(self, query: str, limit: int | None = None) -> SearchResponse:
+    async def search(self, query: str, limit: int | None = None, *, mode: str = "full") -> SearchResponse:
         await self._ensure_bootstrapped()
         request_id = str(uuid4())
         rewritten_query = query
-        if self.query_planner is not None:
+        if mode != "fast" and self.query_planner is not None:
             try:
                 rewritten_query = await self.query_planner.rewrite(query, request_id)
             except OllamaServiceError:
@@ -297,7 +297,7 @@ class SearchPipeline:
         top_results = scored_rows[:top_limit]
 
         answer = self._fallback_answer(rewritten_query, top_results)
-        if self.answer_generator is not None and top_results:
+        if mode != "fast" and self.answer_generator is not None and top_results:
             try:
                 answer = await self.answer_generator.answer(
                     query,

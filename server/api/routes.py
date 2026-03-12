@@ -119,14 +119,18 @@ def create_router(
         return ActivityResponse(events=document_registry.list_activity(limit=limit))
 
     @router.get("/search", response_model=SearchResponse)
-    async def search(query: str = Query(min_length=1), limit: int = Query(default=5, ge=1, le=20)) -> SearchResponse:
+    async def search(
+        query: str = Query(min_length=1),
+        limit: int = Query(default=5, ge=1, le=20),
+        mode: str = Query(default="full", pattern="^(fast|full)$"),
+    ) -> SearchResponse:
         if search_service is None:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="search_unavailable",
             )
         try:
-            return await search_service.search(query, limit=limit)
+            return await search_service.search(query, limit=limit, mode=mode)
         except SearchPipelineError as error:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
