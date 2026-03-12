@@ -327,10 +327,6 @@ input {
     outline-offset: 2px;
   }
 
-  .document-row--processing {
-    border-left: 3px solid var(--accent-primary);
-  }
-
   .document-row--failed {
     border-left: 3px solid var(--invoice-color);
   }
