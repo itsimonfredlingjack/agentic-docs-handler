@@ -17,6 +17,7 @@ export function useWebSocket(): void {
   const applyUndoSuccess = useDocumentStore((state) => state.applyUndoSuccess);
   const applyMoveDismissed = useDocumentStore((state) => state.applyMoveDismissed);
   const resyncFromBackend = useDocumentStore((state) => state.resyncFromBackend);
+  const setDocumentThumbnail = useDocumentStore((state) => state.setDocumentThumbnail);
 
   useEffect(() => {
     let unlistenConnection: (() => void | Promise<void>) | undefined;
@@ -53,6 +54,7 @@ export function useWebSocket(): void {
         pushMoveToast,
         applyUndoSuccess,
         applyMoveDismissed,
+        setDocumentThumbnail,
       });
     }).then((unlisten) => {
       unlistenEvents = unlisten;
@@ -62,7 +64,7 @@ export function useWebSocket(): void {
       void unlistenConnection?.();
       void unlistenEvents?.();
     };
-  }, [applyMoveDismissed, applyUndoSuccess, markJobFailed, markJobStage, pushMoveToast, resyncFromBackend, setConnectionState, updateConnectionFromPayload]);
+  }, [applyMoveDismissed, applyUndoSuccess, markJobFailed, markJobStage, pushMoveToast, resyncFromBackend, setConnectionState, setDocumentThumbnail, updateConnectionFromPayload]);
 }
 
 function handleServerEvent(
@@ -73,8 +75,16 @@ function handleServerEvent(
     pushMoveToast: (toast: FileMoveToastItem) => void;
     applyUndoSuccess: (payload: UndoMoveResponse) => void;
     applyMoveDismissed: (payload: { success: true; record_id: string; request_id: string; move_status: "not_requested" }) => void;
+    setDocumentThumbnail: (requestId: string, thumbnailData: string) => void;
   },
 ): void {
+  if (payload.type === "job.started") {
+    // job.started carries no stage data; only conditionally sets thumbnail.
+    if (payload.thumbnail_data) {
+      handlers.setDocumentThumbnail(payload.request_id, payload.thumbnail_data);
+    }
+    return;
+  }
   if (payload.type === "job.progress") {
     if (debugWebSocket) {
       console.debug("backend:event:markJobStage", payload.request_id, payload.stage);

@@ -226,6 +226,20 @@ describe("documentStore", () => {
     expect(state.documents["doc-1"].extraction).toBeNull();
   });
 
+  it("setDocumentThumbnail applies thumbnail data by requestId", () => {
+    const store = useDocumentStore.getState();
+    store.bootstrap([sampleDocument], stateCounts(), []);
+    store.setDocumentThumbnail("req-1", "base64data");
+    expect(useDocumentStore.getState().documents["doc-1"].thumbnailData).toBe("base64data");
+  });
+
+  it("setDocumentThumbnail is a no-op for unknown requestId", () => {
+    const store = useDocumentStore.getState();
+    store.bootstrap([sampleDocument], stateCounts(), []);
+    store.setDocumentThumbnail("unknown-req", "base64data");
+    expect(useDocumentStore.getState().documents["doc-1"].thumbnailData).toBeUndefined();
+  });
+
   it("applies move dismissed to pending confirmation document", () => {
     const store = useDocumentStore.getState();
     store.bootstrap(

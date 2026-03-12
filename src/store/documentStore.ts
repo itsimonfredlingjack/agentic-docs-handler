@@ -72,6 +72,7 @@ type DocumentStoreState = {
   applyUndoSuccess: (payload: UndoMoveResponse) => void;
   updateConnectionFromPayload: (payload: BackendConnectionPayload) => void;
   updateExtractionField: (documentId: string, fieldKey: string, newValue: string) => void;
+  setDocumentThumbnail: (requestId: string, thumbnailData: string) => void;
 };
 
 const emptyCounts: DocumentCounts = {
@@ -433,5 +434,13 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
           },
         },
       };
+    }),
+  setDocumentThumbnail: (requestId, thumbnailData) =>
+    set((state) => {
+      const docs = { ...state.documents };
+      const target = Object.values(docs).find((d) => d.requestId === requestId);
+      if (!target) return state;
+      docs[target.id] = { ...target, thumbnailData };
+      return { documents: docs };
     }),
 }));

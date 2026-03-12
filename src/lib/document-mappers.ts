@@ -71,6 +71,7 @@ export function mapProcessResponseToUiDocument(payload: ProcessResponse): UiDocu
     warnings: sanitizeWarnings(payload.warnings),
     moveStatus: payload.move_status,
     diagnostics: payload.diagnostics ?? null,
+    thumbnailData: payload.thumbnail_data ?? null,
   };
 }
 
@@ -100,6 +101,7 @@ export function mapRegistryRecordToUiDocument(payload: {
   warnings?: string[];
   move_status?: UiDocument["moveStatus"];
   diagnostics?: UiDocument["diagnostics"];
+  thumbnail_data?: string | null;
 }): UiDocument {
   return {
     id: payload.id,
@@ -127,6 +129,7 @@ export function mapRegistryRecordToUiDocument(payload: {
     warnings: sanitizeWarnings(payload.warnings ?? []),
     moveStatus: payload.move_status ?? "not_requested",
     diagnostics: payload.diagnostics ?? null,
+    thumbnailData: payload.thumbnail_data ?? null,
   };
 }
 
@@ -172,6 +175,7 @@ export function buildQueuedDocument(args: {
     warnings: [],
     moveStatus: "not_requested",
     diagnostics: null,
+    thumbnailData: null,
   };
 }
 
@@ -213,5 +217,6 @@ export function mapSearchResultToGenericDocument(result: SearchResult): UiDocume
     warnings: [],
     moveStatus: "not_requested",
     diagnostics: null,
+    thumbnailData: null,
   };
 }

@@ -144,6 +144,7 @@ export type ProcessResponse = {
   error_code: string | null;
   warnings: string[];
   diagnostics?: ProcessDiagnostics | null;
+  thumbnail_data?: string | null;
 };
 
 export type UiDocument = {
@@ -172,6 +173,7 @@ export type UiDocument = {
   warnings: string[];
   moveStatus: MoveStatus;
   diagnostics?: ProcessDiagnostics | null;
+  thumbnailData?: string | null;
 };
 
 export type DocumentListResponse = {
@@ -291,6 +293,7 @@ export type BackendServerEvent =
       job_kind: string;
       filename: string;
       source_modality: SourceModality;
+      thumbnail_data?: string | null;
     }
   | {
       type: "job.progress";

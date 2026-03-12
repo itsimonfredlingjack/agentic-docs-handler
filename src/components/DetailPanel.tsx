@@ -59,7 +59,7 @@ async function openInFinder(path: string): Promise<void> {
 function InlineEditField({ documentId, fieldKey, value }: { documentId: string; fieldKey: string; value: string }) {
   const updateExtractionField = useDocumentStore((state) => state.updateExtractionField);
   const [saved, setSaved] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     return () => { clearTimeout(timerRef.current); };
