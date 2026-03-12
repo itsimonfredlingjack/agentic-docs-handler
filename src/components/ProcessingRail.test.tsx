@@ -198,6 +198,58 @@ describe("ProcessingRail", () => {
     expect(ghostTypers.length).toBeGreaterThanOrEqual(2);
   });
 
+  it("renders evaporation overlay when thumbnailData present and extracting", async () => {
+    const doc = makeDoc({
+      status: "extracting",
+      thumbnailData: "base64thumbnaildata",
+    });
+    seedStore([doc]);
+    const { container } = render(<ProcessingRail />);
+    // The overlay renders only when progress > 0; progress starts at 0 and RAF drives it up.
+    // We need to wait for at least one animation frame tick to increment progress.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(container.querySelector(".rail-card__evap")).not.toBeNull();
+  });
+
+  it("does not render evaporation when thumbnailData is null", () => {
+    const doc = makeDoc({
+      status: "extracting",
+      thumbnailData: null,
+    });
+    seedStore([doc]);
+    const { container } = render(<ProcessingRail />);
+    expect(container.querySelector(".rail-card__evap")).toBeNull();
+  });
+
+  it("marks evaporation done when extraction completes", async () => {
+    const doc = makeDoc({
+      status: "extracting",
+      thumbnailData: "base64thumbnaildata",
+    });
+    seedStore([doc]);
+    const { container, rerender } = render(<ProcessingRail />);
+
+    // Advance so overlay appears
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    // Transition to organizing (post-extraction)
+    const organizedDoc = { ...doc, status: "organizing" as const };
+    act(() => {
+      seedStore([organizedDoc]);
+      rerender(<ProcessingRail />);
+    });
+
+    // Progress should snap to 100 → --done classes applied
+    const evapThumb = container.querySelector(".rail-card__evap-thumb");
+    const evapLine = container.querySelector(".rail-card__evap-line");
+    expect(evapThumb?.classList.contains("rail-card__evap-thumb--done")).toBe(true);
+    expect(evapLine?.classList.contains("rail-card__evap-line--done")).toBe(true);
+  });
+
   it("shows completion receipt for recently-completed document", () => {
     const processingDoc = makeDoc({ status: "classifying", title: "faktura.pdf" });
     useDocumentStore.setState({

@@ -129,6 +129,71 @@ function extractKeyLine(doc: UiDocument): string {
   return parts.join(" · ");
 }
 
+// Statuses that mean extraction is done and the overlay should snap to 100%.
+// failed, awaiting_confirmation, etc. are intentionally excluded — those statuses
+// don't appear in the processing rail so the hook never sees them.
+const EVAP_DONE_STAGES = new Set(["extracted", "organizing", "indexing", "completed"]);
+
+function useEvaporationProgress(status: string): number {
+  const [progress, setProgress] = useState(0);
+  const startRef = useRef<number | null>(null);
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    // Snap to done for post-extraction stages
+    if (EVAP_DONE_STAGES.has(status)) {
+      setProgress(100);
+      return;
+    }
+
+    // Animate during extraction
+    if (status === "extracting") {
+      startRef.current = performance.now();
+      const DURATION = 8000; // 8 seconds to reach 85%
+      const MAX = 85;
+
+      function tick() {
+        const elapsed = performance.now() - (startRef.current ?? performance.now());
+        const t = Math.min(elapsed / DURATION, 1);
+        // Ease-out cubic for natural deceleration
+        const eased = 1 - Math.pow(1 - t, 3);
+        setProgress(eased * MAX);
+        if (t < 1) rafRef.current = requestAnimationFrame(tick);
+      }
+      rafRef.current = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(rafRef.current);
+    }
+
+    // Reset for pre-extraction stages
+    setProgress(0);
+  }, [status]);
+
+  return progress;
+}
+
+function EvaporationOverlay({ doc }: { doc: UiDocument }) {
+  const progress = useEvaporationProgress(doc.status);
+  if (!doc.thumbnailData || progress === 0) return null;
+
+  const isDone = progress >= 100;
+
+  return (
+    <div className="rail-card__evap">
+      <div
+        className={`rail-card__evap-thumb${isDone ? " rail-card__evap-thumb--done" : ""}`}
+        style={{
+          backgroundImage: `url(data:image/jpeg;base64,${doc.thumbnailData})`,
+          "--evap-progress": `${progress}%`,
+        } as React.CSSProperties}
+      />
+      <div
+        className={`rail-card__evap-line${isDone ? " rail-card__evap-line--done" : ""}`}
+        style={{ "--evap-progress": `${progress}%` } as React.CSSProperties}
+      />
+    </div>
+  );
+}
+
 function RailCard({ doc }: { doc: UiDocument }) {
   const prevStatusRef = useRef(doc.status);
   const [classifyLock, setClassifyLock] = useState(false);
@@ -162,19 +227,22 @@ function RailCard({ doc }: { doc: UiDocument }) {
   const hasExtraction = Boolean(keyLine);
 
   return (
-    <div className={`rail-card ${shapeClass}${lockClass ? ` ${lockClass}` : ""}`} style={lockStyle} data-testid="rail-card">
-      {isClassified ? (
-        <GhostTyper text={doc.title} className="rail-card__title" speed={20} />
-      ) : (
-        <div className="rail-card__title">{doc.title}</div>
-      )}
-      <div className="rail-card__stage">{stageLabel}</div>
-      <MiniStepper currentStage={doc.status} />
-      {hasExtraction ? (
-        <GhostTyper text={keyLine} className="rail-card__fields" speed={18} />
-      ) : (
-        <ModalityAnimation doc={doc} />
-      )}
+    <div className={`rail-card ${shapeClass}${lockClass ? ` ${lockClass}` : ""}`} style={{ ...lockStyle, position: "relative" }} data-testid="rail-card">
+      <EvaporationOverlay doc={doc} />
+      <div style={{ position: "relative", zIndex: 3 }}>
+        {isClassified ? (
+          <GhostTyper text={doc.title} className="rail-card__title" speed={20} />
+        ) : (
+          <div className="rail-card__title">{doc.title}</div>
+        )}
+        <div className="rail-card__stage">{stageLabel}</div>
+        <MiniStepper currentStage={doc.status} />
+        {hasExtraction ? (
+          <GhostTyper text={keyLine} className="rail-card__fields" speed={18} />
+        ) : (
+          <ModalityAnimation doc={doc} />
+        )}
+      </div>
     </div>
   );
 }

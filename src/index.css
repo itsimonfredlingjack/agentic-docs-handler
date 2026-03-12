@@ -884,6 +884,24 @@ input {
              border-glow 600ms ease-out both;
 }
 
+/* ── Pixel Evaporation ────────────────────────────── */
+.rail-card__evap { position:absolute; inset:0; overflow:hidden; border-radius:inherit; pointer-events:none; }
+.rail-card__evap-thumb {
+  position:absolute; inset:0; background-size:cover; background-position:center;
+  filter: blur(3px) brightness(0.92); opacity:0.7;
+  clip-path: inset(var(--evap-progress, 0%) 0 0 0);  /* hide above scan line */
+  transition: opacity 300ms ease;
+}
+.rail-card__evap-thumb--done { opacity: 0; }
+.rail-card__evap-line {
+  position:absolute; left:0; right:0; height:2px;
+  top: var(--evap-progress, 0%);
+  background: linear-gradient(90deg, transparent, var(--accent-primary), color-mix(in srgb, #af52de 60%, var(--accent-primary)), var(--accent-primary), transparent);
+  box-shadow: 0 0 8px 2px color-mix(in srgb, var(--accent-primary) 40%, transparent);
+  z-index:2; transition: opacity 300ms ease;
+}
+.rail-card__evap-line--done { opacity: 0; }
+
 /* ── Activity Feed ────────────────────────────────── */
 .activity-feed {
   display: flex;
@@ -926,5 +944,14 @@ input {
   }
   .rail-card--classify-lock {
     animation: none;
+  }
+  .rail-card__evap-thumb {
+    transition: none;
+    filter: none;
+    opacity: 0;
+  }
+  .rail-card__evap-line {
+    transition: none;
+    opacity: 0;
   }
 }
