@@ -68,7 +68,8 @@ describe("ProcessingRail", () => {
     const doc = makeDoc({ status: "classifying", title: "faktura.pdf" });
     seedStore([doc]);
     const { container } = render(<ProcessingRail />);
-    expect(container.querySelector(".rail-card__title")?.textContent).toBe("faktura.pdf");
+    // classifying is post-classification, so title is ghost-typed (GhostTyper starts empty)
+    expect(container.querySelector("[data-testid='ghost-typer']")).not.toBeNull();
     expect(container.querySelector(".rail-card__stage")?.textContent).toBe("Klassificera");
   });
 
@@ -126,6 +127,30 @@ describe("ProcessingRail", () => {
     expect(card?.classList.contains("rail-card--invoice")).toBe(false);
   });
 
+  it("ghost-types the document title after classification", () => {
+    const doc = makeDoc({ status: "classified", kind: "receipt", title: "Faktura Telia" });
+    seedStore([doc]);
+    const { container } = render(<ProcessingRail />);
+    expect(container.querySelector("[data-testid='ghost-typer']")).not.toBeNull();
+  });
+
+  it("shows extraction key line when extraction data is present", () => {
+    const doc = makeDoc({
+      status: "organizing",
+      kind: "invoice",
+      title: "Faktura Telia",
+      extraction: {
+        fields: { vendor: "Telia", amount: "4200 kr" },
+        field_confidence: {},
+        missing_fields: [],
+      },
+    });
+    seedStore([doc]);
+    const { container } = render(<ProcessingRail />);
+    const ghostTypers = container.querySelectorAll("[data-testid='ghost-typer']");
+    expect(ghostTypers.length).toBeGreaterThanOrEqual(2);
+  });
+
   it("shows completion receipt for recently-completed document", () => {
     const processingDoc = makeDoc({ status: "classifying", title: "faktura.pdf" });
     useDocumentStore.setState({
@@ -133,8 +158,9 @@ describe("ProcessingRail", () => {
       documentOrder: ["doc-1"],
       stageHistory: { "req-1": [{ stage: "uploading", at: 1000 }, { stage: "classifying", at: 2000 }] },
     });
-    const { rerender } = render(<ProcessingRail />);
-    expect(screen.getByText("faktura.pdf")).toBeInTheDocument();
+    const { rerender, container } = render(<ProcessingRail />);
+    // classifying uses GhostTyper which starts empty; verify the rail card is rendered
+    expect(container.querySelector("[data-testid='rail-card']")).not.toBeNull();
 
     const completedVersion = {
       ...processingDoc,

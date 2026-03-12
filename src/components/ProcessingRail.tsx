@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import { useDocumentStore } from "../store/documentStore";
 import { isProcessingStatus } from "../lib/status";
 import type { UiDocument } from "../types/documents";
+import { GhostTyper } from "./GhostTyper";
 
 const KIND_LABELS: Record<string, string> = {
   receipt: "Kvitto",
@@ -109,17 +110,46 @@ function ModalityAnimation({ doc }: { doc: UiDocument }) {
   );
 }
 
+function extractKeyLine(doc: UiDocument): string {
+  if (!doc.extraction?.fields) return "";
+  const f = doc.extraction.fields as Record<string, string | undefined>;
+  const parts: string[] = [];
+  if (f.vendor) parts.push(String(f.vendor));
+  if (f.amount) parts.push(String(f.amount));
+  if (f.date) parts.push(String(f.date));
+  if (f.parties) parts.push(String(f.parties));
+  if (parts.length === 0) {
+    for (const [, value] of Object.entries(doc.extraction.fields)) {
+      if (typeof value === "string" && value.trim()) {
+        parts.push(value);
+        if (parts.length >= 2) break;
+      }
+    }
+  }
+  return parts.join(" · ");
+}
+
 function RailCard({ doc }: { doc: UiDocument }) {
   const stageLabel = STAGE_LABELS[doc.status] ?? doc.status;
   const isClassified = !PRE_CLASSIFICATION_STAGES.has(doc.status);
   const shapeClass = isClassified ? `rail-card--${doc.kind}` : "rail-card--unclassified";
+  const keyLine = extractKeyLine(doc);
+  const hasExtraction = Boolean(keyLine);
 
   return (
     <div className={`rail-card ${shapeClass}`} data-testid="rail-card">
-      <div className="rail-card__title">{doc.title}</div>
+      {isClassified ? (
+        <GhostTyper text={doc.title} className="rail-card__title" speed={20} />
+      ) : (
+        <div className="rail-card__title">{doc.title}</div>
+      )}
       <div className="rail-card__stage">{stageLabel}</div>
       <MiniStepper currentStage={doc.status} />
-      <ModalityAnimation doc={doc} />
+      {hasExtraction ? (
+        <GhostTyper text={keyLine} className="rail-card__fields" speed={18} />
+      ) : (
+        <ModalityAnimation doc={doc} />
+      )}
     </div>
   );
 }
