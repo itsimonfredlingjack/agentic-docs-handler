@@ -157,8 +157,13 @@ function RailCard({ doc }: { doc: UiDocument }) {
 function CompletionReceipt({ doc }: { doc: UiDocument }) {
   const isFailed = doc.status === "failed";
   const kindLabel = KIND_LABELS[doc.kind] ?? "Dokument";
+  const keyLine = extractKeyLine(doc);
+
   return (
-    <div className="rail-card rail-card--done" data-testid="rail-card-done">
+    <div
+      className={`rail-card rail-card--done rail-card--${doc.kind ?? "generic"}`}
+      data-testid="rail-card-done"
+    >
       <div className="flex items-center gap-2">
         <span style={{ color: isFailed ? "var(--invoice-color)" : "var(--receipt-color)", fontSize: 16 }}>
           {isFailed ? "✕" : "✓"}
@@ -168,6 +173,9 @@ function CompletionReceipt({ doc }: { doc: UiDocument }) {
       <div className="rail-card__stage" style={{ color: isFailed ? "var(--invoice-color)" : "var(--receipt-color)" }}>
         {isFailed ? "Misslyckades" : kindLabel}
       </div>
+      {keyLine && !isFailed && (
+        <div className="rail-card__fields">{keyLine}</div>
+      )}
     </div>
   );
 }

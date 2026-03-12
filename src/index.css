@@ -834,13 +834,18 @@ input {
 }
 
 @keyframes rail-card-done {
-  from {
+  0% {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: scale(1) translateY(0);
   }
-  to {
+  40% {
+    opacity: 1;
+    transform: scale(1.03) translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  }
+  100% {
     opacity: 0;
-    transform: translateY(8px) scale(0.97);
+    transform: scale(0.95) translateY(8px);
   }
 }
 
