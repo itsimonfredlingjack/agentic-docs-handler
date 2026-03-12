@@ -2,6 +2,7 @@ import { useEffect, startTransition, useState } from "react";
 
 import { DetailPanel } from "./components/DetailPanel";
 import { DropZone } from "./components/DropZone";
+import { ProcessingRail } from "./components/ProcessingRail";
 import { ActivityFeed } from "./components/ActivityFeed";
 import { FileMoveToast } from "./components/FileMoveToast";
 import { MobileFilterSheet } from "./components/MobileFilterSheet";
@@ -59,19 +60,14 @@ export default function App() {
         <div className="hidden shrink-0 lg:block">
           <Sidebar />
         </div>
-        <main className="flex min-h-0 flex-1 flex-col gap-6">
+        <main className="flex min-h-0 flex-1 flex-col gap-4">
           <SearchBar
             activeFilterLabel={getSidebarFilterLabel(sidebarFilter)}
             onOpenFilters={() => setFilterSheetOpen(true)}
           />
-          <section className="grid min-h-0 grid-cols-1 gap-4 xl:grid-cols-[var(--control-rail-width)_minmax(0,1fr)]">
-            <div className="min-h-0">
-              <DropZone />
-            </div>
-            <div className="min-h-0">
-              <ActivityFeed />
-            </div>
-          </section>
+          <DropZone />
+          <ProcessingRail />
+          <ActivityFeed />
         </main>
       </div>
       <MobileFilterSheet open={isFilterSheetOpen} onClose={() => setFilterSheetOpen(false)} />

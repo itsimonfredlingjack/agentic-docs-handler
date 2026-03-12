@@ -1,16 +1,18 @@
 import { useMemo } from "react";
 import { useDocumentStore } from "../store/documentStore";
-import { FeedCard } from "./FeedCard";
+import { DocumentRow } from "./DocumentRow";
 import { TimeGroupHeader } from "./TimeGroupHeader";
 import { groupByTime } from "../lib/feed-utils";
 import { mapSearchResultToGenericDocument } from "../lib/document-mappers";
-import { processFile, finalizeClientMove, dismissPendingMove } from "../lib/api";
+import { processFile, finalizeClientMove } from "../lib/api";
 import { mapProcessResponseToUiDocument } from "../lib/document-mappers";
 import { moveLocalFile } from "../lib/tauri-events";
-import type { UiDocument, SearchResult } from "../types/documents";
+import type { UiDocument } from "../types/documents";
 import type { ProcessResponse } from "../types/documents";
+import { isProcessingStatus } from "../lib/status";
 
 function matchesFilter(doc: UiDocument, filter: string): boolean {
+  if (isProcessingStatus(doc)) return false;
   if (filter === "all") return true;
   if (filter === "processing") {
     return doc.status !== "ready" && doc.status !== "completed" && doc.status !== "failed";
@@ -24,14 +26,13 @@ function matchesFilter(doc: UiDocument, filter: string): boolean {
 export function ActivityFeed() {
   const documents = useDocumentStore((s) => s.documents);
   const documentOrder = useDocumentStore((s) => s.documentOrder);
-  const stageHistory = useDocumentStore((s) => s.stageHistory);
   const sidebarFilter = useDocumentStore((s) => s.sidebarFilter);
   const search = useDocumentStore((s) => s.search);
   const setSelectedDocument = useDocumentStore((s) => s.setSelectedDocument);
 
   const orderedDocs = useMemo(() => {
-    const useSearchResults = search.status === "ready" || search.status === "empty";
-    if (useSearchResults) {
+    const useSearch = search.status === "ready" || search.status === "empty";
+    if (useSearch) {
       if (search.status === "ready") {
         return [
           ...search.resultIds.map((id) => documents[id]).filter(Boolean),
@@ -52,7 +53,7 @@ export function ActivityFeed() {
     [orderedDocs, now],
   );
 
-  const useSearchResults = search.status === "ready" || search.status === "empty";
+  const useSearch = search.status === "ready" || search.status === "empty";
 
   if (orderedDocs.length === 0) {
     return (
@@ -80,7 +81,7 @@ export function ActivityFeed() {
     <section id="document-canvas" className="space-y-1 pb-3">
       <div className="flex items-center justify-between gap-3 px-1">
         <p className="section-kicker">
-          {useSearchResults ? "Sökresultat" : "Aktivitetsflöde"}
+          {useSearch ? "Sökresultat" : "Dokument"}
         </p>
         <p className="font-mono text-[11px] text-[var(--text-muted)]">{orderedDocs.length}</p>
       </div>
@@ -90,10 +91,9 @@ export function ActivityFeed() {
             <TimeGroupHeader label={group.label} />
             <div className="activity-feed__cards">
               {group.items.map((doc) => (
-                <FeedCard
+                <DocumentRow
                   key={doc.id}
                   document={doc}
-                  history={stageHistory[doc.requestId] ?? []}
                   onSelect={() => setSelectedDocument(doc.id)}
                   onRetry={
                     doc.retryable

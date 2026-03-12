@@ -56,14 +56,16 @@ describe("ActivityFeed", () => {
     expect(screen.getByText("Din digitala assistent vilar")).toBeInTheDocument();
   });
 
-  it("renders documents in feed", () => {
+  it("renders documents as DocumentRow in feed", () => {
     useDocumentStore.setState({
       documents: { "doc-1": mockDoc },
       documentOrder: ["doc-1"],
       stageHistory: { "req-1": [{ stage: "completed", at: Date.now() }] },
     });
     render(<ActivityFeed />);
-    expect(screen.getAllByText("test-doc.pdf").length).toBeGreaterThan(0);
+    expect(screen.getByText("test-doc.pdf")).toBeInTheDocument();
+    expect(screen.getByText("Dokument")).toBeInTheDocument();
+    expect(screen.getByTestId("document-row")).toBeInTheDocument();
   });
 
   it("filters documents by sidebar filter", () => {
@@ -74,7 +76,25 @@ describe("ActivityFeed", () => {
       sidebarFilter: "receipt",
     });
     render(<ActivityFeed />);
-    // mockDoc is "generic" kind, should not match "receipt" filter
     expect(screen.getByText("Din digitala assistent vilar")).toBeInTheDocument();
+  });
+
+  it("excludes processing documents from feed", () => {
+    const processingDoc = {
+      ...mockDoc,
+      id: "doc-proc",
+      requestId: "req-proc",
+      status: "classifying",
+      template: "processing",
+    };
+    useDocumentStore.setState({
+      documents: { "doc-1": mockDoc, "doc-proc": processingDoc },
+      documentOrder: ["doc-proc", "doc-1"],
+      stageHistory: {},
+    });
+    render(<ActivityFeed />);
+    expect(screen.getByText("test-doc.pdf")).toBeInTheDocument();
+    const rows = screen.getAllByTestId("document-row");
+    expect(rows).toHaveLength(1);
   });
 });
