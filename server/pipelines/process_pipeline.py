@@ -21,6 +21,7 @@ from server.pipelines.classifier import ClassificationValidationError, DocumentC
 from server.pipelines.extractor import DocumentExtractor, ExtractionValidationError
 from server.pipelines.file_organizer import FileOrganizer
 from server.pipelines.search import IndexedDocument
+from server.pipelines.thumbnails import generate_thumbnail
 from server.pipelines.whisper_proxy import WhisperProxy, WhisperProxyError
 from server.schemas import (
     DocumentClassification,
@@ -109,6 +110,7 @@ class DocumentProcessPipeline:
         created_at = datetime.now(UTC).isoformat()
         mime_type = self._detect_mime(filename, content_type)
         source_modality = self._detect_modality(mime_type)
+        thumbnail_data: str | None = generate_thumbnail(content, mime_type)
         timings: dict[str, float] = {}
         errors: list[str] = []
         warnings: list[str] = []
@@ -137,6 +139,7 @@ class DocumentProcessPipeline:
                 "job_kind": "process",
                 "filename": filename,
                 "source_modality": source_modality,
+                "thumbnail_data": thumbnail_data,
             },
         )
         await self._progress(client_id, request_id, "processing", "Bearbetar dokument")
@@ -191,6 +194,7 @@ class DocumentProcessPipeline:
                             pipeline_flags=pipeline_flags,
                             fallback_reason="audio_processing_unavailable",
                         ),
+                        thumbnail_data=thumbnail_data,
                     )
                     self._persist_record(response)
                     await self._emit_event(
@@ -458,6 +462,7 @@ class DocumentProcessPipeline:
                     classifier_raw_response_path=classifier_raw_response_path,
                     fallback_reason=fallback_reason,
                 ),
+                thumbnail_data=thumbnail_data,
             )
             self._persist_record(response)
             self._log_pipeline_event(
@@ -654,6 +659,7 @@ class DocumentProcessPipeline:
                 error_code=response.error_code,
                 warnings=response.warnings,
                 diagnostics=response.diagnostics,
+                thumbnail_data=response.thumbnail_data,
             )
         )
 

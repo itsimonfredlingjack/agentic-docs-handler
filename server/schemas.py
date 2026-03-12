@@ -103,6 +103,7 @@ class ProcessResponse(BaseModel):
     error_code: str | None = None
     warnings: list[str] = Field(default_factory=list)
     diagnostics: ProcessDiagnostics | None = None
+    thumbnail_data: str | None = None
 
 
 class LLMCallLogEntry(BaseModel):
@@ -188,6 +189,7 @@ class UiDocumentRecord(BaseModel):
     error_code: str | None = None
     warnings: list[str] = Field(default_factory=list)
     diagnostics: ProcessDiagnostics | None = None
+    thumbnail_data: str | None = None
 
 
 class DocumentListResponse(BaseModel):
