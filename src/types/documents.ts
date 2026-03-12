@@ -36,6 +36,7 @@ export type JobStage =
   | "classified"
   | "classifying"
   | "extracting"
+  | "extracted"
   | "organizing"
   | "indexing"
   | "awaiting_confirmation"
@@ -297,6 +298,10 @@ export type BackendServerEvent =
       client_id?: string | null;
       stage: JobStage;
       message: string;
+      data?: {
+        classification?: DocumentClassification;
+        extraction?: ExtractionResult;
+      };
     }
   | {
       type: "job.completed";

@@ -68,7 +68,7 @@ export function useWebSocket(): void {
 function handleServerEvent(
   payload: BackendServerEvent,
   handlers: {
-    markJobStage: (requestId: string, stage: "uploading" | "processing" | "transcribing" | "classified" | "classifying" | "extracting" | "organizing" | "indexing" | "awaiting_confirmation" | "moved" | "completed" | "failed" | "ready" | "queued") => void;
+    markJobStage: (requestId: string, stage: "uploading" | "processing" | "transcribing" | "classified" | "classifying" | "extracting" | "extracted" | "organizing" | "indexing" | "awaiting_confirmation" | "moved" | "completed" | "failed" | "ready" | "queued", data?: { classification?: import("../types/documents").DocumentClassification; extraction?: import("../types/documents").ExtractionResult }) => void;
     markJobFailed: (requestId: string, error: string, errorCode?: string | null) => void;
     pushMoveToast: (toast: FileMoveToastItem) => void;
     applyUndoSuccess: (payload: UndoMoveResponse) => void;
@@ -79,7 +79,7 @@ function handleServerEvent(
     if (debugWebSocket) {
       console.debug("backend:event:markJobStage", payload.request_id, payload.stage);
     }
-    handlers.markJobStage(payload.request_id, payload.stage);
+    handlers.markJobStage(payload.request_id, payload.stage, payload.data);
     return;
   }
   if (payload.type === "job.completed") {

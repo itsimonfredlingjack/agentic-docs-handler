@@ -5,13 +5,16 @@ import type {
   BackendConnectionPayload,
   ConnectionState,
   DismissMoveResponse,
+  DocumentClassification,
   DocumentCounts,
+  ExtractionResult,
   FileMoveToastItem,
   FinalizeMoveResponse,
   SearchResponse,
   SearchState,
   SidebarFilter,
   UiDocument,
+  UiDocumentKind,
   UndoMoveResponse,
 } from "../types/documents";
 
@@ -49,7 +52,7 @@ type DocumentStoreState = {
   queueUploads: (localJobs: UiDocument[]) => void;
   rememberUpload: (requestId: string, payload: UploadMemory) => void;
   clearRememberedUpload: (requestId: string) => void;
-  markJobStage: (requestId: string, stage: UiDocument["status"]) => void;
+  markJobStage: (requestId: string, stage: UiDocument["status"], data?: { classification?: DocumentClassification; extraction?: ExtractionResult }) => void;
   upsertDocument: (document: UiDocument) => void;
   markJobFailed: (requestId: string, error: string, errorCode?: string | null) => void;
   setAwaitingConfirmation: (recordId: string) => void;
@@ -166,18 +169,28 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
       delete uploadsByRequestId[requestId];
       return { uploadsByRequestId };
     }),
-  markJobStage: (requestId, stage) =>
+  markJobStage: (requestId, stage, data?) =>
     set((state) => {
       const documents = { ...state.documents };
       const target = Object.values(documents).find((document) => document.requestId === requestId);
       if (!target) {
         return state;
       }
-      documents[target.id] = {
-        ...target,
+      const updates: Partial<UiDocument> = {
         status: stage,
         updatedAt: new Date().toISOString(),
       };
+      if (data?.classification) {
+        updates.classification = data.classification;
+        updates.kind = data.classification.document_type as UiDocumentKind;
+        updates.title = data.classification.title;
+        updates.summary = data.classification.summary;
+        updates.documentType = data.classification.document_type;
+      }
+      if (data?.extraction) {
+        updates.extraction = data.extraction;
+      }
+      documents[target.id] = { ...target, ...updates };
       const prev = state.stageHistory[requestId] ?? [];
       return {
         documents,

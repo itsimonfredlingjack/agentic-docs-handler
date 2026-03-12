@@ -304,7 +304,10 @@ class DocumentProcessPipeline:
                         fallback_reason=fallback_reason,
                         raw_response_path=classifier_raw_response_path,
                     )
-                await self._progress(client_id, request_id, "classified", "Dokument klassificerat")
+                await self._progress(
+                    client_id, request_id, "classified", "Dokument klassificerat",
+                    data={"classification": classification.model_dump(mode="json")},
+                )
 
                 if self._should_skip_extraction(classification.document_type):
                     extraction = ExtractionResult(fields={}, field_confidence={}, missing_fields=[])
@@ -352,6 +355,10 @@ class DocumentProcessPipeline:
                         elapsed_ms=timings["extract_ms"],
                     )
 
+            await self._progress(
+                client_id, request_id, "extracted", "Fält extraherade",
+                data={"extraction": extraction.model_dump(mode="json")},
+            )
             await self._progress(client_id, request_id, "organizing", "Planerar filsortering")
             plan_started = time.perf_counter()
             self._log_pipeline_event(
@@ -818,17 +825,24 @@ class DocumentProcessPipeline:
         candidate = value.strip().lower()
         return candidate.startswith("classifier_") or candidate.startswith("pdf_") or candidate.endswith("_fallback")
 
-    async def _progress(self, client_id: str | None, request_id: str, stage: str, message: str) -> None:
-        await self._emit_event(
-            client_id,
-            {
-                "type": "job.progress",
-                "request_id": request_id,
-                "client_id": client_id,
-                "stage": stage,
-                "message": message,
-            },
-        )
+    async def _progress(
+        self,
+        client_id: str | None,
+        request_id: str,
+        stage: str,
+        message: str,
+        data: dict[str, object] | None = None,
+    ) -> None:
+        payload: dict[str, object] = {
+            "type": "job.progress",
+            "request_id": request_id,
+            "client_id": client_id,
+            "stage": stage,
+            "message": message,
+        }
+        if data is not None:
+            payload["data"] = data
+        await self._emit_event(client_id, payload)
 
     async def _emit_event(self, client_id: str | None, payload: dict[str, object]) -> None:
         if client_id is None or self.realtime_manager is None:
