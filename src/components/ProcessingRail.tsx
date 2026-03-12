@@ -130,14 +130,39 @@ function extractKeyLine(doc: UiDocument): string {
 }
 
 function RailCard({ doc }: { doc: UiDocument }) {
+  const prevStatusRef = useRef(doc.status);
+  const [classifyLock, setClassifyLock] = useState(false);
+
+  useEffect(() => {
+    const wasUnclassified = PRE_CLASSIFICATION_STAGES.has(prevStatusRef.current);
+    const isNowClassified = !PRE_CLASSIFICATION_STAGES.has(doc.status);
+    prevStatusRef.current = doc.status;
+    if (wasUnclassified && isNowClassified) {
+      setClassifyLock(true);
+      const timer = setTimeout(() => setClassifyLock(false), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [doc.status]);
+
   const stageLabel = STAGE_LABELS[doc.status] ?? doc.status;
   const isClassified = !PRE_CLASSIFICATION_STAGES.has(doc.status);
-  const shapeClass = isClassified ? `rail-card--${doc.kind}` : "rail-card--unclassified";
+
+  // Shape class: use fast pulse for processing/transcribing
+  const unclassifiedClass = doc.status === "processing" || doc.status === "transcribing"
+    ? "rail-card--classify-pending" : "rail-card--unclassified";
+  const shapeClass = isClassified ? `rail-card--${doc.kind}` : unclassifiedClass;
+  const lockClass = classifyLock ? "rail-card--classify-lock" : "";
+
+  // Set glow color to match document type
+  const lockStyle = classifyLock ? {
+    "--classify-lock-color": `var(--${doc.kind === "meeting_notes" ? "meeting" : doc.kind}-color, var(--accent-primary))`
+  } as React.CSSProperties : undefined;
+
   const keyLine = extractKeyLine(doc);
   const hasExtraction = Boolean(keyLine);
 
   return (
-    <div className={`rail-card ${shapeClass}`} data-testid="rail-card">
+    <div className={`rail-card ${shapeClass}${lockClass ? ` ${lockClass}` : ""}`} style={lockStyle} data-testid="rail-card">
       {isClassified ? (
         <GhostTyper text={doc.title} className="rail-card__title" speed={20} />
       ) : (

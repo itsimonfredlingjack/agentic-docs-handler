@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { ProcessingRail } from "./ProcessingRail";
 import { useDocumentStore } from "../store/documentStore";
 import type { UiDocument } from "../types/documents";
@@ -119,12 +119,59 @@ describe("ProcessingRail", () => {
   });
 
   it("applies unclassified class during early processing", () => {
-    const doc = makeDoc({ status: "processing", kind: "invoice" });
+    const doc = makeDoc({ status: "queued", kind: "invoice" });
     seedStore([doc]);
     const { container } = render(<ProcessingRail />);
     const card = container.querySelector("[data-testid='rail-card']");
     expect(card?.classList.contains("rail-card--unclassified")).toBe(true);
     expect(card?.classList.contains("rail-card--invoice")).toBe(false);
+  });
+
+  it("applies classify-pending during processing stage", () => {
+    const doc = makeDoc({ status: "processing", kind: "invoice" });
+    seedStore([doc]);
+    const { container } = render(<ProcessingRail />);
+    const card = container.querySelector("[data-testid='rail-card']");
+    expect(card?.classList.contains("rail-card--classify-pending")).toBe(true);
+    expect(card?.classList.contains("rail-card--unclassified")).toBe(false);
+    expect(card?.classList.contains("rail-card--invoice")).toBe(false);
+  });
+
+  it("applies classify-pending during transcribing stage", () => {
+    const doc = makeDoc({ status: "transcribing", kind: "audio", sourceModality: "audio" });
+    seedStore([doc]);
+    const { container } = render(<ProcessingRail />);
+    const card = container.querySelector("[data-testid='rail-card']");
+    expect(card?.classList.contains("rail-card--classify-pending")).toBe(true);
+    expect(card?.classList.contains("rail-card--unclassified")).toBe(false);
+  });
+
+  it("keeps unclassified for queued/uploading stages", () => {
+    for (const status of ["queued", "uploading"] as const) {
+      const doc = makeDoc({ id: `doc-${status}`, status, kind: "invoice" });
+      seedStore([doc]);
+      const { container } = render(<ProcessingRail />);
+      const card = container.querySelector("[data-testid='rail-card']");
+      expect(card?.classList.contains("rail-card--unclassified")).toBe(true);
+      expect(card?.classList.contains("rail-card--classify-pending")).toBe(false);
+    }
+  });
+
+  it("applies classify-lock on classification transition", async () => {
+    const processingDoc = makeDoc({ status: "processing", kind: "invoice" });
+    seedStore([processingDoc]);
+    const { container, rerender } = render(<ProcessingRail />);
+
+    // Transition to classified
+    const classifiedDoc = { ...processingDoc, status: "classified" as const };
+    act(() => {
+      seedStore([classifiedDoc]);
+      rerender(<ProcessingRail />);
+    });
+
+    const card = container.querySelector("[data-testid='rail-card']");
+    expect(card?.classList.contains("rail-card--classify-lock")).toBe(true);
+    expect(card?.classList.contains("rail-card--invoice")).toBe(true);
   });
 
   it("ghost-types the document title after classification", () => {

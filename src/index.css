@@ -855,6 +855,29 @@ input {
   66% { border-color: var(--accent-primary); }
 }
 
+@keyframes classify-lock {
+  0%   { transform: scale(1); }
+  10%  { transform: scale(0.95); }
+  40%  { transform: scale(1.06); }
+  70%  { transform: scale(0.99); }
+  100% { transform: scale(1); }
+}
+
+@keyframes border-glow {
+  0%   { box-shadow: 0 0 0 0 var(--classify-lock-color, var(--accent-primary)); }
+  50%  { box-shadow: 0 0 12px 2px var(--classify-lock-color, var(--accent-primary)); }
+  100% { box-shadow: 0 0 0 0 var(--classify-lock-color, var(--accent-primary)); }
+}
+
+.rail-card--classify-pending {
+  animation: morph-pulse 0.4s ease-in-out infinite;
+}
+
+.rail-card--classify-lock {
+  animation: classify-lock 450ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
+             border-glow 600ms ease-out both;
+}
+
 /* ── Activity Feed ────────────────────────────────── */
 .activity-feed {
   display: flex;
@@ -890,6 +913,12 @@ input {
     scroll-behavior: auto !important;
   }
   .pipeline-stepper__step[data-state="active"] .pipeline-stepper__dot {
+    animation: none;
+  }
+  .rail-card--classify-pending {
+    animation: none;
+  }
+  .rail-card--classify-lock {
     animation: none;
   }
 }
