@@ -192,6 +192,40 @@ describe("documentStore", () => {
     expect(state.documents["doc-1"].status).toBe("failed");
   });
 
+  it("updateExtractionField updates the field value in the document", () => {
+    const store = useDocumentStore.getState();
+    store.bootstrap(
+      [
+        {
+          ...sampleDocument,
+          extraction: { fields: { vendor: "Staples", total: "$42.50" }, field_confidence: {}, missing_fields: [] },
+        },
+      ],
+      stateCounts(),
+      [],
+    );
+
+    store.updateExtractionField("doc-1", "vendor", "Acme Corp");
+
+    const state = useDocumentStore.getState();
+    expect(state.documents["doc-1"].extraction?.fields["vendor"]).toBe("Acme Corp");
+    expect(state.documents["doc-1"].extraction?.fields["total"]).toBe("$42.50");
+  });
+
+  it("updateExtractionField is a no-op when document has no extraction", () => {
+    const store = useDocumentStore.getState();
+    store.bootstrap(
+      [{ ...sampleDocument, extraction: null as any }],
+      stateCounts(),
+      [],
+    );
+
+    store.updateExtractionField("doc-1", "vendor", "Acme Corp");
+
+    const state = useDocumentStore.getState();
+    expect(state.documents["doc-1"].extraction).toBeNull();
+  });
+
   it("applies move dismissed to pending confirmation document", () => {
     const store = useDocumentStore.getState();
     store.bootstrap(

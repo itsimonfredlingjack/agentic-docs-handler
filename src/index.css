@@ -529,6 +529,12 @@ input {
     outline: none;
   }
 
+  .inline-edit-field-wrapper { position: relative; display: inline-flex; align-items: center; gap: 4px; }
+  .inline-edit-saved { color: #d4a017; font-weight: 700; animation: save-check 1.2s ease-out both; }
+  @keyframes save-check { 0% { opacity:0; transform:scale(0.5); } 20% { opacity:1; transform:scale(1.2); } 40% { opacity:1; transform:scale(1); } 100% { opacity:0; } }
+  @keyframes field-ripple { 0% { opacity:0.6; transform:scale(0.3); } 100% { opacity:0; transform:scale(2); } }
+  .is-rippling::after { content:""; position:absolute; inset:0; border-radius:4px; animation: field-ripple 400ms ease-out both; background: radial-gradient(circle, color-mix(in srgb, #d4a017 20%, transparent), transparent 70%); pointer-events:none; }
+
   .command-panel {
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.82);

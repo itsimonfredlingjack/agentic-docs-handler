@@ -71,6 +71,7 @@ type DocumentStoreState = {
   dismissToast: (id: string) => void;
   applyUndoSuccess: (payload: UndoMoveResponse) => void;
   updateConnectionFromPayload: (payload: BackendConnectionPayload) => void;
+  updateExtractionField: (documentId: string, fieldKey: string, newValue: string) => void;
 };
 
 const emptyCounts: DocumentCounts = {
@@ -418,5 +419,19 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
   updateConnectionFromPayload: (payload) =>
     set({
       connectionState: payload.state,
+    }),
+  updateExtractionField: (documentId, fieldKey, newValue) =>
+    set((state) => {
+      const doc = state.documents[documentId];
+      if (!doc?.extraction) return state;
+      return {
+        documents: {
+          ...state.documents,
+          [documentId]: {
+            ...doc,
+            extraction: { ...doc.extraction, fields: { ...doc.extraction.fields, [fieldKey]: newValue } },
+          },
+        },
+      };
     }),
 }));

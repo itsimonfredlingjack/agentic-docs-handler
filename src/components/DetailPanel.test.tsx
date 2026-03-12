@@ -114,4 +114,36 @@ describe("DetailPanel", () => {
     await userEvent.click(screen.getByRole("button", { name: "Stäng detaljpanel" }));
     expect(useDocumentStore.getState().selectedDocumentId).toBeNull();
   });
+
+  it("renders extraction fields as InlineEdit components", async () => {
+    seedStore("doc-1");
+    render(<DetailPanel />);
+    const vendorField = screen.getByText("Staples");
+    expect(vendorField).toBeInTheDocument();
+    // Clicking the value should switch it to an editable input
+    await userEvent.click(vendorField);
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
+  });
+
+  it("updates extraction field in store on save", async () => {
+    seedStore("doc-1");
+    render(<DetailPanel />);
+    const vendorField = screen.getByText("Staples");
+    await userEvent.click(vendorField);
+    const input = screen.getByRole("textbox");
+    await userEvent.clear(input);
+    await userEvent.type(input, "Acme Corp");
+    await userEvent.keyboard("{Enter}");
+    expect(useDocumentStore.getState().documents["doc-1"].extraction?.fields["vendor"]).toBe("Acme Corp");
+  });
+
+  it("shows gold checkmark after save", async () => {
+    seedStore("doc-1");
+    render(<DetailPanel />);
+    const vendorField = screen.getByText("Staples");
+    await userEvent.click(vendorField);
+    const input = screen.getByRole("textbox");
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByLabelText("Sparad")).toBeInTheDocument();
+  });
 });

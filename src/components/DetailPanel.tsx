@@ -1,5 +1,6 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { useDocumentStore } from "../store/documentStore";
+import { InlineEdit } from "./InlineEdit";
 import { PipelineStepper } from "./PipelineStepper";
 import type { UiDocument, UiDocumentKind } from "../types/documents";
 
@@ -53,6 +54,29 @@ async function openInFinder(path: string): Promise<void> {
   } catch {
     // Not in Tauri context
   }
+}
+
+function InlineEditField({ documentId, fieldKey, value }: { documentId: string; fieldKey: string; value: string }) {
+  const updateExtractionField = useDocumentStore((state) => state.updateExtractionField);
+  const [saved, setSaved] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    return () => { clearTimeout(timerRef.current); };
+  }, []);
+
+  const handleSave = (newValue: string) => {
+    updateExtractionField(documentId, fieldKey, newValue);
+    setSaved(true);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setSaved(false), 1200);
+  };
+  return (
+    <span className={`inline-edit-field-wrapper ${saved ? "is-rippling" : ""}`}>
+      <InlineEdit value={value} onSave={handleSave} className="text-sm font-medium text-[var(--text-primary)]" />
+      {saved && <span className="inline-edit-saved" aria-label="Sparad">✓</span>}
+    </span>
+  );
 }
 
 const EMPTY_HISTORY: import("../store/documentStore").StageEntry[] = [];
@@ -169,9 +193,11 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
                   <p className="text-[11px] uppercase tracking-[0.06em] text-[var(--text-muted)]">
                     {key.replace(/_/g, " ")}
                   </p>
-                  <p className="mt-0.5 text-sm font-medium text-[var(--text-primary)]">
-                    {formatFieldValue(value)}
-                  </p>
+                  <InlineEditField
+                    documentId={document.id}
+                    fieldKey={key}
+                    value={formatFieldValue(value)}
+                  />
                 </div>
               ))}
             </div>
