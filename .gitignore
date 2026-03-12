@@ -15,3 +15,6 @@ server/logs/llm/*
 server/logs/validation/*
 !server/logs/llm/.gitkeep
 !server/logs/validation/.gitkeep
+
+# Worktrees
+.worktrees/
