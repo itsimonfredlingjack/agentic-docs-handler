@@ -541,6 +541,22 @@ input {
     border-color: rgba(17, 31, 58, 0.18);
     background: rgba(255, 255, 255, 0.92);
   }
+
+  /* ── GhostTyper cursor ────────────────────────────── */
+  .ghost-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    background: var(--accent-primary);
+    margin-left: 1px;
+    vertical-align: text-bottom;
+    animation: ghost-blink 0.6s step-end infinite;
+  }
+
+  @keyframes ghost-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
 }
 
 @keyframes toast-in {
