@@ -12,19 +12,24 @@ type SourceChip = {
 function statusLabel(status: ReturnType<typeof useSearch>["searchState"]["status"]): string {
   switch (status) {
     case "loading":
-      return "Searching";
+      return "Söker";
     case "ready":
-      return "Answer ready";
+      return "Svar klart";
     case "empty":
-      return "No hits";
+      return "Inga träffar";
     case "error":
-      return "Search error";
+      return "Sökfel";
     default:
-      return "Copilot";
+      return "AI-sök";
   }
 }
 
-export function SearchBar() {
+type SearchBarProps = {
+  activeFilterLabel: string;
+  onOpenFilters: () => void;
+};
+
+export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) {
   const documents = useDocumentStore((state) => state.documents);
   const { query, setQuery, searchState, clearSearch } = useSearch();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -73,26 +78,49 @@ export function SearchBar() {
 
   return (
     <section className="space-y-3">
-      <label className="glass-panel flex items-center gap-3 px-4 py-3">
-        <span className="text-base text-[var(--text-secondary)]">⌕</span>
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Ask your docs anything..."
-          aria-label="Search copilot"
-          className="focus-ring w-full bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
-        />
-        <span className="hidden rounded-xl border border-black/10 bg-white/55 px-2 py-1 font-mono text-[11px] text-[var(--text-secondary)] md:inline">
-          ⌘K
-        </span>
-      </label>
+      <div className="flex items-center gap-2.5">
+        <label className="command-panel flex min-h-14 flex-1 items-center gap-4 px-4 py-3">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-[var(--text-muted)]"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Fråga dina dokument..."
+            aria-label="Sök i dokument"
+            className="focus-ring w-full bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+          />
+          <span className="hidden rounded-xl border border-black/10 bg-white/60 px-2 py-1 font-mono text-[11px] text-[var(--text-secondary)] md:inline">
+            ⌘K · /
+          </span>
+        </label>
+        <button
+          type="button"
+          className="focus-ring action-secondary h-14 shrink-0 px-3 text-xs lg:hidden"
+          onClick={onOpenFilters}
+          aria-label="Öppna filter"
+        >
+          Filter: {activeFilterLabel}
+        </button>
+      </div>
 
       {showPanel ? (
         <div className="glass-panel space-y-3 px-4 py-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Search Copilot</p>
+              <p className="section-kicker">AI-sök</p>
               <span className="rounded-full border border-black/10 bg-white/45 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
                 {statusLabel(searchState.status)}
               </span>
@@ -101,7 +129,7 @@ export function SearchBar() {
               {searchState.status === "ready" && resultCount > 0 ? (
                 <button
                   type="button"
-                  className="focus-ring rounded-lg border border-black/10 bg-white/55 px-2.5 py-1 text-xs font-semibold text-[var(--text-secondary)] transition-colors hover:bg-white/70"
+                  className="focus-ring action-secondary px-2.5 py-1 text-xs"
                   onClick={() => {
                     document.getElementById("document-canvas")?.scrollIntoView({
                       behavior: "smooth",
@@ -109,41 +137,46 @@ export function SearchBar() {
                     });
                   }}
                 >
-                  Show matched docs ({resultCount})
+                  Visa träffar ({resultCount})
                 </button>
               ) : null}
               {hasQuery ? (
                 <button
                   type="button"
-                  className="focus-ring rounded-lg border border-black/10 bg-white/55 px-2.5 py-1 text-xs font-semibold text-[var(--text-secondary)] transition-colors hover:bg-white/70"
+                  className="focus-ring action-secondary px-2.5 py-1 text-xs"
                   onClick={clearSearch}
                 >
-                  Clear query
+                  Rensa
                 </button>
               ) : null}
             </div>
           </div>
 
-          <div className="rounded-2xl border border-black/5 bg-white/35 px-3.5 py-3">
+          <div className="control-card px-3.5 py-3">
             {searchState.status === "idle" && hasQuery ? (
-              <p className="text-sm leading-6 text-[var(--text-secondary)]">Preparing search...</p>
+              <p className="text-sm leading-6 text-[var(--text-secondary)]">Förbereder sökning...</p>
             ) : null}
             {searchState.status === "loading" ? (
-              <p className="text-sm leading-6 text-[var(--text-secondary)]">Scanning indexed documents for your query...</p>
+              <p className="text-sm leading-6 text-[var(--text-secondary)]">Söker i indexerade dokument...</p>
             ) : null}
             {searchState.status === "ready" ? (
               <p className="text-sm leading-6 text-[var(--text-primary)]">
-                {searchState.answer || `Found ${resultCount} matching documents.`}
+                {searchState.answer || `Hittade ${resultCount} matchande dokument.`}
               </p>
             ) : null}
             {searchState.status === "empty" ? (
               <p className="text-sm leading-6 text-[var(--text-secondary)]">
-                No matches for this query yet. Try a broader term or a different date/vendor keyword.
+                Inga matchningar ännu. Testa bredare sökord eller annan leverantör/datum.
               </p>
             ) : null}
             {searchState.status === "error" ? (
               <p className="text-sm leading-6 text-[var(--invoice-color)]">
-                Search is temporarily unavailable. {searchState.error ? `(${searchState.error})` : ""}
+                Söktjänsten är tillfälligt otillgänglig. {searchState.error ? `(${searchState.error})` : ""}
+              </p>
+            ) : null}
+            {searchState.rewrittenQuery && searchState.rewrittenQuery !== searchState.query ? (
+              <p className="mt-2 font-mono text-[11px] text-[var(--text-muted)]">
+                Omskriven fråga: {searchState.rewrittenQuery}
               </p>
             ) : null}
           </div>
@@ -155,7 +188,7 @@ export function SearchBar() {
                   key={`${chip.id}:${chip.title}`}
                   className={`glass-badge ${chip.indexedOnly ? "border-[rgba(255,159,10,0.24)] bg-[rgba(255,159,10,0.10)] text-[var(--meeting-color)]" : "bg-white/40 text-[var(--text-secondary)]"}`}
                 >
-                  {chip.indexedOnly ? "Indexed-only result" : "Source"}
+                  {chip.indexedOnly ? "Endast i index" : "Källa"}
                   {" · "}
                   {chip.title}
                 </span>

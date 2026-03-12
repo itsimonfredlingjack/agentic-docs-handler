@@ -335,6 +335,12 @@ input {
     border-left: 3px solid var(--meeting-color);
   }
 
+  .document-row--focused {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: -2px;
+    background: color-mix(in srgb, var(--accent-primary) 4%, var(--glass-bg-strong));
+  }
+
   .status-pill {
     display: inline-flex;
     align-items: center;

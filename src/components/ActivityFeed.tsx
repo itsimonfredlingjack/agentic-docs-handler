@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDocumentStore } from "../store/documentStore";
 import { DocumentRow } from "./DocumentRow";
 import { TimeGroupHeader } from "./TimeGroupHeader";
@@ -53,6 +53,73 @@ export function ActivityFeed() {
     [orderedDocs, now],
   );
 
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const feedRef = useRef<HTMLDivElement>(null);
+
+  // Reset focus when list changes
+  useEffect(() => {
+    setFocusedIndex(-1);
+  }, [orderedDocs.length, sidebarFilter]);
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      // Don't capture when typing in inputs
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") {
+        // But allow "/" to blur and focus search
+        if (e.key === "/") return;
+        return;
+      }
+
+      if (e.key === "/") {
+        e.preventDefault();
+        (document.querySelector<HTMLInputElement>('input[aria-label="Sök i dokument"]'))?.focus();
+        return;
+      }
+
+      if (orderedDocs.length === 0) return;
+
+      if (e.key === "ArrowDown" || e.key === "j") {
+        e.preventDefault();
+        setFocusedIndex((prev) => {
+          const next = Math.min(prev + 1, orderedDocs.length - 1);
+          scrollRowIntoView(next);
+          return next;
+        });
+        return;
+      }
+
+      if (e.key === "ArrowUp" || e.key === "k") {
+        e.preventDefault();
+        setFocusedIndex((prev) => {
+          const next = Math.max(prev - 1, 0);
+          scrollRowIntoView(next);
+          return next;
+        });
+        return;
+      }
+
+      if (e.key === "Enter" && focusedIndex >= 0 && focusedIndex < orderedDocs.length) {
+        e.preventDefault();
+        setSelectedDocument(orderedDocs[focusedIndex].id);
+        return;
+      }
+    },
+    [orderedDocs, focusedIndex, setSelectedDocument],
+  );
+
+  function scrollRowIntoView(index: number) {
+    const row = feedRef.current?.querySelectorAll('[data-testid="document-row"]')?.[index];
+    if (row && typeof row.scrollIntoView === "function") {
+      row.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+
   const useSearch = search.status === "ready" || search.status === "empty";
 
   if (orderedDocs.length === 0) {
@@ -85,28 +152,32 @@ export function ActivityFeed() {
         </p>
         <p className="font-mono text-[11px] text-[var(--text-muted)]">{orderedDocs.length}</p>
       </div>
-      <div className="activity-feed">
+      <div className="activity-feed" ref={feedRef}>
         {groups.map((group) => (
           <div key={group.label} className="activity-feed__group">
             <TimeGroupHeader label={group.label} />
             <div className="activity-feed__cards">
-              {group.items.map((doc) => (
-                <DocumentRow
-                  key={doc.id}
-                  document={doc}
-                  onSelect={() => setSelectedDocument(doc.id)}
-                  onRetry={
-                    doc.retryable
-                      ? () => void retryDocument(doc.requestId)
-                      : undefined
-                  }
-                  onUndo={
-                    doc.moveStatus === "moved" && doc.undoToken
-                      ? () => void undoDocument(doc)
-                      : undefined
-                  }
-                />
-              ))}
+              {group.items.map((doc) => {
+                const flatIndex = orderedDocs.indexOf(doc);
+                return (
+                  <DocumentRow
+                    key={doc.id}
+                    document={doc}
+                    focused={flatIndex === focusedIndex}
+                    onSelect={() => setSelectedDocument(doc.id)}
+                    onRetry={
+                      doc.retryable
+                        ? () => void retryDocument(doc.requestId)
+                        : undefined
+                    }
+                    onUndo={
+                      doc.moveStatus === "moved" && doc.undoToken
+                        ? () => void undoDocument(doc)
+                        : undefined
+                    }
+                  />
+                );
+              })}
             </div>
           </div>
         ))}

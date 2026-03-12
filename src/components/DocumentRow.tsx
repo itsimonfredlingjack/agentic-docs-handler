@@ -4,6 +4,7 @@ import type { UiDocument, UiDocumentKind } from "../types/documents";
 
 type Props = {
   document: UiDocument;
+  focused?: boolean;
   onSelect?: () => void;
   onRetry?: () => void;
   onUndo?: () => void;
@@ -26,7 +27,7 @@ function kindDotColor(kind: UiDocumentKind): string {
   }
 }
 
-export function DocumentRow({ document, onSelect, onRetry, onUndo }: Props) {
+export function DocumentRow({ document, focused, onSelect, onRetry, onUndo }: Props) {
   const userStatus = mapToUserStatus(document);
   const statusLabel = userStatusLabel(userStatus);
   const statusColor = userStatusColor(userStatus);
@@ -46,7 +47,7 @@ export function DocumentRow({ document, onSelect, onRetry, onUndo }: Props) {
 
   return (
     <div
-      className={`document-row animate-fade-in-up ${modifierClass}`}
+      className={`document-row animate-fade-in-up ${modifierClass} ${focused ? "document-row--focused" : ""}`}
       onClick={isClickable ? onSelect : undefined}
       role={isClickable ? "button" : undefined}
       tabIndex={isClickable ? 0 : undefined}

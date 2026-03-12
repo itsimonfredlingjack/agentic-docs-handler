@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { ActivityFeed } from "./ActivityFeed";
 import { useDocumentStore } from "../store/documentStore";
 
@@ -77,6 +77,18 @@ describe("ActivityFeed", () => {
     });
     render(<ActivityFeed />);
     expect(screen.getByText("Din digitala assistent vilar")).toBeInTheDocument();
+  });
+
+  it("focuses document row on ArrowDown keypress", () => {
+    useDocumentStore.setState({
+      documents: { "doc-1": mockDoc },
+      documentOrder: ["doc-1"],
+      stageHistory: {},
+    });
+    render(<ActivityFeed />);
+    fireEvent.keyDown(window, { key: "ArrowDown" });
+    const row = screen.getByTestId("document-row");
+    expect(row.className).toContain("document-row--focused");
   });
 
   it("excludes processing documents from feed", () => {
