@@ -72,6 +72,7 @@ describe("documentStore", () => {
       toasts: [],
       uploadsByRequestId: {},
       pendingMoveStateByRecordId: {},
+      stageHistory: {},
     });
   });
 
@@ -239,3 +240,92 @@ function stateCounts() {
     moved: 0,
   };
 }
+
+describe("stageHistory", () => {
+  beforeEach(() => {
+    useDocumentStore.setState({
+      documents: {},
+      documentOrder: [],
+      stageHistory: {},
+    });
+  });
+
+  it("records timestamp when a job stage is marked", () => {
+    const store = useDocumentStore.getState();
+    store.upsertDocument({
+      id: "doc-1",
+      requestId: "req-1",
+      title: "test.pdf",
+      status: "uploading",
+    } as any);
+
+    store.markJobStage("req-1", "classifying");
+
+    const history = useDocumentStore.getState().stageHistory["req-1"];
+    expect(history).toBeDefined();
+    expect(history.length).toBeGreaterThanOrEqual(1);
+    expect(history[0].stage).toBe("classifying");
+    expect(typeof history[0].at).toBe("number");
+  });
+
+  it("appends stages in order", () => {
+    const store = useDocumentStore.getState();
+    store.upsertDocument({
+      id: "doc-1",
+      requestId: "req-1",
+      title: "test.pdf",
+      status: "uploading",
+    } as any);
+
+    store.markJobStage("req-1", "classifying");
+    store.markJobStage("req-1", "extracting");
+    store.markJobStage("req-1", "organizing");
+
+    const history = useDocumentStore.getState().stageHistory["req-1"];
+    expect(history.map((h: any) => h.stage)).toEqual([
+      "classifying",
+      "extracting",
+      "organizing",
+    ]);
+  });
+
+  it("records initial stage on queueUploads", () => {
+    const store = useDocumentStore.getState();
+    store.queueUploads([
+      {
+        id: "doc-1",
+        requestId: "req-1",
+        title: "test.pdf",
+        status: "uploading",
+      } as any,
+    ]);
+
+    const history = useDocumentStore.getState().stageHistory["req-1"];
+    expect(history).toBeDefined();
+    expect(history[0].stage).toBe("uploading");
+  });
+
+  it("computes totalDuration from first to last stage", () => {
+    const store = useDocumentStore.getState();
+    store.upsertDocument({
+      id: "doc-1",
+      requestId: "req-1",
+      title: "test.pdf",
+      status: "uploading",
+    } as any);
+
+    useDocumentStore.setState({
+      stageHistory: {
+        "req-1": [
+          { stage: "uploading", at: 1000 },
+          { stage: "classifying", at: 3000 },
+          { stage: "completed", at: 8000 },
+        ],
+      },
+    });
+
+    const history = useDocumentStore.getState().stageHistory["req-1"];
+    const totalMs = history[history.length - 1].at - history[0].at;
+    expect(totalMs).toBe(7000);
+  });
+});

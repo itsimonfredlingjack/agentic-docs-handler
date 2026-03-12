@@ -25,6 +25,8 @@ type PendingMoveUiState = {
   error: string | null;
 };
 
+export type StageEntry = { stage: string; at: number };
+
 type DocumentStoreState = {
   clientId: string | null;
   connectionState: ConnectionState;
@@ -38,6 +40,7 @@ type DocumentStoreState = {
   uploadsByRequestId: Record<string, UploadMemory>;
   pendingMoveStateByRecordId: Record<string, PendingMoveUiState>;
   selectedDocumentId: string | null;
+  stageHistory: Record<string, StageEntry[]>;
   setSelectedDocument: (id: string | null) => void;
   bootstrap: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
   resyncFromBackend: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
@@ -106,6 +109,7 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
   uploadsByRequestId: {},
   pendingMoveStateByRecordId: {},
   selectedDocumentId: null,
+  stageHistory: {},
   setSelectedDocument: (id) => set({ selectedDocumentId: id }),
   bootstrap: (documents, counts, activity) =>
     set({
@@ -114,6 +118,7 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
       counts,
       activity,
       pendingMoveStateByRecordId: {},
+      stageHistory: {},
     }),
   resyncFromBackend: (documents, counts, activity) =>
     set({
@@ -122,6 +127,7 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
       counts,
       activity,
       pendingMoveStateByRecordId: {},
+      stageHistory: {},
     }),
   setClientId: (clientId) => set({ clientId }),
   setConnectionState: (connectionState) => set({ connectionState }),
@@ -129,13 +135,17 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
     set((state) => {
       const documents = { ...state.documents };
       let documentOrder = [...state.documentOrder];
+      const stageHistory = { ...state.stageHistory };
+      const now = Date.now();
       for (const job of localJobs) {
         documents[job.id] = job;
         documentOrder = upsertOrder(documentOrder, job.id);
+        stageHistory[job.requestId] = [{ stage: "uploading", at: now }];
       }
       return {
         documents,
         documentOrder,
+        stageHistory,
         counts: {
           ...state.counts,
           all: state.counts.all + localJobs.length,
@@ -168,7 +178,14 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
         status: stage,
         updatedAt: new Date().toISOString(),
       };
-      return { documents };
+      const prev = state.stageHistory[requestId] ?? [];
+      return {
+        documents,
+        stageHistory: {
+          ...state.stageHistory,
+          [requestId]: [...prev, { stage, at: Date.now() }],
+        },
+      };
     }),
   upsertDocument: (document) =>
     set((state) => {
@@ -183,7 +200,14 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
       }
       documents[document.id] = document;
       documentOrder = upsertOrder(documentOrder, document.id);
-      return { documents, documentOrder };
+      const stageHistory = { ...state.stageHistory };
+      if (
+        document.status === "completed" &&
+        !stageHistory[document.requestId]?.length
+      ) {
+        stageHistory[document.requestId] = [{ stage: "completed", at: Date.now() }];
+      }
+      return { documents, documentOrder, stageHistory };
     }),
   markJobFailed: (requestId, error, errorCode = null) =>
     set((state) => {
