@@ -109,6 +109,23 @@ describe("ProcessingRail", () => {
     expect(container.querySelector(".processing-bar")).not.toBeNull();
   });
 
+  it("applies document-type CSS class after classification", () => {
+    const doc = makeDoc({ status: "classified", kind: "receipt" });
+    seedStore([doc]);
+    const { container } = render(<ProcessingRail />);
+    const card = container.querySelector("[data-testid='rail-card']");
+    expect(card?.classList.contains("rail-card--receipt")).toBe(true);
+  });
+
+  it("applies unclassified class during early processing", () => {
+    const doc = makeDoc({ status: "processing", kind: "invoice" });
+    seedStore([doc]);
+    const { container } = render(<ProcessingRail />);
+    const card = container.querySelector("[data-testid='rail-card']");
+    expect(card?.classList.contains("rail-card--unclassified")).toBe(true);
+    expect(card?.classList.contains("rail-card--invoice")).toBe(false);
+  });
+
   it("shows completion receipt for recently-completed document", () => {
     const processingDoc = makeDoc({ status: "classifying", title: "faktura.pdf" });
     useDocumentStore.setState({

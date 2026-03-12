@@ -454,6 +454,49 @@ input {
     animation: scan-line 1.5s ease-in-out infinite;
   }
 
+  /* ── Metamorfos card shapes ──────────────── */
+  .rail-card--receipt {
+    min-width: 160px;
+    max-width: 180px;
+    min-height: 140px;
+    border-radius: 4px 4px 12px 12px;
+    border-top: 2px dashed var(--receipt-color);
+    transition: all var(--transition-smooth);
+  }
+
+  .rail-card--invoice {
+    min-width: 220px;
+    border-left: 3px solid var(--accent-primary);
+    transition: all var(--transition-smooth);
+  }
+
+  .rail-card--contract {
+    min-width: 240px;
+    border: 1px solid var(--glass-line);
+    border-bottom: 3px double var(--contract-color);
+    background: linear-gradient(
+      180deg,
+      var(--glass-bg-strong) 0%,
+      color-mix(in srgb, var(--contract-color) 4%, var(--glass-bg-strong)) 100%
+    );
+    transition: all var(--transition-smooth);
+  }
+
+  .rail-card--meeting_notes,
+  .rail-card--audio {
+    min-width: 200px;
+    border-radius: 16px;
+    transition: all var(--transition-smooth);
+  }
+
+  .rail-card--generic {
+    transition: all var(--transition-smooth);
+  }
+
+  .rail-card--unclassified {
+    animation: morph-pulse 1.5s ease-in-out infinite;
+  }
+
   .command-panel {
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.82);
@@ -767,6 +810,12 @@ input {
     opacity: 0;
     transform: translateY(8px) scale(0.97);
   }
+}
+
+@keyframes morph-pulse {
+  0%, 100% { border-color: var(--glass-line); }
+  33% { border-color: var(--receipt-color); }
+  66% { border-color: var(--accent-primary); }
 }
 
 /* ── Activity Feed ────────────────────────────────── */

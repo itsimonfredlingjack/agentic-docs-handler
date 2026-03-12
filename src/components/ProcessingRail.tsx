@@ -41,6 +41,8 @@ const STAGE_LABELS: Record<string, string> = {
 
 const WAVEFORM_HEIGHTS = [40, 70, 55, 80, 60];
 
+const PRE_CLASSIFICATION_STAGES = new Set(["queued", "uploading", "processing", "transcribing"]);
+
 function resolveMiniStage(raw: string): string {
   return ACTIVE_STAGE_MAP[raw] ?? raw;
 }
@@ -109,9 +111,11 @@ function ModalityAnimation({ doc }: { doc: UiDocument }) {
 
 function RailCard({ doc }: { doc: UiDocument }) {
   const stageLabel = STAGE_LABELS[doc.status] ?? doc.status;
+  const isClassified = !PRE_CLASSIFICATION_STAGES.has(doc.status);
+  const shapeClass = isClassified ? `rail-card--${doc.kind}` : "rail-card--unclassified";
 
   return (
-    <div className="rail-card" data-testid="rail-card">
+    <div className={`rail-card ${shapeClass}`} data-testid="rail-card">
       <div className="rail-card__title">{doc.title}</div>
       <div className="rail-card__stage">{stageLabel}</div>
       <MiniStepper currentStage={doc.status} />
