@@ -17,6 +17,7 @@ export function mapToUserStatus(doc: UiDocument): UserStatus {
     case "classifying":
     case "classified":
     case "extracting":
+    case "extracted":
     case "organizing":
     case "indexing":
       return "bearbetas";
