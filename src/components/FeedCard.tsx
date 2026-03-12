@@ -75,7 +75,7 @@ export function FeedCard({ document, history, onSelect, onRetry }: Props) {
 
   return (
     <div
-      className={`feed-card ${isProcessing ? "feed-card--processing" : ""} ${isFailed ? "feed-card--failed" : ""}`}
+      className={`feed-card animate-fade-in-up ${isProcessing ? "feed-card--processing" : ""} ${isFailed ? "feed-card--failed" : ""}`}
       onClick={isTerminal ? onSelect : undefined}
       role={isTerminal ? "button" : undefined}
       tabIndex={isTerminal ? 0 : undefined}

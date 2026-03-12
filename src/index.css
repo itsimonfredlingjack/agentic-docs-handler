@@ -701,6 +701,20 @@ input {
   gap: 10px;
 }
 
+@media (max-width: 480px) {
+  .pipeline-stepper__label {
+    font-size: 9px;
+  }
+
+  .feed-card {
+    padding: 12px;
+  }
+
+  .feed-card__title {
+    font-size: 13px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
