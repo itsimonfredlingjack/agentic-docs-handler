@@ -1,8 +1,7 @@
-import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { mapProcessResponseToUiDocument } from "./document-mappers";
-import { GenericDocument } from "../templates/GenericDocument";
+import { getKeyLine, isInternalPipelineFlag } from "./status";
 import type { ProcessResponse, UiDocument } from "../types/documents";
 
 describe("document mappers", () => {
@@ -66,8 +65,8 @@ describe("document mappers", () => {
   });
 });
 
-describe("GenericDocument", () => {
-  it("does not render internal debug labels and shows unknown badge for fallback", () => {
+describe("getKeyLine", () => {
+  it("returns key info for a generic document with extraction fields", () => {
     const document: UiDocument = {
       id: "doc-1",
       requestId: "req-1",
@@ -92,7 +91,7 @@ describe("GenericDocument", () => {
         ocr_text: null,
         suggested_actions: [],
       },
-      extraction: null,
+      extraction: { fields: { name: "Test", org: "Corp" }, field_confidence: {}, missing_fields: [] },
       transcription: null,
       movePlan: null,
       moveResult: null,
@@ -101,19 +100,21 @@ describe("GenericDocument", () => {
       undoToken: null,
       retryable: false,
       errorCode: null,
-      warnings: ["classifier_invalid_json_fallback", "User warning"],
+      warnings: [],
       moveStatus: "not_requested",
-      diagnostics: {
-        pipeline_flags: ["classifier_invalid_json_fallback"],
-        classifier_raw_response_path: "/tmp/raw-response.json",
-        fallback_reason: "classifier_invalid_json",
-      },
+      diagnostics: null,
     };
 
-    render(<GenericDocument document={document} />);
+    expect(getKeyLine(document)).toBe("Test · Corp");
+  });
+});
 
-    expect(screen.getByText("unknown")).toBeInTheDocument();
-    expect(screen.queryByText("classifier_invalid_json_fallback")).not.toBeInTheDocument();
-    expect(screen.getByText("User warning")).toBeInTheDocument();
+describe("isInternalPipelineFlag", () => {
+  it("identifies classifier_ prefixed flags", () => {
+    expect(isInternalPipelineFlag("classifier_invalid_json_fallback")).toBe(true);
+  });
+
+  it("passes through user-facing warnings", () => {
+    expect(isInternalPipelineFlag("User warning")).toBe(false);
   });
 });

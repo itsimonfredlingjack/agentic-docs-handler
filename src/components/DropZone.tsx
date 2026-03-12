@@ -118,62 +118,47 @@ export function DropZone() {
   };
 
   return (
-    <section className="space-y-4">
-      <article className="glass-panel p-4">
-        <div className="mb-3">
-          <p className="section-kicker">Inmatning</p>
-          <h2 className="mt-1 section-heading">Lägg till dokument</h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-            Dra in filer eller välj manuellt. Systemet klassificerar, extraherar och föreslår sortering.
-          </p>
-        </div>
-        <div
-          className={`control-card rounded-[16px] border border-dashed px-4 py-8 text-center transition-all duration-300 ease-out ${
-            isHovered
-              ? "border-[var(--accent-primary)] bg-[var(--accent-surface)] scale-[1.02] shadow-xl"
-              : "border-[rgba(17,31,58,0.2)]"
-          }`}
-          onDragOver={(event) => {
-            event.preventDefault();
-            setHovered(true);
-          }}
-          onDragLeave={(event) => {
-            event.preventDefault();
-            setHovered(false);
-          }}
-          onDrop={(event) => {
-            event.preventDefault();
-            setHovered(false);
-            void submitFiles(Array.from(event.dataTransfer.files));
-          }}
+    <div
+      className={`upload-bar ${isHovered ? "upload-bar--active" : ""}`}
+      onDragOver={(event) => {
+        event.preventDefault();
+        setHovered(true);
+      }}
+      onDragLeave={(event) => {
+        event.preventDefault();
+        setHovered(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        setHovered(false);
+        void submitFiles(Array.from(event.dataTransfer.files));
+      }}
+    >
+      <span className="text-lg text-[var(--accent-primary)]">↑</span>
+      <span className="flex-1 text-sm text-[var(--text-secondary)]">
+        {isHovered ? "Släpp filer här" : "Dra in filer eller"}
+      </span>
+      {!isHovered && (
+        <button
+          type="button"
+          className="focus-ring action-primary px-3 py-1.5 text-xs"
+          onClick={() => fileInputRef.current?.click()}
         >
-          <p className="text-2xl text-[var(--accent-primary)]">↑</p>
-          <h3 className="mt-3 text-base font-semibold text-[var(--text-primary)]">Släpp filer här</h3>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">Stöd för PDF, DOCX, bilder och ljud.</p>
-          <p className="mt-3 font-mono text-[11px] text-[var(--text-muted)]">.pdf · .docx · .jpg · .png · .wav · .mp3</p>
-          <div className="mt-4 flex justify-center">
-            <button
-              type="button"
-              className="focus-ring action-primary px-4 py-2 text-sm"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              Välj filer
-            </button>
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="hidden"
-            multiple
-            onChange={(event) => {
-              const fileList = event.target.files ? Array.from(event.target.files) : [];
-              void submitFiles(fileList);
-              event.currentTarget.value = "";
-            }}
-          />
-        </div>
-      </article>
-    </section>
+          Välj filer
+        </button>
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        multiple
+        onChange={(event) => {
+          const fileList = event.target.files ? Array.from(event.target.files) : [];
+          void submitFiles(fileList);
+          event.currentTarget.value = "";
+        }}
+      />
+    </div>
   );
 }
 

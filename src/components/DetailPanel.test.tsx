@@ -76,7 +76,7 @@ describe("DetailPanel", () => {
   it("is hidden when no document is selected", () => {
     seedStore(null);
     render(<DetailPanel />);
-    expect(screen.queryByRole("dialog", { name: "Document details" })).not.toHaveClass(
+    expect(screen.queryByRole("dialog", { name: "Dokumentdetaljer" })).not.toHaveClass(
       "detail-panel--open",
     );
   });
@@ -84,7 +84,7 @@ describe("DetailPanel", () => {
   it("opens when selectedDocumentId is set", () => {
     seedStore("doc-1");
     render(<DetailPanel />);
-    expect(screen.getByRole("dialog", { name: "Document details" })).toHaveClass(
+    expect(screen.getByRole("dialog", { name: "Dokumentdetaljer" })).toHaveClass(
       "detail-panel--open",
     );
   });
@@ -101,7 +101,7 @@ describe("DetailPanel", () => {
   it("closes on Escape key", async () => {
     seedStore("doc-1");
     render(<DetailPanel />);
-    expect(screen.getByRole("dialog", { name: "Document details" })).toHaveClass(
+    expect(screen.getByRole("dialog", { name: "Dokumentdetaljer" })).toHaveClass(
       "detail-panel--open",
     );
     await userEvent.keyboard("{Escape}");
@@ -111,7 +111,7 @@ describe("DetailPanel", () => {
   it("closes on close button click", async () => {
     seedStore("doc-1");
     render(<DetailPanel />);
-    await userEvent.click(screen.getByRole("button", { name: "Close detail panel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Stäng detaljpanel" }));
     expect(useDocumentStore.getState().selectedDocumentId).toBeNull();
   });
 });
