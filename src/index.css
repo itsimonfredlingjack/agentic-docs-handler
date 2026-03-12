@@ -497,6 +497,30 @@ input {
     animation: morph-pulse 1.5s ease-in-out infinite;
   }
 
+  /* ── Inline edit ──────────────────────────── */
+  .inline-edit {
+    cursor: pointer;
+    border-bottom: 1px dashed transparent;
+    transition: border-color var(--transition-fast);
+    padding: 1px 2px;
+    border-radius: 3px;
+  }
+
+  .inline-edit:hover {
+    border-bottom-color: var(--accent-primary);
+    background: color-mix(in srgb, var(--accent-primary) 5%, transparent);
+  }
+
+  .inline-edit--active {
+    background: var(--glass-bg-strong);
+    border: 1px solid var(--accent-primary);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font: inherit;
+    color: inherit;
+    outline: none;
+  }
+
   .command-panel {
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.82);
