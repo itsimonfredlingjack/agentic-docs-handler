@@ -305,6 +305,13 @@ input {
     cursor: pointer;
   }
 
+  .document-row[role="button"]:hover {
+    background: linear-gradient(160deg, rgba(var(--type-color-rgb), 0.06), transparent 60%);
+    border-color: rgba(var(--type-color-rgb), 0.12);
+    border-left: 2px solid rgba(var(--type-color-rgb), 0.5);
+    box-shadow: inset 0 1px 0 rgba(var(--type-color-rgb), 0.08), 0 6px 20px rgba(0, 0, 0, 0.2);
+  }
+
   .document-row[role="button"]:focus-visible {
     outline: 2px solid var(--accent-primary);
     outline-offset: 2px;
@@ -319,9 +326,12 @@ input {
   }
 
   .document-row--focused {
+    background: linear-gradient(160deg, rgba(var(--type-color-rgb), 0.06), transparent 60%);
+    border-color: rgba(var(--type-color-rgb), 0.12);
+    border-left: 2px solid rgba(var(--type-color-rgb), 0.5);
+    box-shadow: inset 0 1px 0 rgba(var(--type-color-rgb), 0.08);
     outline: 2px solid var(--accent-primary);
     outline-offset: -2px;
-    background: color-mix(in srgb, var(--accent-primary) 4%, var(--glass-bg-strong));
   }
 
   .status-pill {

@@ -10,6 +10,17 @@ type Props = {
   onUndo?: () => void;
 };
 
+function kindRgbVar(kind: UiDocumentKind): string {
+  const map: Record<string, string> = {
+    receipt: "--receipt-color-rgb",
+    contract: "--contract-color-rgb",
+    invoice: "--invoice-color-rgb",
+    meeting_notes: "--meeting-color-rgb",
+    audio: "--audio-color-rgb",
+  };
+  return map[kind] ?? "--report-color-rgb";
+}
+
 function kindDotColor(kind: UiDocumentKind): string {
   switch (kind) {
     case "receipt":
@@ -48,6 +59,7 @@ export function DocumentRow({ document, focused, onSelect, onRetry, onUndo }: Pr
   return (
     <div
       className={`document-row animate-fade-in-up ${modifierClass} ${focused ? "document-row--focused" : ""}`}
+      style={{ "--type-color-rgb": `var(${kindRgbVar(document.kind)})` } as React.CSSProperties}
       onClick={isClickable ? onSelect : undefined}
       role={isClickable ? "button" : undefined}
       tabIndex={isClickable ? 0 : undefined}
