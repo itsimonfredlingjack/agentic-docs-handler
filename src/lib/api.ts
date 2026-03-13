@@ -9,6 +9,8 @@ import type {
     SearchResponse,
     UiDocument,
     UndoMoveResponse,
+    WorkspaceCategory,
+    WorkspaceChatEvent,
 } from "../types/documents";
 import { mapRegistryRecordToUiDocument } from "./document-mappers";
 import { getBackendBaseUrl } from "./tauri-events";
@@ -134,4 +136,50 @@ export async function completeClientUndo(args: {
       error: args.result.error ?? null,
     }),
   });
+}
+
+export async function fetchWorkspaceCategories(): Promise<{ categories: WorkspaceCategory[] }> {
+  return fetchJson("/workspace/categories");
+}
+
+export async function* streamWorkspaceChat(
+  category: string,
+  message: string,
+  history: Array<{ role: string; content: string }>,
+): AsyncGenerator<WorkspaceChatEvent> {
+  const baseUrl = await resolveBaseUrl();
+  const response = await fetch(`${baseUrl}/workspace/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ category, message, history }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`workspace/chat: ${response.status}`);
+  }
+
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop()!;
+
+    for (const part of parts) {
+      let eventType = "";
+      let dataStr = "";
+      for (const line of part.split("\n")) {
+        if (line.startsWith("event: ")) eventType = line.slice(7);
+        else if (line.startsWith("data: ")) dataStr = line.slice(6);
+      }
+      if (eventType && dataStr) {
+        yield { type: eventType, data: JSON.parse(dataStr) } as WorkspaceChatEvent;
+      }
+    }
+  }
 }

@@ -366,3 +366,31 @@ export type SearchState = {
   resultIds: string[];
   orphanResults: SearchResult[];
 };
+
+export type ViewMode = "activity" | "workspaces";
+
+export type WorkspaceCategory = {
+  category: string;
+  count: number;
+  label: string;
+};
+
+export type NotebookEntry = {
+  id: string;
+  query: string;
+  response: string;
+  timestamp: string;
+  sourceCount: number;
+};
+
+export type WorkspaceConversation = {
+  entries: NotebookEntry[];
+  isStreaming: boolean;
+  streamingText: string;
+};
+
+export type WorkspaceChatEvent =
+  | { type: "context"; data: { source_count: number } }
+  | { type: "token"; data: { text: string } }
+  | { type: "done"; data: Record<string, never> }
+  | { type: "error"; data: { error: string } };

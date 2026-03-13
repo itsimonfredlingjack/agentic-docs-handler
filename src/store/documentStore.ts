@@ -16,6 +16,9 @@ import type {
   UiDocument,
   UiDocumentKind,
   UndoMoveResponse,
+  ViewMode,
+  WorkspaceCategory,
+  WorkspaceConversation,
 } from "../types/documents";
 
 type UploadMemory = {
@@ -44,6 +47,10 @@ type DocumentStoreState = {
   pendingMoveStateByRecordId: Record<string, PendingMoveUiState>;
   selectedDocumentId: string | null;
   stageHistory: Record<string, StageEntry[]>;
+  viewMode: ViewMode;
+  activeWorkspace: string | null;
+  workspaceCategories: WorkspaceCategory[];
+  conversations: Record<string, WorkspaceConversation>;
   setSelectedDocument: (id: string | null) => void;
   bootstrap: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
   resyncFromBackend: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
@@ -73,6 +80,12 @@ type DocumentStoreState = {
   updateConnectionFromPayload: (payload: BackendConnectionPayload) => void;
   updateExtractionField: (documentId: string, fieldKey: string, newValue: string) => void;
   setDocumentThumbnail: (requestId: string, thumbnailData: string) => void;
+  setViewMode: (mode: ViewMode) => void;
+  setActiveWorkspace: (category: string | null) => void;
+  setWorkspaceCategories: (categories: WorkspaceCategory[]) => void;
+  startWorkspaceQuery: (category: string, query: string) => void;
+  appendStreamingToken: (category: string, token: string) => void;
+  finalizeStreamingEntry: (category: string, sourceCount: number) => void;
 };
 
 const emptyCounts: DocumentCounts = {
@@ -115,6 +128,10 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
   pendingMoveStateByRecordId: {},
   selectedDocumentId: null,
   stageHistory: {},
+  viewMode: "activity",
+  activeWorkspace: null,
+  workspaceCategories: [],
+  conversations: {},
   setSelectedDocument: (id) => set({ selectedDocumentId: id }),
   bootstrap: (documents, counts, activity) =>
     set({
@@ -442,5 +459,60 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
       if (!target) return state;
       docs[target.id] = { ...target, thumbnailData };
       return { documents: docs };
+    }),
+  setViewMode: (mode) => set({ viewMode: mode }),
+  setActiveWorkspace: (category) => set({ activeWorkspace: category }),
+  setWorkspaceCategories: (categories) => set({ workspaceCategories: categories }),
+  startWorkspaceQuery: (category, query) =>
+    set((state) => {
+      const conv = state.conversations[category] ?? { entries: [], isStreaming: false, streamingText: "" };
+      return {
+        conversations: {
+          ...state.conversations,
+          [category]: {
+            entries: [
+              ...conv.entries,
+              {
+                id: crypto.randomUUID(),
+                query,
+                response: "",
+                timestamp: new Date().toISOString(),
+                sourceCount: 0,
+              },
+            ],
+            isStreaming: true,
+            streamingText: "",
+          },
+        },
+      };
+    }),
+  appendStreamingToken: (category, token) =>
+    set((state) => {
+      const conv = state.conversations[category];
+      if (!conv) return state;
+      return {
+        conversations: {
+          ...state.conversations,
+          [category]: { ...conv, streamingText: conv.streamingText + token },
+        },
+      };
+    }),
+  finalizeStreamingEntry: (category, sourceCount) =>
+    set((state) => {
+      const conv = state.conversations[category];
+      if (!conv || conv.entries.length === 0) return state;
+      const entries = [...conv.entries];
+      const last = { ...entries[entries.length - 1], response: conv.streamingText, sourceCount };
+      entries[entries.length - 1] = last;
+      return {
+        conversations: {
+          ...state.conversations,
+          [category]: {
+            entries,
+            isStreaming: false,
+            streamingText: "",
+          },
+        },
+      };
     }),
 }));

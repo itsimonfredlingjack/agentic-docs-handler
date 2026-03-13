@@ -73,6 +73,10 @@ describe("documentStore", () => {
       uploadsByRequestId: {},
       pendingMoveStateByRecordId: {},
       stageHistory: {},
+      viewMode: "activity",
+      activeWorkspace: null,
+      workspaceCategories: [],
+      conversations: {},
     });
   });
 
@@ -375,5 +379,59 @@ describe("stageHistory", () => {
     const history = useDocumentStore.getState().stageHistory["req-1"];
     const totalMs = history[history.length - 1].at - history[0].at;
     expect(totalMs).toBe(7000);
+  });
+});
+
+describe("workspace state", () => {
+  beforeEach(() => {
+    useDocumentStore.setState({
+      viewMode: "activity",
+      activeWorkspace: null,
+      workspaceCategories: [],
+      conversations: {},
+    });
+  });
+
+  it("sets view mode", () => {
+    const store = useDocumentStore.getState();
+    store.setViewMode("workspaces");
+    expect(useDocumentStore.getState().viewMode).toBe("workspaces");
+  });
+
+  it("sets active workspace", () => {
+    const store = useDocumentStore.getState();
+    store.setActiveWorkspace("receipt");
+    expect(useDocumentStore.getState().activeWorkspace).toBe("receipt");
+  });
+
+  it("starts workspace query and creates entry", () => {
+    const store = useDocumentStore.getState();
+    store.startWorkspaceQuery("receipt", "Vad är momsen?");
+    const conv = useDocumentStore.getState().conversations.receipt;
+    expect(conv.entries).toHaveLength(1);
+    expect(conv.entries[0].query).toBe("Vad är momsen?");
+    expect(conv.isStreaming).toBe(true);
+    expect(conv.streamingText).toBe("");
+  });
+
+  it("appends streaming tokens to conversation", () => {
+    const store = useDocumentStore.getState();
+    store.startWorkspaceQuery("receipt", "Vad är momsen?");
+    store.appendStreamingToken("receipt", "Totalt");
+    store.appendStreamingToken("receipt", " 500 kr");
+    const conv = useDocumentStore.getState().conversations.receipt;
+    expect(conv.streamingText).toBe("Totalt 500 kr");
+  });
+
+  it("finalizes streaming entry with response and source count", () => {
+    const store = useDocumentStore.getState();
+    store.startWorkspaceQuery("receipt", "Vad är momsen?");
+    store.appendStreamingToken("receipt", "Svaret är 500 kr");
+    store.finalizeStreamingEntry("receipt", 5);
+    const conv = useDocumentStore.getState().conversations.receipt;
+    expect(conv.isStreaming).toBe(false);
+    expect(conv.streamingText).toBe("");
+    expect(conv.entries[0].response).toBe("Svaret är 500 kr");
+    expect(conv.entries[0].sourceCount).toBe(5);
   });
 });
