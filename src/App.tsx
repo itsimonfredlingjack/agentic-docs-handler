@@ -55,7 +55,7 @@ export default function App() {
   }, [bootstrap, setClientId]);
 
   return (
-    <div className="min-h-screen text-[var(--text-primary)]" style={{ background: '#0a0a0f' }}>
+    <div className="min-h-screen text-[var(--text-primary)]" style={{ background: '#111118' }}>
       <div className="mx-auto flex min-h-screen max-w-[1720px] gap-3 p-3">
         <div className="hidden shrink-0 lg:block">
           <Sidebar />
