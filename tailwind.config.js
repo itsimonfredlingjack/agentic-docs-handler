@@ -4,8 +4,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        body: ["var(--font-body)"],
-        mono: ["var(--font-mono)"],
+        body: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ["'JetBrains Mono'", 'monospace'],
       },
       boxShadow: {
         glass: "var(--glass-shadow)",

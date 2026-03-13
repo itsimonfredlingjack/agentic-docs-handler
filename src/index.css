@@ -9,24 +9,20 @@
   --card-radius: 16px;
   --badge-radius: 8px;
   --button-radius: 10px;
-  --glass-bg: rgba(255, 255, 255, 0.82);
-  --glass-bg-strong: rgba(255, 255, 255, 0.95);
-  --glass-bg-hover: rgba(255, 255, 255, 0.88);
-  --glass-subtle: rgba(255, 255, 255, 0.45);
-  --glass-border: rgba(255, 255, 255, 0.45);
-  --glass-line: rgba(18, 30, 52, 0.08);
-  --glass-blur: blur(16px) saturate(1.4);
-  --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --glass-shadow-hover: 0 12px 42px rgba(8, 22, 46, 0.12), 0 1px 3px rgba(8, 22, 46, 0.06);
-  --bg-gradient: radial-gradient(at 0% 0%, #f7f3e8 0%, transparent 50%),
-    radial-gradient(at 100% 0%, #edf3fb 0%, transparent 50%),
-    radial-gradient(at 100% 100%, #e4eef5 0%, transparent 50%),
-    radial-gradient(at 0% 100%, #f4ece4 0%, transparent 50%),
-    #edf1f7;
-  --text-primary: #0f1520;
-  --text-secondary: #1e2a3e;
-  --text-muted: #667187;
-  --text-disabled: #98a0af;
+  --glass-bg: rgba(0, 0, 0, 0.4);
+  --glass-bg-strong: rgba(0, 0, 0, 0.5);
+  --glass-bg-hover: rgba(0, 0, 0, 0.55);
+  --glass-subtle: rgba(255, 255, 255, 0.04);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-line: rgba(255, 255, 255, 0.06);
+  --glass-blur: blur(20px);
+  --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --glass-shadow-hover: 0 12px 42px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --bg-gradient: #0a0a0f;
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-muted: rgba(255, 255, 255, 0.35);
+  --text-disabled: rgba(255, 255, 255, 0.2);
   --accent-gradient: linear-gradient(135deg, #5856d6, #af52de);
   --accent-primary: #5856d6;
   --accent-secondary: #4846c6;
@@ -37,6 +33,12 @@
   --meeting-color: #ff9f0a;
   --report-color: #8e8e93;
   --audio-color: #30b0c7;
+  --receipt-color-rgb: 52, 199, 89;
+  --contract-color-rgb: 88, 86, 214;
+  --invoice-color-rgb: 255, 55, 95;
+  --meeting-color-rgb: 255, 159, 10;
+  --report-color-rgb: 142, 142, 147;
+  --audio-color-rgb: 48, 176, 199;
   --success-surface: rgba(52, 199, 89, 0.1);
   --warning-surface: rgba(255, 159, 10, 0.1);
   --danger-surface: rgba(255, 55, 95, 0.1);
@@ -44,8 +46,8 @@
   --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-smooth: 300ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slide: 350ms cubic-bezier(0.4, 0, 0.2, 1);
-  --font-body: "SF Pro Display", -apple-system, "Helvetica Neue", sans-serif;
-  --font-mono: "SF Mono", "Menlo", "Consolas", monospace;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
 html,
@@ -57,9 +59,7 @@ body,
 body {
   margin: 0;
   font-family: var(--font-body);
-  background: var(--bg-gradient);
-  background-size: 200% 200%;
-  animation: mesh 20s ease infinite;
+  background: #0a0a0f;
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -69,12 +69,6 @@ body {
 button,
 input {
   font: inherit;
-}
-
-@keyframes mesh {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
 }
 
 @keyframes float {
