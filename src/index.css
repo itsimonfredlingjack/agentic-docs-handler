@@ -112,6 +112,27 @@ input {
   }
 }
 
+/* HUD spring: glass panel locks into place with physical overshoot */
+@keyframes hud-spring {
+  0%   { opacity: 0; transform: scale(0.94) translateX(16px); }
+  30%  { opacity: 1; transform: scale(1.02) translateX(-2px); }
+  50%  { transform: scale(0.995) translateX(1px); }
+  70%  { transform: scale(1.005) translateX(0); }
+  100% { transform: scale(1) translateX(0); }
+}
+
+/* Accent line fades in after panel settles */
+@keyframes hud-accent-reveal {
+  from { opacity: 0; left: 45%; right: 45%; }
+  to   { opacity: 1; left: 20%; right: 20%; }
+}
+
+/* Each content section "powers on" */
+@keyframes hud-node-on {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 @layer components {
   .section-kicker {
     font-size: 11px;
@@ -255,13 +276,13 @@ input {
     pointer-events: none;
     opacity: 0;
     transition:
-      opacity var(--transition-smooth),
-      background-color var(--transition-smooth),
-      backdrop-filter var(--transition-smooth);
+      opacity 400ms cubic-bezier(0.4, 0, 0.2, 1),
+      background-color 400ms cubic-bezier(0.4, 0, 0.2, 1),
+      backdrop-filter 400ms cubic-bezier(0.4, 0, 0.2, 1);
   }
   .detail-backdrop--open {
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(6px);
     pointer-events: auto;
     opacity: 1;
   }
@@ -280,13 +301,15 @@ input {
     overflow: hidden;
     pointer-events: none;
     opacity: 0;
-    transform: scale(0.97) translateX(12px);
-    transition: opacity var(--transition-smooth), transform var(--transition-smooth);
+    transform: scale(0.94) translateX(16px);
+    transition: opacity 120ms ease, transform 0ms 120ms;
   }
   .detail-panel--open {
     pointer-events: auto;
     opacity: 1;
     transform: scale(1) translateX(0);
+    transition: none;
+    animation: hud-spring 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
   }
   .detail-panel::before {
     content: '';
@@ -296,8 +319,28 @@ input {
     right: 20%;
     height: 1px;
     background: linear-gradient(90deg, transparent, var(--type-color, var(--accent-primary)), transparent);
+    opacity: 0;
     z-index: 1;
   }
+  .detail-panel--open::before {
+    animation: hud-accent-reveal 600ms 250ms ease-out both;
+  }
+
+  /* Boot-up stagger: sections inside HUD fade in after the panel lands */
+  .detail-panel--open .hud-section {
+    opacity: 0;
+    transform: translateY(6px);
+    animation: hud-node-on 350ms ease-out both;
+  }
+  .detail-panel--open .hud-section:nth-child(1) { animation-delay: 180ms; }
+  .detail-panel--open .hud-section:nth-child(2) { animation-delay: 260ms; }
+  .detail-panel--open .hud-section:nth-child(3) { animation-delay: 340ms; }
+  .detail-panel--open .hud-section:nth-child(4) { animation-delay: 420ms; }
+  .detail-panel--open .hud-section:nth-child(5) { animation-delay: 500ms; }
+  .detail-panel--open .hud-section:nth-child(6) { animation-delay: 580ms; }
+  .detail-panel--open .hud-section:nth-child(7) { animation-delay: 660ms; }
+  .detail-panel--open .hud-section:nth-child(8) { animation-delay: 740ms; }
+  .detail-panel--open .hud-section:nth-child(9) { animation-delay: 820ms; }
 
   .toast-panel {
     background: rgba(20, 20, 30, 0.88);
@@ -984,5 +1027,17 @@ input {
   }
   .detail-panel {
     transition-duration: 0.01ms !important;
+  }
+  .detail-panel--open {
+    animation: none !important;
+  }
+  .detail-panel--open::before {
+    animation: none !important;
+    opacity: 1;
+  }
+  .detail-panel--open .hud-section {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
   }
 }

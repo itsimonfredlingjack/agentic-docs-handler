@@ -128,7 +128,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
-      <div className="flex items-start justify-between border-b border-white/6 px-5 py-4">
+      <div className="hud-section flex items-start justify-between border-b border-white/6 px-5 py-4">
         <div className="space-y-2">
           <span
             className="glass-badge"
@@ -156,15 +156,17 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
 
       <div className="flex flex-1 flex-col gap-4 px-5 py-5">
         {history.length > 0 && (
-          <PipelineStepper
-            currentStage={document.status}
-            history={history}
-            failed={document.status === "failed"}
-          />
+          <div className="hud-section">
+            <PipelineStepper
+              currentStage={document.status}
+              history={history}
+              failed={document.status === "failed"}
+            />
+          </div>
         )}
 
         {document.summary ? (
-          <section className="control-card p-4">
+          <section className="hud-section control-card p-4">
             <p className="section-kicker">Sammanfattning</p>
             <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{document.summary}</p>
           </section>
@@ -172,7 +174,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
 
         {fieldEntries.length > 0 ? (
           <section
-            className="control-card p-4"
+            className="hud-section control-card p-4"
             style={{ "--type-color-rgb": `var(${kindRgbVar(document.kind)})` } as React.CSSProperties}
           >
             <p className="section-kicker">Extraherade fält</p>
@@ -194,7 +196,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
         ) : null}
 
         {hasTranscription ? (
-          <section className="control-card p-4">
+          <section className="hud-section control-card p-4">
             <p className="section-kicker">Transkribering</p>
             <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
               {document.transcription!.text.length > 500
@@ -205,7 +207,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
         ) : null}
 
         {document.tags.length > 0 ? (
-          <section className="control-card p-4">
+          <section className="hud-section control-card p-4">
             <p className="section-kicker">Taggar</p>
             <div className="mt-2 flex flex-wrap gap-2">
             {document.tags.map((tag) => (
@@ -218,7 +220,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
         ) : null}
 
         {document.sourcePath ? (
-          <section className="control-card p-4">
+          <section className="hud-section control-card p-4">
             <p className="section-kicker">Filplats</p>
             <p className="mt-2 break-all font-[var(--font-mono)] text-xs text-[var(--text-secondary)]">
               {document.sourcePath}
@@ -227,7 +229,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
         ) : null}
 
         {document.movePlan?.destination ? (
-          <section className="control-card p-4">
+          <section className="hud-section control-card p-4">
             <p className="section-kicker">Flyttplan</p>
             <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
               <div>
@@ -251,7 +253,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
         ) : null}
 
         {document.warnings.length > 0 ? (
-          <section className="rounded-2xl border border-[rgba(255,159,10,0.18)] bg-[rgba(255,159,10,0.08)] p-3">
+          <section className="hud-section rounded-2xl border border-[rgba(255,159,10,0.18)] bg-[rgba(255,159,10,0.08)] p-3">
             <p className="section-kicker text-[var(--meeting-color)]">Varningar</p>
             {document.warnings.map((warning, i) => (
               <p key={i} className="mt-1 text-sm text-[var(--meeting-color)]">{warning}</p>
@@ -259,7 +261,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
           </section>
         ) : null}
 
-        <div className="mt-auto flex flex-wrap items-center gap-2">
+        <div className="hud-section mt-auto flex flex-wrap items-center gap-2">
           {document.sourcePath ? (
             <button
               type="button"
@@ -271,7 +273,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
           ) : null}
         </div>
 
-        <section className="control-card p-3">
+        <section className="hud-section control-card p-3">
           <p className="section-kicker">Meta</p>
           <div className="grid grid-cols-2 gap-2 text-[11px] text-[var(--text-secondary)]">
             <span className="font-mono">Req {document.requestId.slice(0, 8)}</span>
