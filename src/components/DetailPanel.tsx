@@ -2,6 +2,7 @@ import { useEffect, useCallback, useState, useRef } from "react";
 import { useDocumentStore } from "../store/documentStore";
 import { InlineEdit } from "./InlineEdit";
 import { PipelineStepper } from "./PipelineStepper";
+import { kindRgbVar } from "../lib/document-colors";
 import type { UiDocument, UiDocumentKind } from "../types/documents";
 
 function getKindAccent(kind: UiDocumentKind): string {
@@ -73,7 +74,7 @@ function InlineEditField({ documentId, fieldKey, value }: { documentId: string; 
   };
   return (
     <span className={`inline-edit-field-wrapper ${saved ? "is-rippling" : ""}`}>
-      <InlineEdit value={value} onSave={handleSave} className="text-sm font-medium text-[var(--text-primary)]" />
+      <InlineEdit value={value} onSave={handleSave} className="data-pill" />
       {saved && <span className="inline-edit-saved" aria-label="Sparad">✓</span>}
     </span>
   );
@@ -186,7 +187,10 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
         ) : null}
 
         {fieldEntries.length > 0 ? (
-          <section className="control-card p-4">
+          <section
+            className="control-card p-4"
+            style={{ "--type-color-rgb": `var(${kindRgbVar(document.kind)})` } as React.CSSProperties}
+          >
             <p className="section-kicker">Extraherade fält</p>
             <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
               {fieldEntries.map(([key, value]) => (

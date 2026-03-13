@@ -183,6 +183,16 @@ input {
     letter-spacing: 0.01em;
   }
 
+  .data-pill {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: rgba(var(--type-color-rgb, 142, 142, 147), 0.1);
+    color: rgb(var(--type-color-rgb, 142, 142, 147));
+    display: inline-block;
+  }
+
   .control-card {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.06);
@@ -422,8 +432,9 @@ input {
   }
 
   .rail-card__fields {
+    font-family: var(--font-mono);
     font-size: 12px;
-    color: var(--text-secondary);
+    color: rgb(var(--type-color-rgb, 142, 142, 147));
     margin-top: 4px;
     font-weight: 500;
     min-height: 16px;

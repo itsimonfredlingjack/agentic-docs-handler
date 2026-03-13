@@ -1,5 +1,6 @@
 import { mapToUserStatus, userStatusLabel, userStatusColor, getKeyLine } from "../lib/status";
 import { getTimeGroup } from "../lib/feed-utils";
+import { kindRgbVar } from "../lib/document-colors";
 import type { UiDocument, UiDocumentKind } from "../types/documents";
 
 type Props = {
@@ -9,17 +10,6 @@ type Props = {
   onRetry?: () => void;
   onUndo?: () => void;
 };
-
-function kindRgbVar(kind: UiDocumentKind): string {
-  const map: Record<string, string> = {
-    receipt: "--receipt-color-rgb",
-    contract: "--contract-color-rgb",
-    invoice: "--invoice-color-rgb",
-    meeting_notes: "--meeting-color-rgb",
-    audio: "--audio-color-rgb",
-  };
-  return map[kind] ?? "--report-color-rgb";
-}
 
 function kindDotColor(kind: UiDocumentKind): string {
   switch (kind) {
@@ -90,7 +80,7 @@ export function DocumentRow({ document, focused, onSelect, onRetry, onUndo }: Pr
       {(keyLine || dest) && (
         <div className="mt-1 flex items-center justify-between gap-4 pl-[14px]">
           {keyLine && (
-            <span className="min-w-0 truncate text-[13px] text-[var(--text-secondary)]">{keyLine}</span>
+            <span className="data-pill min-w-0 truncate text-[13px]">{keyLine}</span>
           )}
           {dest && (
             <span
