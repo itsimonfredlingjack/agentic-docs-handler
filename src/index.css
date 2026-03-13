@@ -251,30 +251,43 @@ input {
       backdrop-filter var(--transition-smooth);
   }
   .detail-backdrop--open {
-    background: rgba(10, 22, 40, 0.22);
-    backdrop-filter: blur(8px);
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
     pointer-events: auto;
     opacity: 1;
   }
   .detail-panel {
     position: fixed;
     z-index: 45;
-    top: 0;
-    right: 0;
-    bottom: 0;
+    top: 24px;
+    right: 24px;
+    bottom: 24px;
     width: var(--detail-panel-width);
-    background: var(--glass-bg-strong);
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
-    backdrop-filter: var(--glass-blur);
-    box-shadow: -16px 0 42px rgba(0, 0, 0, 0.4);
-    transform: translateX(100%);
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    backdrop-filter: blur(30px);
+    box-shadow: 0 16px 64px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06);
     overflow: hidden;
     pointer-events: none;
-    transition: transform var(--transition-smooth);
+    opacity: 0;
+    transform: scale(0.97) translateX(12px);
+    transition: opacity var(--transition-smooth), transform var(--transition-smooth);
   }
   .detail-panel--open {
     pointer-events: auto;
-    transform: translateX(0);
+    opacity: 1;
+    transform: scale(1) translateX(0);
+  }
+  .detail-panel::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 20%;
+    right: 20%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--type-color, var(--accent-primary)), transparent);
+    z-index: 1;
   }
 
   .toast-panel {
@@ -699,7 +712,12 @@ input {
   }
 
   .detail-panel {
-    width: 100vw;
+    top: 12px;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    width: auto;
+    border-radius: 16px;
   }
 }
 
@@ -957,5 +975,8 @@ input {
   .rail-card__evap-line {
     transition: none;
     opacity: 0;
+  }
+  .detail-panel {
+    transition-duration: 0.01ms !important;
   }
 }

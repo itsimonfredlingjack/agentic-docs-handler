@@ -123,6 +123,7 @@ export function DetailPanel() {
         className={`detail-panel ${isOpen ? "detail-panel--open" : ""}`}
         role="dialog"
         aria-label="Dokumentdetaljer"
+        style={{ "--type-color": document ? getKindAccent(document.kind) : "var(--accent-primary)" } as React.CSSProperties}
       >
         {document ? <ModalContent document={document} history={stageHistory} onClose={close} /> : null}
       </aside>
