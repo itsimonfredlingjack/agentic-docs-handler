@@ -67,7 +67,7 @@ git clone https://github.com/your-org/ai-docs.git
 cd ai-docs
 
 # 2. Start the local AI Engine (Ollama)
-ollama run qwen:3.5
+ollama run qwen3.5:9b
 
 # 3. Spin up the environment
 docker-compose up -d --build
