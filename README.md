@@ -62,8 +62,8 @@ Our architecture strictly separates Heavy-LLM tasks, Fast-ML tasks, and Lightnin
 *(Ensure Docker and Ollama are installed on your host machine before proceeding).*
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/your-org/ai-docs.git
+# 1. Clone this repository and enter the directory
+#    (for example, using GitHub Desktop or `git clone` in your terminal)
 cd ai-docs
 
 # 2. Start the local AI Engine (Ollama)
