@@ -55,12 +55,12 @@ export default function App() {
   }, [bootstrap, setClientId]);
 
   return (
-    <div className="min-h-screen bg-frost text-[var(--text-primary)]">
-      <div className="mx-auto flex min-h-screen max-w-[1720px] gap-6 px-[var(--canvas-padding)] py-[var(--canvas-padding)]">
+    <div className="min-h-screen text-[var(--text-primary)]" style={{ background: '#0a0a0f' }}>
+      <div className="mx-auto flex min-h-screen max-w-[1720px] gap-3 p-3">
         <div className="hidden shrink-0 lg:block">
           <Sidebar />
         </div>
-        <main className="flex min-h-0 flex-1 flex-col gap-4">
+        <main className="glass-panel flex min-h-0 flex-1 flex-col gap-4 p-4">
           <SearchBar
             activeFilterLabel={getSidebarFilterLabel(sidebarFilter)}
             onOpenFilters={() => setFilterSheetOpen(true)}

@@ -5,7 +5,6 @@
 :root {
   --sidebar-width: 248px;
   --detail-panel-width: 468px;
-  --canvas-padding: 24px;
   --card-radius: 16px;
   --badge-radius: 8px;
   --button-radius: 10px;
@@ -64,6 +63,17 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: url('/noise.svg') repeat;
+  opacity: 0.03;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  z-index: 9999;
 }
 
 button,
