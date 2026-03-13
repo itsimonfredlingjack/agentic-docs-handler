@@ -236,7 +236,7 @@ class SearchPipeline:
                 elapsed_ms,
             )
 
-    async def search(self, query: str, limit: int | None = None, *, mode: str = "full") -> SearchResponse:
+    async def search(self, query: str, limit: int | None = None, *, mode: str = "full", document_type: str | None = None) -> SearchResponse:
         await self._ensure_bootstrapped()
         request_id = str(uuid4())
         rewritten_query = query
@@ -259,11 +259,18 @@ class SearchPipeline:
         top_limit = limit or self.default_limit
         query_vector = self.embedder.encode_query(rewritten_query)
         vector_rows = table.search(query_vector).limit(max(top_limit, self.candidate_limit)).to_list()
+        if document_type is not None:
+            vector_rows = [
+                row for row in vector_rows
+                if isinstance(row.get("metadata"), dict)
+                and row["metadata"].get("document_type") == document_type
+            ]
         vector_rank = {row["chunk_id"]: index + 1 for index, row in enumerate(vector_rows)}
 
         keyword_ranked = self._rank_keyword_candidates(
             rewritten_query,
             top_limit=top_limit,
+            document_type=document_type,
         )
         keyword_rank = {
             chunk_id: index + 1
@@ -403,6 +410,7 @@ class SearchPipeline:
         query: str,
         *,
         top_limit: int,
+        document_type: str | None = None,
     ) -> list[tuple[str, float, dict[str, Any]]]:
         query_tokens = set(tokenize(query))
         if not query_tokens:
@@ -416,6 +424,14 @@ class SearchPipeline:
                 if token_counts is None:
                     continue
                 raw_hits_by_chunk_id[chunk_id] = raw_hits_by_chunk_id.get(chunk_id, 0) + token_counts.get(token, 0)
+
+        if document_type is not None:
+            raw_hits_by_chunk_id = {
+                chunk_id: hits
+                for chunk_id, hits in raw_hits_by_chunk_id.items()
+                if isinstance(self._rows_by_chunk_id.get(chunk_id, {}).get("metadata"), dict)
+                and self._rows_by_chunk_id[chunk_id]["metadata"].get("document_type") == document_type
+            }
 
         ranked_candidates = sorted(
             raw_hits_by_chunk_id.items(),

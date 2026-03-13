@@ -304,6 +304,79 @@ async def test_search_fast_mode_skips_llm_calls(tmp_path) -> None:
     assert "Top match for invoice rewritten" in full_result.answer  # generator ran
 
 
+@pytest.mark.asyncio
+async def test_search_with_document_type_filter_returns_only_matching_category(tmp_path) -> None:
+    pipeline = SearchPipeline(
+        db_path=tmp_path / "lancedb",
+        embedder=FakeEmbedder(),
+        query_planner=None,
+        answer_generator=None,
+    )
+    pipeline.index_documents(
+        [
+            IndexedDocument(
+                doc_id="invoice-1",
+                title="Invoice March",
+                source_path="docs/invoice.txt",
+                text="Invoice for March 2026. Amount 900 SEK.",
+                metadata={"document_type": "invoice"},
+            ),
+            IndexedDocument(
+                doc_id="contract-1",
+                title="Rental Contract",
+                source_path="docs/contract.txt",
+                text="Contract for office rental until 2029.",
+                metadata={"document_type": "contract"},
+            ),
+            IndexedDocument(
+                doc_id="invoice-2",
+                title="Invoice April",
+                source_path="docs/invoice2.txt",
+                text="Invoice for April 2026. Amount 1200 SEK.",
+                metadata={"document_type": "invoice"},
+            ),
+        ]
+    )
+
+    result = await pipeline.search("amount", document_type="invoice")
+
+    assert all(r.metadata.get("document_type") == "invoice" for r in result.results)
+    assert len(result.results) >= 1
+
+
+@pytest.mark.asyncio
+async def test_search_without_document_type_filter_returns_all(tmp_path) -> None:
+    pipeline = SearchPipeline(
+        db_path=tmp_path / "lancedb",
+        embedder=FakeEmbedder(),
+        query_planner=None,
+        answer_generator=None,
+    )
+    pipeline.index_documents(
+        [
+            IndexedDocument(
+                doc_id="invoice-1",
+                title="Invoice March",
+                source_path="docs/invoice.txt",
+                text="Invoice for March 2026. Amount 900 SEK.",
+                metadata={"document_type": "invoice"},
+            ),
+            IndexedDocument(
+                doc_id="contract-1",
+                title="Rental Contract",
+                source_path="docs/contract.txt",
+                text="Contract for office rental until 2029.",
+                metadata={"document_type": "contract"},
+            ),
+        ]
+    )
+
+    result = await pipeline.search("2026")
+
+    doc_types = {r.metadata.get("document_type") for r in result.results}
+    assert len(doc_types) > 1
+
+
 def test_sentence_transformer_embedder_passes_trust_remote_code(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
 
