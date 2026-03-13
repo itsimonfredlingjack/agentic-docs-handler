@@ -1,0 +1,245 @@
+from __future__ import annotations
+
+from collections import Counter
+from collections.abc import AsyncIterator, Sequence
+from typing import Any
+
+import pytest
+
+from server.pipelines.search import IndexedDocument, SearchPipeline
+from server.pipelines.workspace_chat import WorkspaceChatPipeline
+from server.schemas import ExtractionResult, UiDocumentRecord
+
+
+class FakeEmbedder:
+    def encode_documents(self, texts: list[str]) -> list[list[float]]:
+        return [[1.0, 0.0, float(len(t.split()))] for t in texts]
+
+    def encode_query(self, text: str) -> list[float]:
+        return [1.0, 0.0, float(len(text.split()))]
+
+
+class FakeOllamaClient:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+        self.response_tokens = ["Totalt", " moms:", " 500", " kr"]
+
+    async def chat_text_stream(
+        self,
+        *,
+        request_id: str,
+        prompt_name: str,
+        input_modality: str,
+        messages: Sequence[dict[str, Any]],
+        temperature: float,
+    ) -> AsyncIterator[str]:
+        self.calls.append({"messages": list(messages), "prompt_name": prompt_name})
+        for token in self.response_tokens:
+            yield token
+
+
+def build_test_record(
+    *,
+    record_id: str,
+    title: str,
+    kind: str = "receipt",
+    fields: dict[str, Any] | None = None,
+) -> UiDocumentRecord:
+    return UiDocumentRecord(
+        id=record_id,
+        request_id=f"req-{record_id}",
+        title=title,
+        summary=f"Summary for {title}",
+        mime_type="application/pdf",
+        source_modality="text",
+        kind=kind,
+        document_type=kind,
+        template=kind,
+        source_path=None,
+        created_at="2026-03-13T10:00:00+00:00",
+        updated_at="2026-03-13T10:00:00+00:00",
+        classification={
+            "document_type": kind,
+            "template": kind,
+            "title": title,
+            "summary": f"Summary for {title}",
+            "tags": [],
+            "language": "sv",
+            "confidence": 0.95,
+            "ocr_text": None,
+            "suggested_actions": [],
+        },
+        extraction=ExtractionResult(
+            fields=fields or {},
+            field_confidence={},
+            missing_fields=[],
+        ),
+        transcription=None,
+        move_plan=None,
+        move_result=None,
+        tags=[],
+        status="completed",
+        undo_token=None,
+        move_status="not_requested",
+        retryable=False,
+        error_code=None,
+        warnings=[],
+        diagnostics=None,
+        thumbnail_data=None,
+    )
+
+
+class FakeDocumentRegistry:
+    def __init__(self, records: list[UiDocumentRecord]) -> None:
+        self._records = records
+
+    def list_documents(self, *, kind: str | None = None, limit: int = 50, offset: int = 0):
+        filtered = [r for r in self._records if kind is None or r.kind == kind]
+        return type("Resp", (), {"documents": filtered[:limit], "total": len(filtered)})()
+
+    def counts(self):
+        c = Counter(r.kind for r in self._records)
+        return type("Counts", (), {
+            "all": len(self._records), "processing": 0,
+            "receipt": c.get("receipt", 0), "contract": c.get("contract", 0),
+            "invoice": c.get("invoice", 0), "meeting_notes": c.get("meeting_notes", 0),
+            "audio": c.get("audio", 0), "generic": c.get("generic", 0), "moved": 0,
+        })()
+
+
+@pytest.mark.asyncio
+async def test_workspace_chat_streams_response_with_context(tmp_path) -> None:
+    ollama = FakeOllamaClient()
+    search = SearchPipeline(
+        db_path=tmp_path / "lancedb",
+        embedder=FakeEmbedder(),
+    )
+    search.index_documents([
+        IndexedDocument(
+            doc_id="r1",
+            title="Kvitto ICA",
+            source_path="/docs/r1.pdf",
+            text="ICA Maxi kvitto 2026-01-15 belopp 500 moms 100",
+            metadata={"document_type": "receipt"},
+        ),
+    ])
+    registry = FakeDocumentRegistry([
+        build_test_record(
+            record_id="r1",
+            title="Kvitto ICA",
+            kind="receipt",
+            fields={"vendor": "ICA Maxi", "amount": "500", "vat_amount": "100"},
+        ),
+    ])
+
+    pipeline = WorkspaceChatPipeline(
+        ollama_client=ollama,
+        search_pipeline=search,
+        document_registry=registry,
+        system_prompt="Du analyserar dokument.",
+    )
+
+    context = await pipeline.prepare_context(
+        category="receipt",
+        message="Vad är momsen?",
+        history=[],
+    )
+
+    assert context.source_count == 1
+
+    tokens: list[str] = []
+    async for token in pipeline.stream_response(context):
+        tokens.append(token)
+
+    assert tokens == ["Totalt", " moms:", " 500", " kr"]
+    assert len(ollama.calls) == 1
+    # Verify structured fields are in the prompt
+    user_msg = ollama.calls[0]["messages"][-1]["content"]
+    assert "Vad är momsen?" in user_msg
+    # Check system message has the fields table
+    system_msg = ollama.calls[0]["messages"][0]["content"]
+    assert "ICA Maxi" in system_msg
+    assert "100" in system_msg  # vat_amount
+
+
+@pytest.mark.asyncio
+async def test_workspace_chat_includes_conversation_history(tmp_path) -> None:
+    ollama = FakeOllamaClient()
+    search = SearchPipeline(
+        db_path=tmp_path / "lancedb",
+        embedder=FakeEmbedder(),
+    )
+    search.index_documents([
+        IndexedDocument(
+            doc_id="r1", title="Kvitto", source_path="/r1.pdf",
+            text="kvitto data", metadata={"document_type": "receipt"},
+        ),
+    ])
+    registry = FakeDocumentRegistry([
+        build_test_record(record_id="r1", title="Kvitto", kind="receipt"),
+    ])
+
+    pipeline = WorkspaceChatPipeline(
+        ollama_client=ollama,
+        search_pipeline=search,
+        document_registry=registry,
+        system_prompt="Analysera.",
+    )
+
+    context = await pipeline.prepare_context(
+        category="receipt",
+        message="Visa detaljer",
+        history=[
+            {"role": "user", "content": "Vad är momsen?"},
+            {"role": "assistant", "content": "Momsen är 100 kr."},
+        ],
+    )
+
+    messages = context.messages
+    # System + history (2 turns) + user message = 4 messages
+    assert len(messages) == 4
+    assert messages[0]["role"] == "system"
+    assert messages[1]["role"] == "user"
+    assert messages[1]["content"] == "Vad är momsen?"
+    assert messages[2]["role"] == "assistant"
+    assert messages[3]["role"] == "user"
+    assert "Visa detaljer" in messages[3]["content"]
+
+
+@pytest.mark.asyncio
+async def test_workspace_chat_builds_fields_table(tmp_path) -> None:
+    ollama = FakeOllamaClient()
+    search = SearchPipeline(
+        db_path=tmp_path / "lancedb",
+        embedder=FakeEmbedder(),
+    )
+    search.index_documents([
+        IndexedDocument(doc_id="r1", title="K1", source_path="/r1.pdf",
+                        text="data", metadata={"document_type": "receipt"}),
+        IndexedDocument(doc_id="r2", title="K2", source_path="/r2.pdf",
+                        text="data", metadata={"document_type": "receipt"}),
+    ])
+    registry = FakeDocumentRegistry([
+        build_test_record(record_id="r1", title="Kvitto ICA", kind="receipt",
+                          fields={"vendor": "ICA", "amount": "500"}),
+        build_test_record(record_id="r2", title="Kvitto Coop", kind="receipt",
+                          fields={"vendor": "Coop", "amount": "300"}),
+    ])
+
+    pipeline = WorkspaceChatPipeline(
+        ollama_client=ollama,
+        search_pipeline=search,
+        document_registry=registry,
+        system_prompt="Test.",
+    )
+
+    context = await pipeline.prepare_context(
+        category="receipt", message="test", history=[],
+    )
+
+    system_msg = context.messages[0]["content"]
+    assert "ICA" in system_msg
+    assert "Coop" in system_msg
+    assert "500" in system_msg
+    assert "300" in system_msg
+    assert "ANTAL DOKUMENT: 2" in system_msg
