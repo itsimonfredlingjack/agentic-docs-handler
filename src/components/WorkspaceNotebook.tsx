@@ -1,39 +1,95 @@
+import { useEffect, useRef } from "react";
 import { useDocumentStore } from "../store/documentStore";
+import { useWorkspaceChat } from "../hooks/useWorkspaceChat";
+import { NotebookEntry } from "./NotebookEntry";
+import { NotebookInput } from "./NotebookInput";
+import { kindColor } from "../lib/document-colors";
+import type { UiDocumentKind } from "../types/documents";
 
 const CATEGORY_LABELS: Record<string, string> = {
   receipt: "Kvitton",
   contract: "Avtal",
   invoice: "Fakturor",
-  meeting_notes: "Möten",
+  meeting_notes: "M\u00F6ten",
   audio: "Ljud",
-  generic: "Övrigt",
+  generic: "\u00D6vrigt",
 };
 
 export function WorkspaceNotebook() {
   const activeWorkspace = useDocumentStore((s) => s.activeWorkspace);
   const setActiveWorkspace = useDocumentStore((s) => s.setActiveWorkspace);
+  const counts = useDocumentStore((s) => s.counts);
+  const { conversation, isStreaming, sendMessage } = useWorkspaceChat();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [conversation?.streamingText, conversation?.entries.length]);
 
   if (!activeWorkspace) return null;
 
   const label = CATEGORY_LABELS[activeWorkspace] ?? activeWorkspace;
+  const count = counts[activeWorkspace as keyof typeof counts] ?? 0;
+  const color = kindColor(activeWorkspace as UiDocumentKind);
 
   return (
     <div className="flex h-full flex-col">
+      {/* Header */}
       <div className="flex items-center gap-3 pb-3">
         <button
           className="action-secondary px-2.5 py-1 text-xs"
           onClick={() => setActiveWorkspace(null)}
         >
-          &larr;
+          {"\u2190"}
         </button>
-        <h2 className="text-base font-bold text-[var(--text-primary)]">
-          {label}
-        </h2>
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-block h-2 w-2 rounded-full"
+            style={{ background: color }}
+          />
+          <h2 className="text-base font-bold text-[var(--text-primary)]">
+            {label}
+          </h2>
+          <span className="font-mono text-xs text-[var(--text-muted)]">
+            ({count})
+          </span>
+        </div>
       </div>
-      <div className="glass-panel flex min-h-[300px] flex-col items-center justify-center p-10 text-center">
-        <p className="text-sm text-[var(--text-secondary)]">
-          Notebook — kommer i nästa steg
-        </p>
+
+      {/* Notebook entries */}
+      <div ref={scrollRef} className="flex-1 space-y-0 overflow-y-auto">
+        {conversation?.entries.map((entry, index) => {
+          const isLast = index === conversation.entries.length - 1;
+          return (
+            <NotebookEntry
+              key={entry.id}
+              query={entry.query}
+              response={entry.response}
+              sourceCount={entry.sourceCount}
+              isStreaming={isLast && isStreaming}
+              streamingText={isLast && isStreaming ? conversation.streamingText : undefined}
+            />
+          );
+        })}
+
+        {(!conversation || conversation.entries.length === 0) && (
+          <div className="flex min-h-[300px] flex-col items-center justify-center text-center">
+            <p className="text-sm text-[var(--text-secondary)]">
+              Fr\u00E5ga dina {label.toLowerCase()} vad som helst
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Input */}
+      <div className="mt-3">
+        <NotebookInput
+          placeholder={`Fr\u00E5ga dina ${label.toLowerCase()}...`}
+          disabled={isStreaming}
+          onSubmit={sendMessage}
+        />
       </div>
     </div>
   );

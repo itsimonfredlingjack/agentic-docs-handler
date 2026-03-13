@@ -1,0 +1,51 @@
+import { useCallback } from "react";
+import { useDocumentStore } from "../store/documentStore";
+import { streamWorkspaceChat } from "../lib/api";
+
+export function useWorkspaceChat() {
+  const activeWorkspace = useDocumentStore((s) => s.activeWorkspace);
+  const conversations = useDocumentStore((s) => s.conversations);
+  const startQuery = useDocumentStore((s) => s.startWorkspaceQuery);
+  const appendToken = useDocumentStore((s) => s.appendStreamingToken);
+  const finalize = useDocumentStore((s) => s.finalizeStreamingEntry);
+
+  const conversation = activeWorkspace ? conversations[activeWorkspace] : undefined;
+  const isStreaming = conversation?.isStreaming ?? false;
+
+  const sendMessage = useCallback(
+    async (message: string) => {
+      if (!activeWorkspace || isStreaming) return;
+
+      startQuery(activeWorkspace, message);
+
+      // Build history from previous entries (before the one we just added)
+      const conv = useDocumentStore.getState().conversations[activeWorkspace];
+      const history: Array<{ role: string; content: string }> = [];
+      if (conv) {
+        for (const entry of conv.entries.slice(0, -1)) {
+          if (entry.query) history.push({ role: "user", content: entry.query });
+          if (entry.response) history.push({ role: "assistant", content: entry.response });
+        }
+      }
+
+      let sourceCount = 0;
+      try {
+        for await (const event of streamWorkspaceChat(activeWorkspace, message, history)) {
+          if (event.type === "context") {
+            sourceCount = event.data.source_count;
+          } else if (event.type === "token") {
+            appendToken(activeWorkspace, event.data.text);
+          } else if (event.type === "error") {
+            appendToken(activeWorkspace, `\n\n\u26A0 ${event.data.error}`);
+          }
+        }
+      } catch (error) {
+        appendToken(activeWorkspace, `\n\n\u26A0 ${error instanceof Error ? error.message : "Anslutningsfel"}`);
+      }
+      finalize(activeWorkspace, sourceCount);
+    },
+    [activeWorkspace, isStreaming, startQuery, appendToken, finalize],
+  );
+
+  return { conversation, isStreaming, sendMessage };
+}
