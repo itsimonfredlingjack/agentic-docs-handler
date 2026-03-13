@@ -271,7 +271,7 @@ class DismissMoveResponse(BaseModel):
 
 
 class ChatTurn(BaseModel):
-    role: str
+    role: Literal["user", "assistant"]
     content: str
 
 

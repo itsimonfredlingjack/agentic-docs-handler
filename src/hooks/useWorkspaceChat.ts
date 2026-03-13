@@ -14,7 +14,8 @@ export function useWorkspaceChat() {
 
   const sendMessage = useCallback(
     async (message: string) => {
-      if (!activeWorkspace || isStreaming) return;
+      const currentConv = activeWorkspace ? useDocumentStore.getState().conversations[activeWorkspace] : undefined;
+      if (!activeWorkspace || currentConv?.isStreaming) return;
 
       startQuery(activeWorkspace, message);
 
@@ -44,7 +45,7 @@ export function useWorkspaceChat() {
       }
       finalize(activeWorkspace, sourceCount);
     },
-    [activeWorkspace, isStreaming, startQuery, appendToken, finalize],
+    [activeWorkspace, startQuery, appendToken, finalize],
   );
 
   return { conversation, isStreaming, sendMessage };

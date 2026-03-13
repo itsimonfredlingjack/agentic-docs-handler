@@ -75,7 +75,7 @@ WORKSPACE_CATEGORY_LABELS = {
     "receipt": "Kvitton",
     "contract": "Avtal",
     "invoice": "Fakturor",
-    "meeting_notes": "Möten",
+    "meeting_notes": "Mötesanteckningar",
     "audio": "Ljud",
     "generic": "Övrigt",
 }

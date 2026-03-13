@@ -158,7 +158,10 @@ export async function* streamWorkspaceChat(
     throw new Error(`workspace/chat: ${response.status}`);
   }
 
-  const reader = response.body!.getReader();
+  if (!response.body) {
+    throw new Error("workspace/chat: empty response body");
+  }
+  const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
 
