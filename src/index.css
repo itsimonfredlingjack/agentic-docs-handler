@@ -17,7 +17,6 @@
   --glass-blur: blur(20px);
   --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   --glass-shadow-hover: 0 12px 42px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  --bg-gradient: #0a0a0f;
   --text-primary: rgba(255, 255, 255, 0.92);
   --text-secondary: rgba(255, 255, 255, 0.6);
   --text-muted: rgba(255, 255, 255, 0.35);
@@ -576,7 +575,7 @@ input {
     position: fixed;
     inset: 0;
     z-index: 55;
-    background: rgba(10, 22, 40, 0.32);
+    background: rgba(0, 0, 0, 0.4);
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--transition-smooth);
@@ -709,19 +708,15 @@ input {
 
 @media (max-width: 1000px) {
   :root {
-    --detail-panel-width: min(100vw, 560px);
+    --detail-panel-width: min(calc(100vw - 48px), 560px);
   }
 
   .detail-panel {
-    width: min(100vw, 560px);
+    width: min(calc(100vw - 48px), 560px);
   }
 }
 
 @media (max-width: 720px) {
-  :root {
-    --detail-panel-width: 100vw;
-  }
-
   .detail-panel {
     top: 12px;
     right: 12px;
@@ -880,7 +875,7 @@ input {
   40% {
     opacity: 1;
     transform: scale(1.03) translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   }
   100% {
     opacity: 0;

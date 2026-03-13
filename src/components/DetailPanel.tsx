@@ -2,25 +2,9 @@ import { useEffect, useCallback, useState, useRef } from "react";
 import { useDocumentStore } from "../store/documentStore";
 import { InlineEdit } from "./InlineEdit";
 import { PipelineStepper } from "./PipelineStepper";
-import { kindRgbVar } from "../lib/document-colors";
+import { kindRgbVar, kindColor } from "../lib/document-colors";
 import type { UiDocument, UiDocumentKind } from "../types/documents";
 
-function getKindAccent(kind: UiDocumentKind): string {
-  switch (kind) {
-    case "receipt":
-      return "var(--receipt-color)";
-    case "contract":
-      return "var(--contract-color)";
-    case "invoice":
-      return "var(--invoice-color)";
-    case "meeting_notes":
-      return "var(--meeting-color)";
-    case "audio":
-      return "var(--audio-color)";
-    default:
-      return "var(--report-color)";
-  }
-}
 
 function formatKindLabel(kind: UiDocumentKind): string {
   switch (kind) {
@@ -124,7 +108,7 @@ export function DetailPanel() {
         className={`detail-panel ${isOpen ? "detail-panel--open" : ""}`}
         role="dialog"
         aria-label="Dokumentdetaljer"
-        style={{ "--type-color": document ? getKindAccent(document.kind) : "var(--accent-primary)" } as React.CSSProperties}
+        style={{ "--type-color": document ? kindColor(document.kind) : "var(--accent-primary)" } as React.CSSProperties}
       >
         {document ? <ModalContent document={document} history={stageHistory} onClose={close} /> : null}
       </aside>
@@ -133,7 +117,7 @@ export function DetailPanel() {
 }
 
 function ModalContent({ document, history, onClose }: { document: UiDocument; history: import("../store/documentStore").StageEntry[]; onClose: () => void }) {
-  const accent = getKindAccent(document.kind);
+  const accent = kindColor(document.kind);
   const fields = document.extraction?.fields ?? {};
   const fieldEntries = Object.entries(fields).filter(
     ([, value]) => value !== null && typeof value !== "undefined" && value !== "",

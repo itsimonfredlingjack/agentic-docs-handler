@@ -1,7 +1,7 @@
 import { mapToUserStatus, userStatusLabel, userStatusColor, getKeyLine } from "../lib/status";
 import { getTimeGroup } from "../lib/feed-utils";
-import { kindRgbVar } from "../lib/document-colors";
-import type { UiDocument, UiDocumentKind } from "../types/documents";
+import { kindRgbVar, kindColor } from "../lib/document-colors";
+import type { UiDocument } from "../types/documents";
 
 type Props = {
   document: UiDocument;
@@ -11,22 +11,6 @@ type Props = {
   onUndo?: () => void;
 };
 
-function kindDotColor(kind: UiDocumentKind): string {
-  switch (kind) {
-    case "receipt":
-      return "var(--receipt-color)";
-    case "contract":
-      return "var(--contract-color)";
-    case "invoice":
-      return "var(--invoice-color)";
-    case "meeting_notes":
-      return "var(--meeting-color)";
-    case "audio":
-      return "var(--audio-color)";
-    default:
-      return "var(--report-color)";
-  }
-}
 
 export function DocumentRow({ document, focused, onSelect, onRetry, onUndo }: Props) {
   const userStatus = mapToUserStatus(document);
@@ -59,7 +43,7 @@ export function DocumentRow({ document, focused, onSelect, onRetry, onUndo }: Pr
       <div className="flex items-center gap-2">
         <span
           className="inline-block h-[6px] w-[6px] shrink-0 rounded-full"
-          style={{ backgroundColor: kindDotColor(document.kind) }}
+          style={{ backgroundColor: kindColor(document.kind) }}
         />
         <span className="min-w-0 flex-1 truncate text-[15px] font-bold text-[var(--text-primary)]">
           {document.title}

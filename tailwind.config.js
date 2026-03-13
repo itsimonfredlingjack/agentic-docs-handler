@@ -16,7 +16,6 @@ export default {
       },
       backgroundImage: {
         aurora: "var(--accent-gradient)",
-        frost: "var(--bg-gradient)",
       },
     },
   },
