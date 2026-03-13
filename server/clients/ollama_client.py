@@ -4,7 +4,7 @@ import json
 import logging
 import time
 import asyncio
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
@@ -257,6 +257,45 @@ class AsyncOllamaClient:
                     error,
                 )
                 attempt += 1
+
+    async def chat_text_stream(
+        self,
+        *,
+        request_id: str,
+        prompt_name: str,
+        input_modality: str,
+        messages: Sequence[dict[str, Any]],
+        temperature: float,
+    ) -> AsyncIterator[str]:
+        payload = {
+            "model": self.model,
+            "messages": list(messages),
+            "temperature": temperature,
+            "stream": True,
+        }
+        started_at = time.perf_counter()
+        logger.info(
+            "ollama.stream.start request_id=%s prompt_name=%s model=%s",
+            request_id,
+            prompt_name,
+            self.model,
+        )
+        try:
+            async with self._semaphore:
+                response = await self.client.chat.completions.create(**payload)
+                async for chunk in response:
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        yield chunk.choices[0].delta.content
+        except (APIConnectionError, APITimeoutError, APIStatusError, httpx.HTTPError) as error:
+            raise self._map_error(error) from error
+        finally:
+            latency_ms = (time.perf_counter() - started_at) * 1000
+            logger.info(
+                "ollama.stream.done request_id=%s prompt_name=%s latency_ms=%.2f",
+                request_id,
+                prompt_name,
+                latency_ms,
+            )
 
     def readiness(self) -> dict[str, bool]:
         parsed = urlparse(self.base_url)

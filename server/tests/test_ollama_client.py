@@ -96,3 +96,58 @@ async def test_chat_text_serializes_ollama_requests_when_max_concurrency_is_one(
     )
 
     assert max_active_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_chat_text_stream_yields_tokens(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from server.clients.ollama_client import AsyncOllamaClient
+    from server.logging_config import LLMLogWriter
+    from types import SimpleNamespace
+
+    log_writer = LLMLogWriter(tmp_path / "logs")
+
+    client = AsyncOllamaClient(
+        base_url="http://localhost:11434/v1",
+        api_key="ollama",
+        model="test-model",
+        timeout_seconds=10.0,
+        log_writer=log_writer,
+    )
+
+    # Mock the OpenAI client's streaming response
+    class FakeChoice:
+        def __init__(self, content: str | None) -> None:
+            self.delta = SimpleNamespace(content=content)
+
+    class FakeChunk:
+        def __init__(self, content: str | None) -> None:
+            self.choices = [FakeChoice(content)]
+
+    chunks = [FakeChunk("Hello"), FakeChunk(" "), FakeChunk("world"), FakeChunk(None)]
+
+    class FakeStreamResponse:
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if not chunks:
+                raise StopAsyncIteration
+            return chunks.pop(0)
+
+    async def fake_create(**kwargs):
+        assert kwargs.get("stream") is True
+        return FakeStreamResponse()
+
+    monkeypatch.setattr(client.client.chat.completions, "create", fake_create)
+
+    collected: list[str] = []
+    async for token in client.chat_text_stream(
+        request_id="test-req",
+        prompt_name="test",
+        input_modality="text",
+        messages=[{"role": "user", "content": "Hi"}],
+        temperature=0.3,
+    ):
+        collected.append(token)
+
+    assert collected == ["Hello", " ", "world"]
