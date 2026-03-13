@@ -102,7 +102,7 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
             aria-label="Sök i dokument"
             className="focus-ring w-full bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
           />
-          <span className="hidden rounded-xl border border-black/10 bg-white/60 px-2 py-1 font-mono text-[11px] text-[var(--text-secondary)] md:inline">
+          <span className="hidden rounded-xl border border-white/8 bg-white/6 px-2 py-1 font-mono text-[11px] text-[var(--text-secondary)] md:inline">
             ⌘K · /
           </span>
         </label>
@@ -121,7 +121,7 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <p className="section-kicker">Sökresultat</p>
-              <span className="rounded-full border border-black/10 bg-white/45 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+              <span className="rounded-full border border-white/8 bg-white/4 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
                 {statusLabel(searchState.status, resultCount)}
               </span>
             </div>
@@ -168,7 +168,7 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
               {sourceChips.map((chip) => (
                 <span
                   key={`${chip.id}:${chip.title}`}
-                  className={`glass-badge ${chip.indexedOnly ? "border-[rgba(255,159,10,0.24)] bg-[rgba(255,159,10,0.10)] text-[var(--meeting-color)]" : "bg-white/40 text-[var(--text-secondary)]"}`}
+                  className={`glass-badge ${chip.indexedOnly ? "border-[rgba(255,159,10,0.24)] bg-[rgba(255,159,10,0.10)] text-[var(--meeting-color)]" : "bg-white/6 text-[var(--text-secondary)]"}`}
                 >
                   {chip.indexedOnly ? "Endast i index" : "Källa"}
                   {" · "}

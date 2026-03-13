@@ -142,7 +142,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
-      <div className="flex items-start justify-between border-b border-black/5 px-5 py-4">
+      <div className="flex items-start justify-between border-b border-white/6 px-5 py-4">
         <div className="space-y-2">
           <span
             className="glass-badge"
@@ -158,7 +158,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
         </div>
         <button
           type="button"
-          className="focus-ring flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-black/5 hover:text-[var(--text-primary)]"
+          className="focus-ring flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-white/6 hover:text-[var(--text-primary)]"
           onClick={onClose}
           aria-label="Stäng detaljpanel"
         >
@@ -220,7 +220,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
             <p className="section-kicker">Taggar</p>
             <div className="mt-2 flex flex-wrap gap-2">
             {document.tags.map((tag) => (
-              <span key={tag} className="glass-badge bg-white/30 text-[var(--text-secondary)]">
+              <span key={tag} className="glass-badge bg-white/6 text-[var(--text-secondary)]">
                 {tag}
               </span>
             ))}

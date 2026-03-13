@@ -44,6 +44,10 @@ const WAVEFORM_HEIGHTS = [40, 70, 55, 80, 60];
 
 const PRE_CLASSIFICATION_STAGES = new Set(["queued", "uploading", "processing", "transcribing"]);
 
+function typeColorRgb(kind: string): string {
+  return `var(--${kind === "meeting_notes" ? "meeting" : kind}-color-rgb)`;
+}
+
 function resolveMiniStage(raw: string): string {
   return ACTIVE_STAGE_MAP[raw] ?? raw;
 }
@@ -227,7 +231,7 @@ function RailCard({ doc }: { doc: UiDocument }) {
   const hasExtraction = Boolean(keyLine);
 
   return (
-    <div className={`rail-card ${shapeClass}${lockClass ? ` ${lockClass}` : ""}`} style={{ ...lockStyle, position: "relative" }} data-testid="rail-card">
+    <div className={`rail-card ${shapeClass}${lockClass ? ` ${lockClass}` : ""}`} style={{ ...lockStyle, "--type-color-rgb": typeColorRgb(doc.kind), position: "relative" } as React.CSSProperties} data-testid="rail-card">
       <EvaporationOverlay doc={doc} />
       <div style={{ position: "relative", zIndex: 3 }}>
         {isClassified ? (
@@ -255,6 +259,7 @@ function CompletionReceipt({ doc }: { doc: UiDocument }) {
   return (
     <div
       className={`rail-card rail-card--done rail-card--${doc.kind ?? "generic"}`}
+      style={{ "--type-color-rgb": typeColorRgb(doc.kind) } as React.CSSProperties}
       data-testid="rail-card-done"
     >
       <div className="flex items-center gap-2">
