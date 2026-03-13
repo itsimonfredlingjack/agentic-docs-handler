@@ -64,6 +64,7 @@ function seedStore(selectedId: string | null = null) {
       error: null,
       resultIds: [],
       orphanResults: [],
+      snippetsByDocId: {},
     },
   });
 }

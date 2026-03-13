@@ -31,24 +31,11 @@ class FakeEmbedder:
         ]
 
 
-class FakeQueryPlanner:
-    async def rewrite(self, query: str, request_id: str) -> str:
-        return f"{query} rewritten"
-
-
-class FakeAnswerGenerator:
-    async def answer(self, query: str, rewritten_query: str, results: list[dict[str, object]], request_id: str) -> str:
-        top_title = results[0]["title"] if results else "none"
-        return f"Top match for {rewritten_query}: {top_title}"
-
-
 @pytest.mark.asyncio
-async def test_search_pipeline_rewrites_query_and_returns_ranked_results(tmp_path) -> None:
+async def test_search_pipeline_returns_ranked_results(tmp_path) -> None:
     pipeline = SearchPipeline(
         db_path=tmp_path / "lancedb",
         embedder=FakeEmbedder(),
-        query_planner=FakeQueryPlanner(),
-        answer_generator=FakeAnswerGenerator(),
     )
     pipeline.index_documents(
         [
@@ -72,7 +59,7 @@ async def test_search_pipeline_rewrites_query_and_returns_ranked_results(tmp_pat
     result = await pipeline.search("invoice amount")
 
     assert isinstance(result, SearchResponse)
-    assert result.rewritten_query == "invoice amount rewritten"
+    assert result.rewritten_query == "invoice amount"
     assert result.results[0].doc_id == "invoice-1"
     assert result.results[0].keyword_score > 0
     assert "Top match" in result.answer
@@ -83,8 +70,6 @@ async def test_search_pipeline_upsert_replaces_stale_chunks_and_token_indexes(tm
     pipeline = SearchPipeline(
         db_path=tmp_path / "lancedb",
         embedder=FakeEmbedder(),
-        query_planner=None,
-        answer_generator=None,
         chunk_size=32,
         chunk_overlap=0,
     )
@@ -136,8 +121,6 @@ async def test_search_pipeline_uses_create_table_only_for_initial_build(tmp_path
     pipeline = SearchPipeline(
         db_path=tmp_path / "lancedb",
         embedder=FakeEmbedder(),
-        query_planner=None,
-        answer_generator=None,
     )
     create_table_calls: list[str] = []
     original_create_table = pipeline.db.create_table
@@ -178,8 +161,6 @@ async def test_search_pipeline_preserves_ranking_with_mixed_keyword_and_vector_m
     pipeline = SearchPipeline(
         db_path=tmp_path / "lancedb",
         embedder=FakeEmbedder(),
-        query_planner=FakeQueryPlanner(),
-        answer_generator=FakeAnswerGenerator(),
     )
     pipeline.index_documents(
         [
@@ -213,7 +194,7 @@ async def test_search_pipeline_preserves_ranking_with_mixed_keyword_and_vector_m
     assert result.results[0].keyword_score >= result.results[1].keyword_score
     assert result.results[0].vector_score > 0
     assert result.results[1].vector_score > 0
-    assert result.answer == "Top match for invoice amount rewritten: Invoice Summary"
+    assert "Top match" in result.answer
 
 
 @pytest.mark.asyncio
@@ -221,8 +202,6 @@ async def test_search_pipeline_limits_keyword_scoring_to_posting_list_candidates
     pipeline = SearchPipeline(
         db_path=tmp_path / "lancedb",
         embedder=FakeEmbedder(),
-        query_planner=None,
-        answer_generator=None,
         chunk_size=24,
         chunk_overlap=0,
     )
@@ -270,38 +249,33 @@ async def test_search_pipeline_limits_keyword_scoring_to_posting_list_candidates
 
 
 @pytest.mark.asyncio
-async def test_search_fast_mode_skips_llm_calls(tmp_path) -> None:
-    planner = FakeQueryPlanner()
-    generator = FakeAnswerGenerator()
+async def test_search_snippet_centers_on_query_match(tmp_path) -> None:
     pipeline = SearchPipeline(
         db_path=tmp_path / "lancedb",
         embedder=FakeEmbedder(),
-        query_planner=planner,
-        answer_generator=generator,
     )
+    # Build a long text where "invoice" appears far from the start
+    padding = "unrelated text about nothing " * 20
+    target = "Invoice for March 2026. Amount 900 SEK."
     pipeline.index_documents(
         [
             IndexedDocument(
                 doc_id="invoice-1",
                 title="Invoice March",
                 source_path="docs/invoice.txt",
-                text="Invoice for March 2026. Amount 900 SEK.",
+                text=padding + target,
                 metadata={"document_type": "invoice"},
             ),
         ]
     )
 
-    fast_result = await pipeline.search("invoice", mode="fast")
+    result = await pipeline.search("invoice")
 
-    assert fast_result.results
-    assert fast_result.rewritten_query == "invoice"  # no rewrite
-    # Fallback uses raw query, not "rewritten" suffix from FakeQueryPlanner
-    assert "invoice rewritten" not in fast_result.answer
-
-    full_result = await pipeline.search("invoice", mode="full")
-
-    assert full_result.rewritten_query == "invoice rewritten"  # planner ran
-    assert "Top match for invoice rewritten" in full_result.answer  # generator ran
+    assert result.results
+    snippet = result.results[0].snippet
+    # Snippet should contain the matching term, not just the document start
+    assert "invoice" in snippet.casefold()
+    assert len(snippet) <= 244  # 240 + possible ellipsis chars
 
 
 @pytest.mark.asyncio
@@ -309,8 +283,6 @@ async def test_search_with_document_type_filter_returns_only_matching_category(t
     pipeline = SearchPipeline(
         db_path=tmp_path / "lancedb",
         embedder=FakeEmbedder(),
-        query_planner=None,
-        answer_generator=None,
     )
     pipeline.index_documents(
         [
@@ -349,8 +321,6 @@ async def test_search_without_document_type_filter_returns_all(tmp_path) -> None
     pipeline = SearchPipeline(
         db_path=tmp_path / "lancedb",
         embedder=FakeEmbedder(),
-        query_planner=None,
-        answer_generator=None,
     )
     pipeline.index_documents(
         [

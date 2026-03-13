@@ -46,6 +46,7 @@ describe("ActivityFeed", () => {
         error: null,
         resultIds: [],
         orphanResults: [],
+        snippetsByDocId: {},
       },
       uploadsByRequestId: {},
     });

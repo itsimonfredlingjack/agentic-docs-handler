@@ -61,12 +61,14 @@ class AsyncOllamaClient:
         timeout_seconds: float,
         log_writer: LLMLogWriter,
         max_concurrency: int = 1,
+        num_ctx: int | None = None,
     ) -> None:
         self.base_url = base_url
         self.api_key = api_key
         self.model = model
         self.timeout_seconds = timeout_seconds
         self.log_writer = log_writer
+        self.num_ctx = num_ctx
         self.max_concurrency = max(1, max_concurrency)
         self._semaphore = asyncio.Semaphore(self.max_concurrency)
         self.client = AsyncOpenAI(
@@ -75,6 +77,11 @@ class AsyncOllamaClient:
             timeout=timeout_seconds,
             max_retries=0,
         )
+
+    def _extra_body(self) -> dict[str, Any] | None:
+        if self.num_ctx is None:
+            return None
+        return {"options": {"num_ctx": self.num_ctx}}
 
     async def chat_json_with_meta(
         self,
@@ -85,12 +92,14 @@ class AsyncOllamaClient:
         messages: Sequence[dict[str, Any]],
         temperature: float,
     ) -> dict[str, Any]:
-        payload = {
+        payload: dict[str, Any] = {
             "model": self.model,
             "messages": list(messages),
             "temperature": temperature,
-            "response_format": {"type": "json_object"},
         }
+        extra = self._extra_body()
+        if extra is not None:
+            payload["extra_body"] = extra
 
         attempt = 0
         while True:
@@ -123,7 +132,8 @@ class AsyncOllamaClient:
                     self.model,
                     latency_ms,
                 )
-                content = response.choices[0].message.content or ""
+                raw_content = response.choices[0].message.content or ""
+                content = extract_json_object_text(raw_content)
                 return {
                     "content": content,
                     "prompt_payload": payload,
@@ -184,11 +194,14 @@ class AsyncOllamaClient:
         messages: Sequence[dict[str, Any]],
         temperature: float,
     ) -> str:
-        payload = {
+        payload: dict[str, Any] = {
             "model": self.model,
             "messages": list(messages),
             "temperature": temperature,
         }
+        extra = self._extra_body()
+        if extra is not None:
+            payload["extra_body"] = extra
         attempt = 0
         while True:
             started_at = time.perf_counter()
@@ -267,12 +280,15 @@ class AsyncOllamaClient:
         messages: Sequence[dict[str, Any]],
         temperature: float,
     ) -> AsyncIterator[str]:
-        payload = {
+        payload: dict[str, Any] = {
             "model": self.model,
             "messages": list(messages),
             "temperature": temperature,
             "stream": True,
         }
+        extra = self._extra_body()
+        if extra is not None:
+            payload["extra_body"] = extra
         started_at = time.perf_counter()
         logger.info(
             "ollama.stream.start request_id=%s prompt_name=%s model=%s",

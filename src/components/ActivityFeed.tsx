@@ -159,11 +159,14 @@ export function ActivityFeed() {
             <div className="activity-feed__cards">
               {group.items.map((doc) => {
                 const flatIndex = orderedDocs.indexOf(doc);
+                const snippet = useSearch ? search.snippetsByDocId[doc.id] ?? (doc.summary || undefined) : undefined;
                 return (
                   <DocumentRow
                     key={doc.id}
                     document={doc}
                     focused={flatIndex === focusedIndex}
+                    snippet={snippet}
+                    searchQuery={useSearch ? search.query : undefined}
                     onSelect={() => setSelectedDocument(doc.id)}
                     onRetry={
                       doc.retryable

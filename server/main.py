@@ -22,8 +22,6 @@ from server.pipelines.file_organizer import FileOrganizer
 from server.pipelines.process_pipeline import DocumentProcessPipeline
 from server.pipelines.search import (
     IndexedDocument,
-    LLMAnswerGenerator,
-    LLMQueryPlanner,
     SearchPipeline,
     SentenceTransformerEmbedder,
 )
@@ -49,8 +47,6 @@ class ReadinessProbe:
             config.prompts_dir / "extractors" / "invoice.txt",
             config.prompts_dir / "extractors" / "meeting_notes.txt",
             config.prompts_dir / "extractors" / "generic.txt",
-            config.prompts_dir / "search_rewrite_system.txt",
-            config.prompts_dir / "search_answer_system.txt",
         ]
 
     def __call__(self) -> dict[str, object]:
@@ -73,6 +69,19 @@ class ReadinessProbe:
 
 def read_prompt(path: Path) -> str:
     return path.read_text(encoding="utf-8").strip()
+
+
+def _make_llm(config: AppConfig, log_writer: LLMLogWriter, pipeline: str) -> AsyncOllamaClient:
+    """Create an AsyncOllamaClient configured for a specific pipeline."""
+    return AsyncOllamaClient(
+        base_url=config.ollama_base_url,
+        api_key=config.ollama_api_key,
+        model=config.resolve_model(pipeline),
+        timeout_seconds=config.request_timeout_seconds,
+        log_writer=log_writer,
+        max_concurrency=config.ollama_max_concurrency,
+        num_ctx=config.resolve_num_ctx(pipeline),
+    )
 
 
 def load_validation_report(path: Path) -> dict[str, object]:
@@ -103,7 +112,7 @@ def create_app(
     config.chatgpt_upload_staging_dir.mkdir(parents=True, exist_ok=True)
     config.staging_dir.mkdir(parents=True, exist_ok=True)
 
-    ollama_client: AsyncOllamaClient | None = None
+    classifier_llm: AsyncOllamaClient | None = None
     realtime_manager = realtime_manager or ConnectionManager()
     document_registry = document_registry or DocumentRegistry(
         documents_path=config.ui_documents_path,
@@ -111,27 +120,21 @@ def create_app(
     )
     if pipeline is None or readiness_probe is None:
         log_writer = LLMLogWriter(config.llm_log_dir)
-        ollama_client = AsyncOllamaClient(
-            base_url=config.ollama_base_url,
-            api_key=config.ollama_api_key,
-            model=config.ollama_model,
-            timeout_seconds=config.request_timeout_seconds,
-            log_writer=log_writer,
-            max_concurrency=config.ollama_max_concurrency,
-        )
+        classifier_llm = _make_llm(config, log_writer, "classifier")
+        extractor_llm = _make_llm(config, log_writer, "extractor")
         whisper_service = whisper_service or WhisperProxy(
             base_url=config.whisper_base_url,
             timeout_seconds=config.whisper_timeout_seconds,
         )
         classifier = DocumentClassifier(
-            ollama_client=ollama_client,
+            ollama_client=classifier_llm,
             classifier_prompt=read_prompt(config.prompts_dir / "classifier_system.txt"),
             image_classifier_prompt=read_prompt(config.prompts_dir / "image_classifier_system.txt"),
             temperature=config.classifier_temperature,
             max_image_dimension=config.classifier_max_image_dimension,
         )
         extractor = DocumentExtractor(
-            ollama_client=ollama_client,
+            ollama_client=extractor_llm,
             prompts={
                 "receipt": read_prompt(config.prompts_dir / "extractors" / "receipt.txt"),
                 "contract": read_prompt(config.prompts_dir / "extractors" / "contract.txt"),
@@ -152,7 +155,7 @@ def create_app(
             max_text_characters=config.max_text_characters,
             classifier_max_text_characters=config.classifier_max_text_characters,
         )
-        readiness_probe = readiness_probe or ReadinessProbe(config, ollama_client, whisper_service)
+        readiness_probe = readiness_probe or ReadinessProbe(config, classifier_llm, whisper_service)
     else:
         if hasattr(pipeline, "document_registry"):
             setattr(pipeline, "document_registry", document_registry)
@@ -172,7 +175,7 @@ def create_app(
         validation_report_loader=validation_report_loader,
     ).documents
 
-    if search_service is None and ollama_client is not None:
+    if search_service is None:
         search_service = SearchPipeline(
             db_path=config.lancedb_path,
             embedder=SentenceTransformerEmbedder(
@@ -183,14 +186,6 @@ def create_app(
                 trust_remote_code=config.embedding_trust_remote_code,
             ),
             table_name=config.lancedb_table_name,
-            query_planner=LLMQueryPlanner(
-                ollama_client=ollama_client,
-                system_prompt=read_prompt(config.prompts_dir / "search_rewrite_system.txt"),
-            ),
-            answer_generator=LLMAnswerGenerator(
-                ollama_client=ollama_client,
-                system_prompt=read_prompt(config.prompts_dir / "search_answer_system.txt"),
-            ),
             chunk_size=config.search_chunk_size,
             chunk_overlap=config.search_chunk_overlap,
             default_limit=config.search_default_limit,
@@ -210,10 +205,12 @@ def create_app(
     if search_service is not None and hasattr(pipeline, "search_pipeline"):
         setattr(pipeline, "search_pipeline", search_service)
 
-    if workspace_chat_service is None and search_service is not None and ollama_client is not None:
+    if workspace_chat_service is None and search_service is not None and classifier_llm is not None:
+        log_writer = classifier_llm.log_writer
+        workspace_llm = _make_llm(config, log_writer, "workspace_chat")
         from server.pipelines.workspace_chat import WorkspaceChatPipeline
         workspace_chat_service = WorkspaceChatPipeline(
-            ollama_client=ollama_client,
+            ollama_client=workspace_llm,
             search_pipeline=search_service,
             document_registry=document_registry,
             system_prompt=read_prompt(config.prompts_dir / "workspace_system.txt"),

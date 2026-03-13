@@ -67,6 +67,7 @@ describe("documentStore", () => {
         error: null,
         resultIds: [],
         orphanResults: [],
+        snippetsByDocId: {},
       },
       sidebarFilter: "all",
       toasts: [],

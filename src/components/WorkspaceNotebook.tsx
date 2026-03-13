@@ -75,9 +75,13 @@ export function WorkspaceNotebook() {
         })}
 
         {(!conversation || conversation.entries.length === 0) && (
-          <div className="flex min-h-[300px] flex-col items-center justify-center text-center">
+          <div className="flex min-h-[300px] flex-col items-center justify-center text-center gap-5">
+            <div className="ai-avatar" style={{ "--avatar-color": color } as React.CSSProperties}>
+              <div className="ai-avatar__ring" />
+              <span className="ai-avatar__letter">S</span>
+            </div>
             <p className="text-sm text-[var(--text-secondary)]">
-              Fr\u00E5ga dina {label.toLowerCase()} vad som helst
+              Fråga dina {label.toLowerCase()} vad som helst
             </p>
           </div>
         )}
@@ -86,7 +90,7 @@ export function WorkspaceNotebook() {
       {/* Input */}
       <div className="mt-3">
         <NotebookInput
-          placeholder={`Fr\u00E5ga dina ${label.toLowerCase()}...`}
+          placeholder={`Fråga dina ${label.toLowerCase()}...`}
           disabled={isStreaming}
           onSubmit={sendMessage}
         />

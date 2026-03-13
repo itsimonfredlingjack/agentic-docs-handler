@@ -24,6 +24,13 @@ class AppConfig(BaseSettings):
     ollama_base_url: str = "http://localhost:11434/v1"
     ollama_api_key: str = "ollama"
     ollama_model: str = LLM_MODEL
+    ollama_model_classifier: str | None = None
+    ollama_model_extractor: str | None = None
+    ollama_model_workspace_chat: str | None = None
+    ollama_num_ctx: int | None = None
+    ollama_num_ctx_classifier: int | None = None
+    ollama_num_ctx_extractor: int | None = None
+    ollama_num_ctx_workspace_chat: int = 16384
     request_timeout_seconds: float = 300.0
     ollama_max_concurrency: int = 1
     classifier_temperature: float = 0.1
@@ -71,6 +78,19 @@ class AppConfig(BaseSettings):
     staging_dir: Path = Path("/tmp/agentic-docs/server-staging")
     whisper_base_url: str = "http://ai-server2:8090"
     whisper_timeout_seconds: float = 300.0
+
+
+    def resolve_model(self, pipeline: str) -> str:
+        """Return the model for a pipeline, falling back to the global default."""
+        specific = getattr(self, f"ollama_model_{pipeline}", None)
+        return specific or self.ollama_model
+
+    def resolve_num_ctx(self, pipeline: str) -> int | None:
+        """Return num_ctx for a pipeline, falling back to the global default."""
+        specific = getattr(self, f"ollama_num_ctx_{pipeline}", None)
+        if specific is not None:
+            return specific
+        return self.ollama_num_ctx
 
 
 @lru_cache(maxsize=1)

@@ -24,6 +24,7 @@ describe("SearchBar", () => {
         error: null,
         resultIds: [],
         orphanResults: [],
+        snippetsByDocId: {},
       },
       clearSearch: vi.fn(),
     });
@@ -51,6 +52,7 @@ describe("SearchBar", () => {
         error: "search_unavailable",
         resultIds: [],
         orphanResults: [],
+        snippetsByDocId: {},
       },
       clearSearch,
     });
@@ -73,6 +75,7 @@ describe("SearchBar", () => {
         error: null,
         resultIds: ["doc-1", "doc-2", "doc-3"],
         orphanResults: [],
+        snippetsByDocId: {},
       },
       clearSearch: vi.fn(),
     });
@@ -95,6 +98,7 @@ describe("SearchBar", () => {
         error: null,
         resultIds: [],
         orphanResults: [],
+        snippetsByDocId: {},
       },
       clearSearch: vi.fn(),
     });
@@ -118,6 +122,7 @@ describe("SearchBar", () => {
         error: null,
         resultIds: [],
         orphanResults: [],
+        snippetsByDocId: {},
       },
       clearSearch,
     });

@@ -1,3 +1,5 @@
+import Markdown from "react-markdown";
+
 type Props = {
   query: string;
   response: string;
@@ -17,11 +19,9 @@ export function NotebookEntry({ query, response, sourceCount, isStreaming, strea
         </p>
       )}
       {displayText && (
-        <div className="notebook-entry__response">
-          <p className="whitespace-pre-wrap text-sm text-[var(--text-primary)] leading-relaxed">
-            {displayText}
-            {isStreaming && <span className="notebook-cursor">{"\u2588"}</span>}
-          </p>
+        <div className="notebook-entry__response notebook-prose">
+          <Markdown>{displayText}</Markdown>
+          {isStreaming && <span className="notebook-cursor">{"\u2588"}</span>}
         </div>
       )}
       {!isStreaming && response && sourceCount > 0 && (

@@ -108,6 +108,7 @@ const emptySearch: SearchState = {
   error: null,
   resultIds: [],
   orphanResults: [],
+  snippetsByDocId: {},
 };
 
 function upsertOrder(order: string[], id: string): string[] {
@@ -376,7 +377,9 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
     set((state) => {
       const resultIds: string[] = [];
       const orphanResults = [];
+      const snippetsByDocId: Record<string, string> = {};
       for (const result of response.results) {
+        snippetsByDocId[result.doc_id] = result.snippet;
         if (state.documents[result.doc_id]) {
           resultIds.push(result.doc_id);
         } else {
@@ -394,6 +397,7 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
           error: null,
           resultIds,
           orphanResults,
+          snippetsByDocId,
         },
       };
     }),

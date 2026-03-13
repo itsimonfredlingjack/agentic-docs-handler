@@ -8,11 +8,9 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
-from uuid import uuid4
 
 import lancedb
 
-from server.clients.ollama_client import OllamaServiceError
 from server.schemas import SearchResponse, SearchResult
 
 TOKEN_PATTERN = re.compile(r"[\wÅÄÖåäö]+", re.UNICODE)
@@ -46,20 +44,6 @@ class Embedder(Protocol):
     def encode_documents(self, texts: list[str]) -> list[list[float]]: ...
 
     def encode_query(self, text: str) -> list[float]: ...
-
-
-class QueryPlanner(Protocol):
-    async def rewrite(self, query: str, request_id: str) -> str: ...
-
-
-class AnswerGenerator(Protocol):
-    async def answer(
-        self,
-        query: str,
-        rewritten_query: str,
-        results: list[dict[str, object]],
-        request_id: str,
-    ) -> str: ...
 
 
 class SentenceTransformerEmbedder:
@@ -112,60 +96,6 @@ class SentenceTransformerEmbedder:
         return self._model
 
 
-class LLMQueryPlanner:
-    def __init__(self, *, ollama_client: Any, system_prompt: str, temperature: float = 0.1) -> None:
-        self.ollama_client = ollama_client
-        self.system_prompt = system_prompt
-        self.temperature = temperature
-
-    async def rewrite(self, query: str, request_id: str) -> str:
-        response = await self.ollama_client.chat_text(
-            request_id=request_id,
-            prompt_name="search_query_rewrite",
-            input_modality="text",
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": query},
-            ],
-            temperature=self.temperature,
-        )
-        rewritten = response.strip()
-        return rewritten or query
-
-
-class LLMAnswerGenerator:
-    def __init__(self, *, ollama_client: Any, system_prompt: str, temperature: float = 0.2) -> None:
-        self.ollama_client = ollama_client
-        self.system_prompt = system_prompt
-        self.temperature = temperature
-
-    async def answer(
-        self,
-        query: str,
-        rewritten_query: str,
-        results: list[dict[str, object]],
-        request_id: str,
-    ) -> str:
-        response = await self.ollama_client.chat_text(
-            request_id=request_id,
-            prompt_name="search_answer",
-            input_modality="text",
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                {
-                    "role": "user",
-                    "content": (
-                        f"Fråga: {query}\n"
-                        f"Rewritten query: {rewritten_query}\n"
-                        f"Search results: {results}"
-                    ),
-                },
-            ],
-            temperature=self.temperature,
-        )
-        return response.strip()
-
-
 class SearchPipeline:
     def __init__(
         self,
@@ -173,21 +103,20 @@ class SearchPipeline:
         db_path: Path,
         embedder: Embedder,
         table_name: str = "document_chunks",
-        query_planner: QueryPlanner | None = None,
-        answer_generator: AnswerGenerator | None = None,
         chunk_size: int = 900,
         chunk_overlap: int = 120,
         default_limit: int = 5,
         candidate_limit: int = 20,
         bootstrap_documents: Iterable[IndexedDocument] | None = None,
+        # Deprecated — accepted for backward compat but ignored
+        query_planner: object | None = None,
+        answer_generator: object | None = None,
     ) -> None:
         self.db_path = Path(db_path)
         self.db_path.mkdir(parents=True, exist_ok=True)
         self.db = lancedb.connect(str(self.db_path))
         self.embedder = embedder
         self.table_name = table_name
-        self.query_planner = query_planner
-        self.answer_generator = answer_generator
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         self.default_limit = default_limit
@@ -238,26 +167,19 @@ class SearchPipeline:
 
     async def search(self, query: str, limit: int | None = None, *, mode: str = "full", document_type: str | None = None) -> SearchResponse:
         await self._ensure_bootstrapped()
-        request_id = str(uuid4())
-        rewritten_query = query
-        if mode != "fast" and self.query_planner is not None:
-            try:
-                rewritten_query = await self.query_planner.rewrite(query, request_id)
-            except OllamaServiceError:
-                rewritten_query = query
 
         rows_by_chunk_id = self._rows_by_chunk_id
         table = self._table
         if not rows_by_chunk_id or table is None:
             return SearchResponse(
                 query=query,
-                rewritten_query=rewritten_query,
+                rewritten_query=query,
                 answer="Inga indexerade dokument finns tillgängliga ännu.",
                 results=[],
             )
 
         top_limit = limit or self.default_limit
-        query_vector = self.embedder.encode_query(rewritten_query)
+        query_vector = self.embedder.encode_query(query)
         vector_rows = table.search(query_vector).limit(max(top_limit, self.candidate_limit)).to_list()
         if document_type is not None:
             vector_rows = [
@@ -268,7 +190,7 @@ class SearchPipeline:
         vector_rank = {row["chunk_id"]: index + 1 for index, row in enumerate(vector_rows)}
 
         keyword_ranked = self._rank_keyword_candidates(
-            rewritten_query,
+            query,
             top_limit=top_limit,
             document_type=document_type,
         )
@@ -293,7 +215,7 @@ class SearchPipeline:
                     doc_id=row["doc_id"],
                     title=row["title"],
                     source_path=row["source_path"],
-                    snippet=row["content"][:240],
+                    snippet=self._build_snippet(query, row["content"]),
                     score=round(score, 6),
                     vector_score=round(vector_score, 6),
                     keyword_score=round(keyword_score, 6),
@@ -303,21 +225,11 @@ class SearchPipeline:
         scored_rows.sort(key=lambda item: item.score, reverse=True)
         top_results = scored_rows[:top_limit]
 
-        answer = self._fallback_answer(rewritten_query, top_results)
-        if mode != "fast" and self.answer_generator is not None and top_results:
-            try:
-                answer = await self.answer_generator.answer(
-                    query,
-                    rewritten_query,
-                    [result.model_dump(mode="json") for result in top_results],
-                    request_id,
-                )
-            except OllamaServiceError:
-                answer = self._fallback_answer(rewritten_query, top_results)
+        answer = self._fallback_answer(query, top_results)
 
         return SearchResponse(
             query=query,
-            rewritten_query=rewritten_query,
+            rewritten_query=query,
             answer=answer,
             results=top_results,
         )
@@ -479,8 +391,32 @@ class SearchPipeline:
         return round(density + coverage, 6)
 
     @staticmethod
-    def _fallback_answer(rewritten_query: str, results: list[SearchResult]) -> str:
+    def _build_snippet(query: str, content: str, max_length: int = 240) -> str:
+        query_tokens = set(tokenize(query))
+        content_lower = content.casefold()
+
+        # Find earliest matching token position
+        best_pos = 0
+        for token in query_tokens:
+            pos = content_lower.find(token)
+            if pos >= 0:
+                best_pos = pos
+                break
+
+        # Center the window around the match
+        half = max_length // 2
+        start = max(0, best_pos - half)
+        end = min(len(content), start + max_length)
+        start = max(0, end - max_length)
+
+        snippet = content[start:end]
+        prefix = "\u2026" if start > 0 else ""
+        suffix = "\u2026" if end < len(content) else ""
+        return f"{prefix}{snippet}{suffix}"
+
+    @staticmethod
+    def _fallback_answer(query: str, results: list[SearchResult]) -> str:
         if not results:
             return "Jag hittade inga dokument som matchar frågan."
         top = results[0]
-        return f"Top match for '{rewritten_query}' is {top.title}. {top.snippet}"
+        return f"Top match for '{query}' is {top.title}. {top.snippet}"

@@ -1,18 +1,21 @@
 import { mapToUserStatus, userStatusLabel, userStatusColor, getKeyLine } from "../lib/status";
 import { getTimeGroup } from "../lib/feed-utils";
 import { kindRgbVar, kindColor } from "../lib/document-colors";
+import { highlightSnippet } from "../lib/highlight-snippet";
 import type { UiDocument } from "../types/documents";
 
 type Props = {
   document: UiDocument;
   focused?: boolean;
+  snippet?: string;
+  searchQuery?: string;
   onSelect?: () => void;
   onRetry?: () => void;
   onUndo?: () => void;
 };
 
 
-export function DocumentRow({ document, focused, onSelect, onRetry, onUndo }: Props) {
+export function DocumentRow({ document, focused, snippet, searchQuery, onSelect, onRetry, onUndo }: Props) {
   const userStatus = mapToUserStatus(document);
   const statusLabel = userStatusLabel(userStatus);
   const statusColor = userStatusColor(userStatus);
@@ -75,6 +78,13 @@ export function DocumentRow({ document, focused, onSelect, onRetry, onUndo }: Pr
             </span>
           )}
         </div>
+      )}
+
+      {/* Row 3: search snippet */}
+      {snippet && searchQuery && (
+        <p className="mt-1.5 line-clamp-2 pl-[14px] text-sm italic leading-relaxed text-white/50">
+          {highlightSnippet(snippet, searchQuery)}
+        </p>
       )}
 
       {/* Undo move */}

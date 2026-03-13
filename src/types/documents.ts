@@ -365,6 +365,7 @@ export type SearchState = {
   error: string | null;
   resultIds: string[];
   orphanResults: SearchResult[];
+  snippetsByDocId: Record<string, string>;
 };
 
 export type ViewMode = "activity" | "workspaces";

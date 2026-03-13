@@ -137,7 +137,6 @@ def create_router(
     async def search(
         query: str = Query(min_length=1),
         limit: int = Query(default=5, ge=1, le=20),
-        mode: str = Query(default="full", pattern="^(fast|full)$"),
     ) -> SearchResponse:
         if search_service is None:
             raise HTTPException(
@@ -145,7 +144,7 @@ def create_router(
                 detail="search_unavailable",
             )
         try:
-            return await search_service.search(query, limit=limit, mode=mode)
+            return await search_service.search(query, limit=limit)
         except SearchPipelineError as error:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
