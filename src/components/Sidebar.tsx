@@ -1,5 +1,6 @@
 import { useDocumentStore } from "../store/documentStore";
 import { SIDEBAR_FILTER_ITEMS } from "./sidebarFilters";
+import { ModeToggle } from "./ModeToggle";
 import { useEffect, useMemo, useState } from "react";
 
 function KineticNumber({ value }: { value: number }) {
@@ -32,6 +33,7 @@ export function Sidebar() {
   const sidebarFilter = useDocumentStore((state) => state.sidebarFilter);
   const setSidebarFilter = useDocumentStore((state) => state.setSidebarFilter);
   const connectionState = useDocumentStore((state) => state.connectionState);
+  const viewMode = useDocumentStore((state) => state.viewMode);
   const statusLabel = connectionState === "connected" ? "Ansluten" : "Ansluter";
   const failedCount = useMemo(
     () => Object.values(documents).filter((d) => d.status === "failed").length,
@@ -53,35 +55,38 @@ export function Sidebar() {
         <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">
           Dokument sorteras, indexeras och blir sökbara utan manuell administration.
         </p>
+        <ModeToggle />
       </div>
 
-      <nav className="flex flex-1 flex-col gap-2">
-        {SIDEBAR_FILTER_ITEMS.map((item) => {
-          const active = sidebarFilter === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              className={`sidebar-pill hover-lift flex items-center justify-between text-left ${active ? "is-active" : ""}`}
-              aria-label={`Filtrera: ${item.label}`}
-              onClick={() => setSidebarFilter(item.id)}
+      {viewMode === "activity" && (
+        <nav className="flex flex-1 flex-col gap-2">
+          {SIDEBAR_FILTER_ITEMS.map((item) => {
+            const active = sidebarFilter === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`sidebar-pill hover-lift flex items-center justify-between text-left ${active ? "is-active" : ""}`}
+                aria-label={`Filtrera: ${item.label}`}
+                onClick={() => setSidebarFilter(item.id)}
+              >
+                <span className="font-medium">{item.label}</span>
+                <KineticNumber value={counts[item.countKey] || 0} />
+              </button>
+            );
+          })}
+          {failedCount > 0 && (
+            <div
+              className="mt-1 flex items-center gap-2 rounded-xl border border-[rgba(255,69,58,0.18)] bg-[rgba(255,69,58,0.07)] px-3 py-2.5 text-[var(--invoice-color)] transition-opacity"
+              role="status"
+              aria-label={`${failedCount} misslyckade dokument`}
             >
-              <span className="font-medium">{item.label}</span>
-              <KineticNumber value={counts[item.countKey] || 0} />
-            </button>
-          );
-        })}
-        {failedCount > 0 && (
-          <div
-            className="mt-1 flex items-center gap-2 rounded-xl border border-[rgba(255,69,58,0.18)] bg-[rgba(255,69,58,0.07)] px-3 py-2.5 text-[var(--invoice-color)] transition-opacity"
-            role="status"
-            aria-label={`${failedCount} misslyckade dokument`}
-          >
-            <span className="status-dot bg-[var(--invoice-color)]" style={{ animation: "stepper-pulse 2s ease-in-out infinite" }} />
-            <span className="text-xs font-medium">{failedCount} misslyckade</span>
-          </div>
-        )}
-      </nav>
+              <span className="status-dot bg-[var(--invoice-color)]" style={{ animation: "stepper-pulse 2s ease-in-out infinite" }} />
+              <span className="text-xs font-medium">{failedCount} misslyckade</span>
+            </div>
+          )}
+        </nav>
+      )}
     </aside>
   );
 }
