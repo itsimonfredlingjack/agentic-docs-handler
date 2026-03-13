@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json as json_module
 import re
 from collections.abc import Callable
 import logging
@@ -8,7 +9,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from server.clients.ollama_client import OllamaServiceError
 from server.pipelines.classifier import ClassificationValidationError
@@ -30,6 +31,9 @@ from server.schemas import (
     TranscriptionResponse,
     UndoMoveRequest,
     UndoMoveResponse,
+    WorkspaceCategoriesResponse,
+    WorkspaceCategory,
+    WorkspaceChatRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -67,6 +71,16 @@ def _maybe_cleanup_staging(staging_dir: Path) -> None:
             pass
 
 
+WORKSPACE_CATEGORY_LABELS = {
+    "receipt": "Kvitton",
+    "contract": "Avtal",
+    "invoice": "Fakturor",
+    "meeting_notes": "Möten",
+    "audio": "Ljud",
+    "generic": "Övrigt",
+}
+
+
 def create_router(
     *,
     pipeline: object,
@@ -78,6 +92,7 @@ def create_router(
     readiness_probe: Callable[[], dict[str, object]],
     validation_report_loader: Callable[[], dict[str, object]],
     staging_dir: Path | None = None,
+    workspace_chat_service: object | None = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -390,5 +405,38 @@ def create_router(
                 },
             )
         return result.response
+
+    @router.get("/workspace/categories", response_model=WorkspaceCategoriesResponse)
+    async def workspace_categories() -> WorkspaceCategoriesResponse:
+        if document_registry is None:
+            raise HTTPException(503, "document registry unavailable")
+        raw_counts = document_registry.counts()
+        categories = []
+        for kind, label in WORKSPACE_CATEGORY_LABELS.items():
+            count = getattr(raw_counts, kind, 0)
+            if count > 0:
+                categories.append(WorkspaceCategory(category=kind, count=count, label=label))
+        return WorkspaceCategoriesResponse(categories=categories)
+
+    @router.post("/workspace/chat")
+    async def workspace_chat(request: WorkspaceChatRequest) -> StreamingResponse:
+        if workspace_chat_service is None:
+            raise HTTPException(503, "workspace chat unavailable")
+        context = await workspace_chat_service.prepare_context(
+            category=request.category,
+            message=request.message,
+            history=[turn.model_dump() for turn in request.history],
+        )
+
+        async def event_stream():
+            yield f"event: context\ndata: {json_module.dumps({'source_count': context.source_count})}\n\n"
+            try:
+                async for token in workspace_chat_service.stream_response(context):
+                    yield f"event: token\ndata: {json_module.dumps({'text': token})}\n\n"
+                yield f"event: done\ndata: {{}}\n\n"
+            except Exception as exc:
+                yield f"event: error\ndata: {json_module.dumps({'error': str(exc)})}\n\n"
+
+        return StreamingResponse(event_stream(), media_type="text/event-stream")
 
     return router

@@ -270,6 +270,27 @@ class DismissMoveResponse(BaseModel):
     move_status: MoveStatus
 
 
+class ChatTurn(BaseModel):
+    role: str
+    content: str
+
+
+class WorkspaceChatRequest(BaseModel):
+    category: str
+    message: str = Field(min_length=1)
+    history: list[ChatTurn] = Field(default_factory=list)
+
+
+class WorkspaceCategory(BaseModel):
+    category: str
+    count: int
+    label: str
+
+
+class WorkspaceCategoriesResponse(BaseModel):
+    categories: list[WorkspaceCategory]
+
+
 class CompleteUndoMoveRequest(BaseModel):
     undo_token: str
     client_id: str | None = None

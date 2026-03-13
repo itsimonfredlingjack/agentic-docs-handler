@@ -92,6 +92,7 @@ def create_app(
     readiness_probe: Callable[[], dict[str, object]] | None = None,
     validation_report_loader: Callable[[], dict[str, object]] | None = None,
     mcp_enabled: bool | None = None,
+    workspace_chat_service: object | None = None,
 ) -> FastAPI:
     configure_logging()
     config = config or get_config()
@@ -209,6 +210,15 @@ def create_app(
     if search_service is not None and hasattr(pipeline, "search_pipeline"):
         setattr(pipeline, "search_pipeline", search_service)
 
+    if workspace_chat_service is None and search_service is not None and ollama_client is not None:
+        from server.pipelines.workspace_chat import WorkspaceChatPipeline
+        workspace_chat_service = WorkspaceChatPipeline(
+            ollama_client=ollama_client,
+            search_pipeline=search_service,
+            document_registry=document_registry,
+            system_prompt=read_prompt(config.prompts_dir / "workspace_system.txt"),
+        )
+
     validation_report_loader = validation_report_loader or (
         lambda: load_validation_report(config.validation_report_path)
     )
@@ -242,6 +252,7 @@ def create_app(
             readiness_probe=services.readiness_probe,
             validation_report_loader=services.validation_report_loader,
             staging_dir=config.staging_dir,
+            workspace_chat_service=workspace_chat_service,
         )
     )
     app.include_router(create_ws_router(realtime_manager=services.realtime_manager))
