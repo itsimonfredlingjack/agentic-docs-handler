@@ -41,8 +41,9 @@ export function WorkspaceNotebook() {
         <button
           className="action-secondary px-2.5 py-1 text-xs"
           onClick={() => setActiveWorkspace(null)}
+          aria-label="Stäng workspace"
         >
-          {"\u2190"}
+          {"\u2715"}
         </button>
         <div className="flex items-center gap-2">
           <span

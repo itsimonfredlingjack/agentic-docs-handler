@@ -71,7 +71,11 @@ export default function App() {
           <ProcessingRail />
           <ActivityFeed />
         </main>
-        {activeWorkspace && <WorkspaceNotebook />}
+        {activeWorkspace && (
+          <aside className="workspace-panel glass-panel hidden lg:flex">
+            <WorkspaceNotebook />
+          </aside>
+        )}
       </div>
       <MobileFilterSheet open={isFilterSheetOpen} onClose={() => setFilterSheetOpen(false)} />
       <FileMoveToast />
