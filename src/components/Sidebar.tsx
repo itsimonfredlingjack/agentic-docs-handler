@@ -2,6 +2,8 @@ import { useDocumentStore } from "../store/documentStore";
 import { SIDEBAR_FILTER_ITEMS } from "./sidebarFilters";
 import { useEffect, useMemo, useState } from "react";
 
+const CHAT_ELIGIBLE = new Set(["receipt", "contract", "invoice", "meeting_notes", "audio", "generic"]);
+
 function KineticNumber({ value }: { value: number }) {
   const [displayValue, setDisplayValue] = useState(value);
   const [animating, setAnimating] = useState(false);
@@ -31,6 +33,8 @@ export function Sidebar() {
   const documents = useDocumentStore((state) => state.documents);
   const sidebarFilter = useDocumentStore((state) => state.sidebarFilter);
   const setSidebarFilter = useDocumentStore((state) => state.setSidebarFilter);
+  const setActiveWorkspace = useDocumentStore((state) => state.setActiveWorkspace);
+  const activeWorkspace = useDocumentStore((state) => state.activeWorkspace);
   const connectionState = useDocumentStore((state) => state.connectionState);
   const statusLabel = connectionState === "connected" ? "Ansluten" : "Ansluter";
   const failedCount = useMemo(
@@ -58,17 +62,30 @@ export function Sidebar() {
       <nav className="flex flex-1 flex-col gap-2">
         {SIDEBAR_FILTER_ITEMS.map((item) => {
           const active = sidebarFilter === item.id;
+          const chatEligible = CHAT_ELIGIBLE.has(item.id);
+          const chatActive = activeWorkspace === item.id;
           return (
-            <button
-              key={item.id}
-              type="button"
-              className={`sidebar-pill hover-lift flex items-center justify-between text-left ${active ? "is-active" : ""}`}
-              aria-label={`Filtrera: ${item.label}`}
-              onClick={() => setSidebarFilter(item.id)}
-            >
-              <span className="font-medium">{item.label}</span>
-              <KineticNumber value={counts[item.countKey] || 0} />
-            </button>
+            <div key={item.id} className="sidebar-pill-row">
+              <button
+                type="button"
+                className={`sidebar-pill hover-lift flex flex-1 items-center justify-between text-left ${active ? "is-active" : ""}`}
+                aria-label={`Filtrera: ${item.label}`}
+                onClick={() => setSidebarFilter(item.id)}
+              >
+                <span className="font-medium">{item.label}</span>
+                <KineticNumber value={counts[item.countKey] || 0} />
+              </button>
+              {chatEligible && (
+                <button
+                  type="button"
+                  className={`sidebar-pill__chat-trigger ${chatActive ? "is-active" : ""}`}
+                  aria-label={`Chatta med ${item.label}`}
+                  onClick={() => setActiveWorkspace(chatActive ? null : item.id)}
+                >
+                  {"\u25B8"}
+                </button>
+              )}
+            </div>
           );
         })}
         {failedCount > 0 && (

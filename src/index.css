@@ -267,6 +267,36 @@ input {
     outline-offset: 2px;
   }
 
+  /* ── Sidebar pill row (filter + chat trigger) ── */
+  .sidebar-pill-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .sidebar-pill__chat-trigger {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--badge-radius);
+    font-size: 11px;
+    color: var(--text-muted);
+    transition: color var(--transition-fast), background var(--transition-fast);
+    flex-shrink: 0;
+  }
+
+  .sidebar-pill__chat-trigger:hover {
+    background: var(--glass-bg-hover);
+    color: var(--accent-primary);
+  }
+
+  .sidebar-pill__chat-trigger.is-active {
+    background: var(--accent-surface);
+    color: var(--accent-primary);
+  }
+
   .detail-backdrop {
     position: fixed;
     inset: 0;
