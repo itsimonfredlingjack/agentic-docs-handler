@@ -382,6 +382,7 @@ export type NotebookEntry = {
   response: string;
   timestamp: string;
   sourceCount: number;
+  errorMessage: string | null;
 };
 
 export type WorkspaceConversation = {

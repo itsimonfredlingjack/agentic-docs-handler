@@ -4,22 +4,28 @@ type Props = {
   query: string;
   response: string;
   sourceCount: number;
+  errorMessage: string | null;
   isStreaming?: boolean;
   streamingText?: string;
 };
 
-export function NotebookEntry({ query, response, sourceCount, isStreaming, streamingText }: Props) {
+export function NotebookEntry({ query, response, sourceCount, errorMessage, isStreaming, streamingText }: Props) {
   const displayText = isStreaming ? streamingText ?? "" : response;
+  const hasError = !isStreaming && Boolean(errorMessage);
+  const entryClassName = hasError ? "notebook-entry notebook-entry--error" : "notebook-entry";
+  const responseClassName = hasError
+    ? "notebook-entry__response notebook-prose notebook-entry__response--error"
+    : "notebook-entry__response notebook-prose";
 
   return (
-    <div className="notebook-entry">
+    <div className={entryClassName}>
       {query && (
         <p className="notebook-entry__query">
           <span className="text-[var(--text-muted)]">{"\u25B8"}</span> {query}
         </p>
       )}
       {displayText && (
-        <div className="notebook-entry__response notebook-prose">
+        <div className={responseClassName}>
           <Markdown>{displayText}</Markdown>
           {isStreaming && <span className="notebook-cursor">{"\u2588"}</span>}
         </div>
@@ -27,6 +33,11 @@ export function NotebookEntry({ query, response, sourceCount, isStreaming, strea
       {!isStreaming && response && sourceCount > 0 && (
         <p className="notebook-entry__sources">
           K\u00E4lla: {sourceCount} dokument analyserade
+        </p>
+      )}
+      {!isStreaming && errorMessage && (
+        <p className="notebook-entry__error">
+          <span className="notebook-entry__error-badge">{"\u26A0"} Fel</span> {errorMessage}
         </p>
       )}
     </div>

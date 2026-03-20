@@ -9,6 +9,7 @@ from server.config import AppConfig
 from server.mcp.app import create_mcp_server
 from server.mcp.services import AppServices, KnowledgeDocument
 from server.schemas import (
+    DocumentCountsResponse,
     DocumentClassification,
     ExtractionResult,
     MovePlan,
@@ -140,6 +141,21 @@ class FakeWhisperService:
         )
 
 
+class FakeDocumentRegistry:
+    def counts(self) -> DocumentCountsResponse:
+        return DocumentCountsResponse(
+            all=5,
+            processing=1,
+            receipt=2,
+            contract=0,
+            invoice=1,
+            meeting_notes=1,
+            audio=0,
+            generic=0,
+            moved=2,
+        )
+
+
 class FakePipeline:
     def __init__(self) -> None:
         self.classifier = FakeClassifier()
@@ -231,6 +247,7 @@ def build_services(tmp_path: Path) -> tuple[AppServices, FakePipeline, Path]:
         pipeline=pipeline,
         search_service=search_service,
         whisper_service=whisper_service,
+        document_registry=FakeDocumentRegistry(),
         classifier=pipeline.classifier,
         extractor=pipeline.extractor,
         organizer=pipeline.organizer,
@@ -419,6 +436,32 @@ async def test_get_activity_log_returns_empty_payload_without_events(tmp_path: P
     result = await server.call_tool("get_activity_log", {})
 
     assert result.structuredContent["events"] == []
+
+
+@pytest.mark.asyncio
+async def test_get_workspace_categories_returns_non_empty_counts(tmp_path: Path) -> None:
+    services, _, _ = build_services(tmp_path)
+    server = create_mcp_server(services)
+
+    result = await server.call_tool("get_workspace_categories", {})
+
+    categories = result.structuredContent["categories"]
+    assert {"category": "receipt", "count": 2, "label": "Kvitton"} in categories
+    assert {"category": "invoice", "count": 1, "label": "Fakturor"} in categories
+    assert {"category": "meeting_notes", "count": 1, "label": "Mötesanteckningar"} in categories
+    assert all(item["count"] > 0 for item in categories)
+
+
+@pytest.mark.asyncio
+async def test_get_workspace_categories_returns_error_without_registry(tmp_path: Path) -> None:
+    services, _, _ = build_services(tmp_path)
+    services.document_registry = None
+    server = create_mcp_server(services)
+
+    result = await server.call_tool("get_workspace_categories", {})
+
+    assert result.isError is True
+    assert result.content[0].text == "document_registry_unavailable"
 
 
 @pytest.mark.asyncio

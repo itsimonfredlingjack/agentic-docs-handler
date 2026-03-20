@@ -411,6 +411,7 @@ describe("workspace state", () => {
     const conv = useDocumentStore.getState().conversations.receipt;
     expect(conv.entries).toHaveLength(1);
     expect(conv.entries[0].query).toBe("Vad är momsen?");
+    expect(conv.entries[0].errorMessage).toBeNull();
     expect(conv.isStreaming).toBe(true);
     expect(conv.streamingText).toBe("");
   });
@@ -434,5 +435,18 @@ describe("workspace state", () => {
     expect(conv.streamingText).toBe("");
     expect(conv.entries[0].response).toBe("Svaret är 500 kr");
     expect(conv.entries[0].sourceCount).toBe(5);
+    expect(conv.entries[0].errorMessage).toBeNull();
+  });
+
+  it("finalizes streaming entry with partial response and error state", () => {
+    const store = useDocumentStore.getState();
+    store.startWorkspaceQuery("receipt", "Vad är momsen?");
+    store.appendStreamingToken("receipt", "Delvis svar");
+    store.finalizeStreamingEntry("receipt", 3, "workspace/chat: 503");
+    const conv = useDocumentStore.getState().conversations.receipt;
+    expect(conv.isStreaming).toBe(false);
+    expect(conv.entries[0].response).toBe("Delvis svar");
+    expect(conv.entries[0].sourceCount).toBe(3);
+    expect(conv.entries[0].errorMessage).toBe("workspace/chat: 503");
   });
 });

@@ -63,15 +63,16 @@ export function WorkspaceNotebook() {
         {conversation?.entries.map((entry, index) => {
           const isLast = index === conversation.entries.length - 1;
           return (
-            <NotebookEntry
-              key={entry.id}
-              query={entry.query}
-              response={entry.response}
-              sourceCount={entry.sourceCount}
-              isStreaming={isLast && isStreaming}
-              streamingText={isLast && isStreaming ? conversation.streamingText : undefined}
-            />
-          );
+              <NotebookEntry
+                key={entry.id}
+                query={entry.query}
+                response={entry.response}
+                sourceCount={entry.sourceCount}
+                errorMessage={entry.errorMessage}
+                isStreaming={isLast && isStreaming}
+                streamingText={isLast && isStreaming ? conversation.streamingText : undefined}
+              />
+            );
         })}
 
         {(!conversation || conversation.entries.length === 0) && (

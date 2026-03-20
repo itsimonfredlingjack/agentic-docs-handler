@@ -30,6 +30,7 @@ export function useWorkspaceChat() {
       }
 
       let sourceCount = 0;
+      let errorMessage: string | null = null;
       try {
         for await (const event of streamWorkspaceChat(activeWorkspace, message, history)) {
           if (event.type === "context") {
@@ -37,13 +38,14 @@ export function useWorkspaceChat() {
           } else if (event.type === "token") {
             appendToken(activeWorkspace, event.data.text);
           } else if (event.type === "error") {
-            appendToken(activeWorkspace, `\n\n\u26A0 ${event.data.error}`);
+            errorMessage = event.data.error || "Okänt fel";
+            break;
           }
         }
       } catch (error) {
-        appendToken(activeWorkspace, `\n\n\u26A0 ${error instanceof Error ? error.message : "Anslutningsfel"}`);
+        errorMessage = error instanceof Error ? error.message : "Anslutningsfel";
       }
-      finalize(activeWorkspace, sourceCount);
+      finalize(activeWorkspace, sourceCount, errorMessage);
     },
     [activeWorkspace, startQuery, appendToken, finalize],
   );

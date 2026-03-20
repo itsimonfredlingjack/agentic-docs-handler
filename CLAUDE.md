@@ -48,6 +48,15 @@ PYTHONPATH=. pytest server/tests/test_api.py -q
 # Single backend test by name
 PYTHONPATH=. pytest server/tests/test_api.py -k "test_process_pdf" -q
 
+# Focused workspace API tests
+PYTHONPATH=. pytest server/tests/test_workspace_api.py -q
+
+# Focused workspace chat pipeline tests
+PYTHONPATH=. pytest server/tests/test_workspace_chat.py -q
+
+# Focused ChatGPT MCP tests
+PYTHONPATH=. pytest server/tests/test_mcp_chatgpt_tools.py -q
+
 # Frontend tests
 npm test
 
@@ -69,9 +78,6 @@ npm run tauri dev
 # Start backend
 uvicorn server.main:app --host 0.0.0.0 --port 9000
 
-# Build ChatGPT widget
-npm --prefix apps/chatgpt-widget run build
-
 # Deploy backend to ai-server
 bash scripts/deploy_ai_server.sh
 
@@ -85,9 +91,9 @@ PYTHONPATH=. pytest server/tests -q && npm test && npm run build && cargo check 
 ## Core Workflow Notes
 
 - Local setup: `python3.14 -m venv .venv`, activate it, `pip install -r server/requirements.txt`, then `npm install`. Copy `.env.example` to `.env` when needed.
-- Backend-only development: start `uvicorn`, then use `/healthz`, `/readyz`, `/validation/report`, `/search`, `/documents`, `/documents/counts`, and `/activity` for spot checks.
+- Backend-only development: start `uvicorn`, then use `/healthz`, `/readyz`, `/validation/report`, `/search`, `/documents`, `/documents/counts`, `/activity`, `/workspace/categories`, and `POST /process` for spot checks. `POST /workspace/chat` streams SSE with `context`, `token`, `done`, and `error` events.
 - Frontend and Tauri: `npm run dev` for the renderer, `npm run tauri dev` for the desktop shell, `cargo check --manifest-path src-tauri/Cargo.toml` for Rust-side validation.
-- Verification before shipping: run the full verification chain; also run `npm --prefix apps/chatgpt-widget run build` if widget or MCP UI resources changed.
+- Verification before shipping: run the full verification chain; if widget or MCP UI resources changed, confirm `apps/chatgpt-widget/dist/widget.js` and `apps/chatgpt-widget/dist/widget.css` are present in this checkout.
 - Deploy: `scripts/deploy_ai_server.sh` syncs via rsync, restarts in tmux session `adh-phase3`, clears port 9000, checks `/healthz`, and sends a warmup to `/search?query=warmup`. `scripts/deploy_whisper_server.sh` deploys to `ai-server2` in tmux session `adh-whisper` on port 8090.
 
 ## WebSocket Events
@@ -96,7 +102,7 @@ Per-client events (routed by `client_id`, no broadcast):
 
 - `connection.ready`, `heartbeat`
 - `job.started`, `job.progress`, `job.completed`, `job.failed`
-- `file.moved`, `file.move_undone`
+- `file.moved`, `file.move_undone`, `move.dismissed`
 
 Tauri commands exposed to the renderer: `get_client_id`, `get_backend_base_url`, `reconnect_backend_ws`.
 
@@ -104,29 +110,40 @@ Tauri commands exposed to the renderer: `get_client_id`, `get_backend_base_url`,
 
 - MCP is mounted inside the FastAPI process at `/mcp`. It is not a separate service.
 - Public MCP URL: `https://docsgpt.fredlingautomation.dev/mcp`
+- Current read/preview tools include `search`, `search_documents`, `fetch`, `get_system_status`, `get_validation_report`, `get_activity_log`, `get_workspace_categories`, `classify_text`, `classify_image`, `classify_document`, `extract_fields`, `preview_document_processing`, `transcribe_audio`, and `list_file_rules`.
 - ChatGPT upload flow uses fileParam tools such as `analyze_uploaded_document`, `transcribe_uploaded_audio`, and `preview_organize_uploaded`.
 - Organization through ChatGPT must follow the two-step guard:
   `preview_organize_uploaded` → `confirm_organize_uploaded`
 - `confirm_organize_uploaded` requires the returned `confirm_token` plus an `idempotency_key`.
 - Session follow-up uses `search_session_documents` and `fetch_session_document`.
 - Widget resource path: `ui://widget/docs-console-v1.html`
-- Widget asset build command: `npm --prefix apps/chatgpt-widget run build`
+- Widget HTML is assembled from `apps/chatgpt-widget/dist/widget.js` and `apps/chatgpt-widget/dist/widget.css` in this checkout
 
 ## Key Files
 
 - `server/main.py` - app factory and service wiring
 - `server/pipelines/process_pipeline.py` - main processing orchestration
 - `server/pipelines/search.py` - hybrid search
+- `server/pipelines/thumbnails.py` - thumbnail generation
+- `server/pipelines/workspace_chat.py` - workspace retrieval + streamed answers
 - `server/pipelines/file_organizer.py` - YAML-driven file moves
 - `server/pipelines/classifier.py` - document classification
 - `server/pipelines/extractor.py` - field extraction
 - `server/document_registry.py` - UI document read model
+- `server/api/routes.py` - ingest, search, moves, workspace HTTP routes
+- `server/api/ws.py` - WebSocket endpoint
 - `server/realtime.py` - per-client WebSocket routing
 - `server/file_rules.yaml` - destination and naming rules
 - `server/mcp/app.py` - MCP mount
 - `server/mcp/services.py` - shared MCP service container
+- `server/mcp/read_tools.py` - read-only and preview tools
+- `server/mcp/write_tools.py` - mutating organize tool
 - `server/mcp/chatgpt_tools.py` - ChatGPT upload and write-guard tools
+- `server/mcp/chatgpt_file_ingest.py` - ChatGPT file staging
 - `server/mcp/chatgpt_sessions.py` - session document tracking and TTL cleanup
+- `server/tests/test_mcp_chatgpt_tools.py` - ChatGPT widget + write-guard tests
+- `server/tests/test_workspace_api.py` - workspace HTTP/SSE tests
+- `server/tests/test_workspace_chat.py` - workspace chat pipeline tests
 - `src/store/documentStore.ts` - UI state source of truth (Zustand)
 - `src/hooks/useWebSocket.ts` - renderer WebSocket integration
 - `src-tauri/src/main.rs` - Tauri commands and bootstrap
@@ -138,6 +155,7 @@ Tauri commands exposed to the renderer: `get_client_id`, `get_backend_base_url`,
 - The real backend normally runs on `ai-server`; the Mac mainly runs the Tauri frontend.
 - Ollama concurrency is effectively `1`, so LLM-heavy work queues.
 - PDFs without extractable text fall back to the image pipeline.
+- Local uploads stage under `/tmp/agentic-docs/server-staging` before processing.
 - ChatGPT upload staging is cleaned up by a TTL-based background loop.
 - Env vars are prefixed `ADH_`; check `.env.example` before adding config.
-- Key env vars: `ADH_OLLAMA_BASE_URL`, `ADH_OLLAMA_MODEL`, `ADH_WHISPER_BASE_URL`, `ADH_LANCEDB_PATH`, `ADH_UI_DOCUMENTS_PATH`, `ADH_MCP_ENABLED`, `ADH_MCP_MOUNT_PATH`, `ADH_CHATGPT_WRITE_GUARD_ENABLED`, `ADH_CORS_ALLOWED_ORIGINS`.
+- Key env vars: `ADH_OLLAMA_BASE_URL`, `ADH_OLLAMA_MODEL`, `ADH_OLLAMA_MODEL_CLASSIFIER`, `ADH_OLLAMA_MODEL_EXTRACTOR`, `ADH_OLLAMA_MODEL_WORKSPACE_CHAT`, `ADH_OLLAMA_NUM_CTX_WORKSPACE_CHAT`, `ADH_WHISPER_BASE_URL`, `ADH_LANCEDB_PATH`, `ADH_UI_DOCUMENTS_PATH`, `ADH_MCP_ENABLED`, `ADH_MCP_MOUNT_PATH`, `ADH_CHATGPT_WRITE_GUARD_ENABLED`, `ADH_CHATGPT_UPLOAD_MAX_BYTES`, `ADH_CHATGPT_WIDGET_ENABLED`, `ADH_STAGING_DIR`, `ADH_CORS_ALLOWED_ORIGINS`.

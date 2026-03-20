@@ -28,6 +28,14 @@ from server.pipelines.process_pipeline import UnsupportedMediaTypeError
 from server.pipelines.whisper_proxy import WhisperProxyError
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+WORKSPACE_CATEGORY_LABELS = {
+    "receipt": "Kvitton",
+    "contract": "Avtal",
+    "invoice": "Fakturor",
+    "meeting_notes": "Mötesanteckningar",
+    "audio": "Ljud",
+    "generic": "Övrigt",
+}
 
 
 def text_result(text: str) -> CallToolResult:
@@ -312,3 +320,20 @@ def register_read_tools(server: FastMCP, services: AppServices) -> None:
         validated = ActivityLogInput(limit=limit)
         payload = {"events": services.load_activity_events(validated.limit)}
         return structured_result("Recent activity loaded.", payload)
+
+    @server.tool(
+        name="get_workspace_categories",
+        description="Use this when you need the current workspace category counts used by the desktop workspace view.",
+        annotations=READ_ONLY_ANNOTATIONS,
+    )
+    async def get_workspace_categories() -> CallToolResult:
+        if services.document_registry is None:
+            return error_result("document_registry_unavailable")
+        counts = services.document_registry.counts()
+        categories = []
+        for kind, label in WORKSPACE_CATEGORY_LABELS.items():
+            count = getattr(counts, kind, 0)
+            if count > 0:
+                categories.append({"category": kind, "count": count, "label": label})
+        payload = {"categories": categories}
+        return structured_result("Workspace categories loaded.", payload)

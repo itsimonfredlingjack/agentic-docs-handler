@@ -85,7 +85,7 @@ type DocumentStoreState = {
   setWorkspaceCategories: (categories: WorkspaceCategory[]) => void;
   startWorkspaceQuery: (category: string, query: string) => void;
   appendStreamingToken: (category: string, token: string) => void;
-  finalizeStreamingEntry: (category: string, sourceCount: number) => void;
+  finalizeStreamingEntry: (category: string, sourceCount: number, errorMessage?: string | null) => void;
 };
 
 const emptyCounts: DocumentCounts = {
@@ -476,17 +476,18 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
           [category]: {
             entries: [
               ...conv.entries,
-              {
-                id: crypto.randomUUID(),
-                query,
-                response: "",
-                timestamp: new Date().toISOString(),
-                sourceCount: 0,
-              },
-            ],
-            isStreaming: true,
-            streamingText: "",
-          },
+                {
+                  id: crypto.randomUUID(),
+                  query,
+                  response: "",
+                  timestamp: new Date().toISOString(),
+                  sourceCount: 0,
+                  errorMessage: null,
+                },
+              ],
+              isStreaming: true,
+              streamingText: "",
+            },
         },
       };
     }),
@@ -501,12 +502,12 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
         },
       };
     }),
-  finalizeStreamingEntry: (category, sourceCount) =>
+  finalizeStreamingEntry: (category, sourceCount, errorMessage = null) =>
     set((state) => {
       const conv = state.conversations[category];
       if (!conv || conv.entries.length === 0) return state;
       const entries = [...conv.entries];
-      const last = { ...entries[entries.length - 1], response: conv.streamingText, sourceCount };
+      const last = { ...entries[entries.length - 1], response: conv.streamingText, sourceCount, errorMessage };
       entries[entries.length - 1] = last;
       return {
         conversations: {

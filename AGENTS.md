@@ -32,30 +32,43 @@ Pipeline flow:
 - Images: downscale -> vision classify/extract -> organize -> index
 - Audio: whisper transcribe -> classify transcription -> organize -> index
 - HTTP responses return after classification and extraction; indexing continues in the background
+- `POST /process` is the single ingest endpoint; the backend selects the text, image, or audio path
 
 ## Repo Map
 
 Important paths:
 
+- `server/api/routes.py` - HTTP routes for ingest, search, move lifecycle, and workspace chat
+- `server/api/ws.py` - WebSocket endpoint for per-client realtime events
 - `server/main.py` - app factory and service wiring
+- `server/pipelines/classifier.py` - document and image classification
+- `server/pipelines/extractor.py` - structured field extraction
 - `server/pipelines/process_pipeline.py` - main document processing orchestrator
 - `server/pipelines/search.py` - hybrid search pipeline
 - `server/pipelines/file_organizer.py` - YAML-driven file moves
+- `server/pipelines/thumbnails.py` - thumbnail generation for UI records
+- `server/pipelines/workspace_chat.py` - workspace context assembly and streamed answers
 - `server/document_registry.py` - UI read model persistence
 - `server/realtime.py` - per-client WebSocket routing
 - `server/mcp/app.py` - FastMCP mount at `/mcp`
 - `server/mcp/services.py` - shared MCP service container
+- `server/mcp/read_tools.py` - read-only and preview MCP tools
+- `server/mcp/write_tools.py` - mutating MCP file organization tools
+- `server/mcp/chatgpt_file_ingest.py` - ChatGPT file download and staging
 - `server/mcp/chatgpt_tools.py` - ChatGPT upload and write-guard tools
 - `server/mcp/chatgpt_sessions.py` - session document tracking and TTL cleanup
 - `server/mcp/chatgpt_widget_resource.py` - widget resource wiring
 - `server/file_rules.yaml` - destination and naming rules
 - `server/tests/` - backend tests
+- `server/tests/test_mcp_chatgpt_tools.py` - ChatGPT upload, widget, and write-guard tests
+- `server/tests/test_workspace_api.py` - workspace HTTP and SSE tests
+- `server/tests/test_workspace_chat.py` - workspace retrieval and prompt-building tests
 - `src/` - React desktop renderer
 - `src/store/documentStore.ts` - single source of truth for UI state
 - `src/hooks/useWebSocket.ts` - backend event handling in the renderer
 - `src-tauri/src/main.rs` - Tauri commands and app bootstrap
 - `src-tauri/src/ws_client.rs` - Rust WebSocket bridge
-- `apps/chatgpt-widget/` - standalone widget build used by ChatGPT docs console
+- `apps/chatgpt-widget/dist/` - checked-in widget bundle used by ChatGPT docs console in this checkout
 - `scripts/deploy_ai_server.sh` - backend deploy to `ai-server`
 - `scripts/deploy_whisper_server.sh` - whisper deploy to `ai-server2`
 
@@ -72,6 +85,15 @@ PYTHONPATH=. pytest server/tests/test_api.py -q
 
 # Single backend test by name
 PYTHONPATH=. pytest server/tests/test_api.py -k "test_process_pdf" -q
+
+# Focused workspace API tests
+PYTHONPATH=. pytest server/tests/test_workspace_api.py -q
+
+# Focused workspace chat pipeline tests
+PYTHONPATH=. pytest server/tests/test_workspace_chat.py -q
+
+# Focused ChatGPT MCP tests
+PYTHONPATH=. pytest server/tests/test_mcp_chatgpt_tools.py -q
 
 # Frontend tests
 npm test
@@ -93,9 +115,6 @@ npm run tauri dev
 
 # Start backend
 uvicorn server.main:app --host 0.0.0.0 --port 9000
-
-# Build ChatGPT widget
-npm --prefix apps/chatgpt-widget run build
 
 # Deploy backend/search/MCP/proxy to ai-server
 bash scripts/deploy_ai_server.sh
@@ -140,6 +159,12 @@ curl 'http://127.0.0.1:9000/search?query=warmup'
 curl http://127.0.0.1:9000/documents
 curl http://127.0.0.1:9000/documents/counts
 curl http://127.0.0.1:9000/activity
+curl http://127.0.0.1:9000/workspace/categories
+curl -X POST http://127.0.0.1:9000/process \
+  -F 'file=@server/tests/fixtures/texts/receipt-basic.txt;type=text/plain'
+curl -N -X POST http://127.0.0.1:9000/workspace/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"category":"receipt","message":"Vad ar momsen?","history":[]}'
 ```
 
 Run focused backend tests before broader verification:
@@ -147,6 +172,8 @@ Run focused backend tests before broader verification:
 ```bash
 PYTHONPATH=. pytest server/tests/test_api.py -q
 ```
+
+`/workspace/chat` streams server-sent events with `context`, `token`, `done`, and `error` event types.
 
 ### Frontend And Tauri Development
 
@@ -174,6 +201,12 @@ Tauri commands exposed to the renderer:
 - `get_backend_base_url`
 - `reconnect_backend_ws`
 
+Per-client realtime events routed over `/ws`:
+
+- `connection.ready`, `heartbeat`
+- `job.started`, `job.progress`, `job.completed`, `job.failed`
+- `file.moved`, `file.move_undone`, `move.dismissed`
+
 ### Verification Before Shipping
 
 Default repo verification:
@@ -182,11 +215,7 @@ Default repo verification:
 PYTHONPATH=. pytest server/tests -q && npm test && npm run build && cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
-When changing the ChatGPT widget or widget resource wiring, also run:
-
-```bash
-npm --prefix apps/chatgpt-widget run build
-```
+When changing ChatGPT widget resource wiring, verify that `apps/chatgpt-widget/dist/widget.js` and `apps/chatgpt-widget/dist/widget.css` are present. This checkout contains only the built widget bundle, not the widget source package.
 
 ### Deploy To ai-server
 
@@ -229,8 +258,9 @@ MCP is mounted inside the same FastAPI process at `/mcp`. It is not a separate s
 
 Current MCP surface includes:
 
-- read and search tools: `search`, `search_documents`, `fetch`, `get_system_status`, `get_validation_report`, `get_activity_log`, `fetch_session_document`, `search_session_documents`
-- document processing tools: `classify_text`, `classify_image`, `extract_fields`, `preview_document_processing`, `transcribe_audio`, `transcribe_uploaded_audio`, `analyze_uploaded_document`
+- read and search tools: `search`, `search_documents`, `fetch`, `get_system_status`, `get_validation_report`, `get_activity_log`, `get_workspace_categories`, `fetch_session_document`, `search_session_documents`
+- document processing tools: `classify_text`, `classify_image`, `classify_document`, `extract_fields`, `preview_document_processing`, `transcribe_audio`, `transcribe_uploaded_audio`, `analyze_uploaded_document`
+- rule inspection tool: `list_file_rules`
 - organization tools: `organize_file`, `preview_organize_uploaded`, `confirm_organize_uploaded`
 - ChatGPT UI tool: `render_docs_console`
 
@@ -245,8 +275,8 @@ ChatGPT upload flow:
 Widget workflow:
 
 - widget resource path is `ui://widget/docs-console-v1.html`
-- build widget assets with `npm --prefix apps/chatgpt-widget run build`
-- if the widget is stale or missing, rebuild before testing MCP widget rendering
+- widget HTML is built inline from `apps/chatgpt-widget/dist/widget.js` and `apps/chatgpt-widget/dist/widget.css`
+- if the widget is stale or missing in this checkout, confirm the `dist/` bundle exists before testing MCP widget rendering
 
 Public MCP URL in the current deployed setup:
 
@@ -258,6 +288,7 @@ Public MCP URL in the current deployed setup:
 - In the real setup, the backend runs on `ai-server`; the Mac mainly runs the Tauri frontend.
 - Ollama concurrency is effectively `1`, so parallel LLM-heavy work will queue.
 - PDFs without extractable text fall back to the image pipeline.
+- Local uploads are staged under `/tmp/agentic-docs/server-staging` before processing.
 - ChatGPT upload staging files are cleaned up on a TTL-based background loop.
 - Important env vars are prefixed `ADH_`; check `.env.example` before adding new config.
-- Key env vars commonly touched in this phase include `ADH_OLLAMA_BASE_URL`, `ADH_OLLAMA_MODEL`, `ADH_WHISPER_BASE_URL`, `ADH_LANCEDB_PATH`, `ADH_UI_DOCUMENTS_PATH`, `ADH_MCP_ENABLED`, `ADH_MCP_MOUNT_PATH`, `ADH_CHATGPT_WRITE_GUARD_ENABLED`, and `ADH_CORS_ALLOWED_ORIGINS`.
+- Commonly touched env vars include `ADH_OLLAMA_BASE_URL`, `ADH_OLLAMA_MODEL`, `ADH_OLLAMA_MODEL_CLASSIFIER`, `ADH_OLLAMA_MODEL_EXTRACTOR`, `ADH_OLLAMA_MODEL_WORKSPACE_CHAT`, `ADH_OLLAMA_NUM_CTX_WORKSPACE_CHAT`, `ADH_WHISPER_BASE_URL`, `ADH_LANCEDB_PATH`, `ADH_UI_DOCUMENTS_PATH`, `ADH_MCP_ENABLED`, `ADH_MCP_MOUNT_PATH`, `ADH_CHATGPT_WRITE_GUARD_ENABLED`, `ADH_CHATGPT_UPLOAD_MAX_BYTES`, `ADH_CHATGPT_WIDGET_ENABLED`, `ADH_STAGING_DIR`, and `ADH_CORS_ALLOWED_ORIGINS`.
