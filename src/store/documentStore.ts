@@ -16,7 +16,6 @@ import type {
   UiDocument,
   UiDocumentKind,
   UndoMoveResponse,
-  ViewMode,
   WorkspaceCategory,
   WorkspaceConversation,
 } from "../types/documents";
@@ -47,7 +46,6 @@ type DocumentStoreState = {
   pendingMoveStateByRecordId: Record<string, PendingMoveUiState>;
   selectedDocumentId: string | null;
   stageHistory: Record<string, StageEntry[]>;
-  viewMode: ViewMode;
   activeWorkspace: string | null;
   workspaceCategories: WorkspaceCategory[];
   conversations: Record<string, WorkspaceConversation>;
@@ -80,7 +78,6 @@ type DocumentStoreState = {
   updateConnectionFromPayload: (payload: BackendConnectionPayload) => void;
   updateExtractionField: (documentId: string, fieldKey: string, newValue: string) => void;
   setDocumentThumbnail: (requestId: string, thumbnailData: string) => void;
-  setViewMode: (mode: ViewMode) => void;
   setActiveWorkspace: (category: string | null) => void;
   setWorkspaceCategories: (categories: WorkspaceCategory[]) => void;
   startWorkspaceQuery: (category: string, query: string) => void;
@@ -129,7 +126,6 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
   pendingMoveStateByRecordId: {},
   selectedDocumentId: null,
   stageHistory: {},
-  viewMode: "activity",
   activeWorkspace: null,
   workspaceCategories: [],
   conversations: {},
@@ -464,7 +460,6 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
       docs[target.id] = { ...target, thumbnailData };
       return { documents: docs };
     }),
-  setViewMode: (mode) => set({ viewMode: mode }),
   setActiveWorkspace: (category) => set({ activeWorkspace: category }),
   setWorkspaceCategories: (categories) => set({ workspaceCategories: categories }),
   startWorkspaceQuery: (category, query) =>

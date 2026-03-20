@@ -74,7 +74,6 @@ describe("documentStore", () => {
       uploadsByRequestId: {},
       pendingMoveStateByRecordId: {},
       stageHistory: {},
-      viewMode: "activity",
       activeWorkspace: null,
       workspaceCategories: [],
       conversations: {},
@@ -386,17 +385,10 @@ describe("stageHistory", () => {
 describe("workspace state", () => {
   beforeEach(() => {
     useDocumentStore.setState({
-      viewMode: "activity",
       activeWorkspace: null,
       workspaceCategories: [],
       conversations: {},
     });
-  });
-
-  it("sets view mode", () => {
-    const store = useDocumentStore.getState();
-    store.setViewMode("workspaces");
-    expect(useDocumentStore.getState().viewMode).toBe("workspaces");
   });
 
   it("sets active workspace", () => {
