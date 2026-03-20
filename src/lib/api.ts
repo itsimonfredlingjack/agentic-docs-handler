@@ -9,7 +9,6 @@ import type {
     SearchResponse,
     UiDocument,
     UndoMoveResponse,
-    WorkspaceCategory,
     WorkspaceChatEvent,
 } from "../types/documents";
 import { mapRegistryRecordToUiDocument } from "./document-mappers";
@@ -136,10 +135,6 @@ export async function completeClientUndo(args: {
       error: args.result.error ?? null,
     }),
   });
-}
-
-export async function fetchWorkspaceCategories(): Promise<{ categories: WorkspaceCategory[] }> {
-  return fetchJson("/workspace/categories");
 }
 
 export async function* streamWorkspaceChat(

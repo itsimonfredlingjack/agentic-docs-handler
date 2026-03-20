@@ -16,7 +16,6 @@ import type {
   UiDocument,
   UiDocumentKind,
   UndoMoveResponse,
-  WorkspaceCategory,
   WorkspaceConversation,
 } from "../types/documents";
 
@@ -47,7 +46,6 @@ type DocumentStoreState = {
   selectedDocumentId: string | null;
   stageHistory: Record<string, StageEntry[]>;
   activeWorkspace: string | null;
-  workspaceCategories: WorkspaceCategory[];
   conversations: Record<string, WorkspaceConversation>;
   setSelectedDocument: (id: string | null) => void;
   bootstrap: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
@@ -79,7 +77,6 @@ type DocumentStoreState = {
   updateExtractionField: (documentId: string, fieldKey: string, newValue: string) => void;
   setDocumentThumbnail: (requestId: string, thumbnailData: string) => void;
   setActiveWorkspace: (category: string | null) => void;
-  setWorkspaceCategories: (categories: WorkspaceCategory[]) => void;
   startWorkspaceQuery: (category: string, query: string) => void;
   appendStreamingToken: (category: string, token: string) => void;
   finalizeStreamingEntry: (category: string, sourceCount: number, errorMessage?: string | null) => void;
@@ -127,7 +124,6 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
   selectedDocumentId: null,
   stageHistory: {},
   activeWorkspace: null,
-  workspaceCategories: [],
   conversations: {},
   setSelectedDocument: (id) => set({ selectedDocumentId: id }),
   bootstrap: (documents, counts, activity) =>
@@ -461,7 +457,6 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
       return { documents: docs };
     }),
   setActiveWorkspace: (category) => set({ activeWorkspace: category }),
-  setWorkspaceCategories: (categories) => set({ workspaceCategories: categories }),
   startWorkspaceQuery: (category, query) =>
     set((state) => {
       const conv = state.conversations[category] ?? { entries: [], isStreaming: false, streamingText: "" };

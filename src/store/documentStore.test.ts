@@ -75,7 +75,6 @@ describe("documentStore", () => {
       pendingMoveStateByRecordId: {},
       stageHistory: {},
       activeWorkspace: null,
-      workspaceCategories: [],
       conversations: {},
     });
   });
@@ -386,7 +385,6 @@ describe("workspace state", () => {
   beforeEach(() => {
     useDocumentStore.setState({
       activeWorkspace: null,
-      workspaceCategories: [],
       conversations: {},
     });
   });
