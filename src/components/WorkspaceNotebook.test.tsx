@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../hooks/useWorkspaceChat", () => ({
@@ -35,5 +36,13 @@ describe("WorkspaceNotebook", () => {
 
     expect(screen.getByPlaceholderText("Fråga dina kvitton...")).toBeInTheDocument();
     expect(screen.getByText("Fråga dina kvitton vad som helst")).toBeInTheDocument();
+  });
+
+  it("closes panel when close button is clicked", async () => {
+    render(<WorkspaceNotebook />);
+
+    await userEvent.click(screen.getByLabelText("Stäng workspace"));
+
+    expect(useDocumentStore.getState().activeWorkspace).toBeNull();
   });
 });
