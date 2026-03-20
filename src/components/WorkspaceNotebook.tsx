@@ -35,7 +35,7 @@ export function WorkspaceNotebook() {
   const color = kindColor(activeWorkspace as UiDocumentKind);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* Header */}
       <div className="flex items-center gap-3 pb-3">
         <button
@@ -59,7 +59,7 @@ export function WorkspaceNotebook() {
       </div>
 
       {/* Notebook entries */}
-      <div ref={scrollRef} className="flex-1 space-y-0 overflow-y-auto">
+      <div ref={scrollRef} className="min-h-0 flex-1 space-y-0 overflow-y-auto pb-2">
         {conversation?.entries.map((entry, index) => {
           const isLast = index === conversation.entries.length - 1;
           return (
@@ -89,7 +89,7 @@ export function WorkspaceNotebook() {
       </div>
 
       {/* Input */}
-      <div className="mt-3">
+      <div className="mt-3 shrink-0">
         <NotebookInput
           placeholder={`Fråga dina ${label.toLowerCase()}...`}
           disabled={isStreaming}

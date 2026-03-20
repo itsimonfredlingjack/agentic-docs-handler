@@ -105,7 +105,9 @@ def create_router(
         payload = readiness_probe()
         if payload.get("ready") is True:
             return payload
-        return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=payload)
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=payload
+        )
 
     @router.get("/validation/report")
     async def validation_report() -> dict[str, object]:
@@ -128,7 +130,9 @@ def create_router(
         return document_registry.counts()
 
     @router.get("/activity", response_model=ActivityResponse)
-    async def activity(limit: int = Query(default=10, ge=1, le=100)) -> ActivityResponse:
+    async def activity(
+        limit: int = Query(default=10, ge=1, le=100),
+    ) -> ActivityResponse:
         if document_registry is None:
             return ActivityResponse()
         return ActivityResponse(events=document_registry.list_activity(limit=limit))
@@ -174,7 +178,9 @@ def create_router(
                 client_request_id=client_request_id,
             )
         except WhisperProxyError as error:
-            raise HTTPException(status_code=error.status_code, detail=str(error)) from error
+            raise HTTPException(
+                status_code=error.status_code, detail=str(error)
+            ) from error
 
     @router.post("/process", response_model=ProcessResponse)
     async def process(
@@ -195,7 +201,11 @@ def create_router(
                 staged_path = _stage_upload(staging_dir, filename, content)
                 _maybe_cleanup_staging(staging_dir)
 
-            resolved_source_path = source_path if source_path else (str(staged_path) if staged_path else None)
+            resolved_source_path = (
+                source_path
+                if source_path
+                else (str(staged_path) if staged_path else None)
+            )
 
             logger.info(
                 "api.process.received filename=%s mime_type=%s client_id=%s client_request_id=%s move_executor=%s staged=%s",
@@ -264,13 +274,20 @@ def create_router(
     @router.post("/moves/undo", response_model=UndoMoveResponse)
     async def undo_move(payload: UndoMoveRequest) -> UndoMoveResponse:
         if document_registry is None:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="document_registry_unavailable")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="document_registry_unavailable",
+            )
         try:
             result = document_registry.undo_move(payload.undo_token)
         except KeyError as error:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(error)
+            ) from error
         except ValueError as error:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+            ) from error
 
         if realtime_manager is not None and payload.client_id is not None:
             await realtime_manager.emit_to_client(
@@ -288,7 +305,10 @@ def create_router(
     @router.post("/moves/finalize", response_model=FinalizeMoveResponse)
     async def finalize_move(payload: FinalizeMoveRequest) -> FinalizeMoveResponse:
         if document_registry is None:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="document_registry_unavailable")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="document_registry_unavailable",
+            )
         try:
             result = document_registry.finalize_client_move(
                 record_id=payload.record_id,
@@ -300,7 +320,9 @@ def create_router(
                 error=payload.error,
             )
         except KeyError as error:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(error)
+            ) from error
 
         if realtime_manager is not None and payload.client_id is not None:
             if result.response.success:
@@ -333,7 +355,9 @@ def create_router(
                         "request_id": payload.request_id,
                         "client_id": payload.client_id,
                         "record_id": payload.record_id,
-                        "ui_kind": result.record.kind if result.record is not None else "generic",
+                        "ui_kind": result.record.kind
+                        if result.record is not None
+                        else "generic",
                     },
                 )
             else:
@@ -351,7 +375,10 @@ def create_router(
     @router.post("/moves/dismiss", response_model=DismissMoveResponse)
     async def dismiss_move(payload: DismissMoveRequest) -> DismissMoveResponse:
         if document_registry is None:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="document_registry_unavailable")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="document_registry_unavailable",
+            )
         try:
             result = document_registry.dismiss_pending_move(
                 record_id=payload.record_id,
@@ -359,9 +386,13 @@ def create_router(
                 client_id=payload.client_id,
             )
         except KeyError as error:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(error)
+            ) from error
         except ValueError as error:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+            ) from error
 
         if realtime_manager is not None and payload.client_id is not None:
             await realtime_manager.emit_to_client(
@@ -378,7 +409,10 @@ def create_router(
     @router.post("/moves/undo-complete", response_model=UndoMoveResponse)
     async def complete_undo_move(payload: CompleteUndoMoveRequest) -> UndoMoveResponse:
         if document_registry is None:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="document_registry_unavailable")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="document_registry_unavailable",
+            )
         try:
             result = document_registry.complete_client_undo(
                 undo_token=payload.undo_token,
@@ -388,9 +422,13 @@ def create_router(
                 error=payload.error,
             )
         except KeyError as error:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(error)
+            ) from error
         except ValueError as error:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+            ) from error
 
         if realtime_manager is not None and payload.client_id is not None:
             await realtime_manager.emit_to_client(
@@ -414,22 +452,24 @@ def create_router(
         for kind, label in WORKSPACE_CATEGORY_LABELS.items():
             count = getattr(raw_counts, kind, 0)
             if count > 0:
-                categories.append(WorkspaceCategory(category=kind, count=count, label=label))
+                categories.append(
+                    WorkspaceCategory(category=kind, count=count, label=label)
+                )
         return WorkspaceCategoriesResponse(categories=categories)
 
     @router.post("/workspace/chat")
     async def workspace_chat(request: WorkspaceChatRequest) -> StreamingResponse:
         if workspace_chat_service is None:
             raise HTTPException(503, "workspace chat unavailable")
-        context = await workspace_chat_service.prepare_context(
-            category=request.category,
-            message=request.message,
-            history=[turn.model_dump() for turn in request.history],
-        )
 
         async def event_stream():
-            yield f"event: context\ndata: {json_module.dumps({'source_count': context.source_count})}\n\n"
             try:
+                context = await workspace_chat_service.prepare_context(
+                    category=request.category,
+                    message=request.message,
+                    history=[turn.model_dump() for turn in request.history],
+                )
+                yield f"event: context\ndata: {json_module.dumps({'source_count': context.source_count})}\n\n"
                 async for token in workspace_chat_service.stream_response(context):
                     yield f"event: token\ndata: {json_module.dumps({'text': token})}\n\n"
                 yield f"event: done\ndata: {{}}\n\n"

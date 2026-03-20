@@ -9,7 +9,6 @@ import { MobileFilterSheet } from "./components/MobileFilterSheet";
 import { SearchBar } from "./components/SearchBar";
 import { Sidebar } from "./components/Sidebar";
 import { getSidebarFilterLabel } from "./components/sidebarFilters";
-import { WorkspaceGrid } from "./components/WorkspaceGrid";
 import { WorkspaceNotebook } from "./components/WorkspaceNotebook";
 import { fetchActivity, fetchCounts, fetchDocuments } from "./lib/api";
 import { getClientId } from "./lib/tauri-events";
@@ -20,7 +19,6 @@ export default function App() {
   const bootstrap = useDocumentStore((state) => state.bootstrap);
   const setClientId = useDocumentStore((state) => state.setClientId);
   const sidebarFilter = useDocumentStore((state) => state.sidebarFilter);
-  const viewMode = useDocumentStore((s) => s.viewMode);
   const activeWorkspace = useDocumentStore((s) => s.activeWorkspace);
   const [isFilterSheetOpen, setFilterSheetOpen] = useState(false);
 
@@ -59,31 +57,21 @@ export default function App() {
   }, [bootstrap, setClientId]);
 
   return (
-    <div className="min-h-screen text-[var(--text-primary)]" style={{ background: '#111118' }}>
-      <div className="mx-auto flex min-h-screen max-w-[1720px] gap-3 p-3">
+    <div className="flex h-full flex-col overflow-hidden text-[var(--text-primary)]" style={{ background: '#111118' }}>
+      <div className="flex min-h-0 flex-1 w-full max-w-[1720px] gap-3 overflow-hidden p-3">
         <div className="hidden shrink-0 lg:block">
           <Sidebar />
         </div>
-        <main className="glass-panel flex min-h-0 flex-1 flex-col gap-4 p-4">
-          {viewMode === "activity" ? (
-            <>
-              <SearchBar
-                activeFilterLabel={getSidebarFilterLabel(sidebarFilter)}
-                onOpenFilters={() => setFilterSheetOpen(true)}
-              />
-              <DropZone />
-              <ProcessingRail />
-              <ActivityFeed />
-            </>
-          ) : activeWorkspace ? (
-            <WorkspaceNotebook />
-          ) : (
-            <>
-              <ProcessingRail />
-              <WorkspaceGrid />
-            </>
-          )}
+        <main className="glass-panel flex min-h-0 flex-1 flex-col items-stretch gap-4 p-4">
+          <SearchBar
+            activeFilterLabel={getSidebarFilterLabel(sidebarFilter)}
+            onOpenFilters={() => setFilterSheetOpen(true)}
+          />
+          <DropZone />
+          <ProcessingRail />
+          <ActivityFeed />
         </main>
+        {activeWorkspace && <WorkspaceNotebook />}
       </div>
       <MobileFilterSheet open={isFilterSheetOpen} onClose={() => setFilterSheetOpen(false)} />
       <FileMoveToast />

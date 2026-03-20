@@ -38,6 +38,7 @@ export function useWorkspaceChat() {
           } else if (event.type === "token") {
             appendToken(activeWorkspace, event.data.text);
           } else if (event.type === "error") {
+            console.error("workspace.chat.failed", event.data.error);
             errorMessage = event.data.error || "Okänt fel";
             break;
           }

@@ -36,6 +36,12 @@ Pipeline flow:
 - HTTP responses return after classification and extraction; indexing continues in the background.
 - `POST /process` is the only ingest endpoint. The backend determines text, image, or audio flow.
 
+Move execution model:
+
+- `move_executor="server"` executes the file move immediately on the backend.
+- `move_executor="client"` yields client-pending states (`auto_pending_client` / `awaiting_confirmation`); the desktop app finalizes through move endpoints.
+- `job.completed` is emitted after indexing finishes, except when waiting on client move confirmation.
+
 ## Commands
 
 ```bash
@@ -57,13 +63,19 @@ PYTHONPATH=. pytest server/tests/test_workspace_chat.py -q
 # Focused ChatGPT MCP tests
 PYTHONPATH=. pytest server/tests/test_mcp_chatgpt_tools.py -q
 
-# Frontend tests
+# Frontend tests (Vitest + jsdom + @testing-library)
 npm test
+
+# Frontend single test file
+npm test -- src/components/DocumentRow.test.tsx
+
+# Frontend single test by name
+npm test -- -t "renders completed document"
 
 # Frontend tests in watch mode
 npm run test:watch
 
-# Type-check + build frontend
+# Type-check + build frontend (there is no separate lint script)
 npm run build
 
 # Rust/Tauri check
@@ -148,6 +160,18 @@ Tauri commands exposed to the renderer: `get_client_id`, `get_backend_base_url`,
 - `src/hooks/useWebSocket.ts` - renderer WebSocket integration
 - `src-tauri/src/main.rs` - Tauri commands and bootstrap
 - `src-tauri/src/ws_client.rs` - Rust WebSocket bridge
+
+## Code Style Rules
+
+See `CODE_STYLE.md` for full conventions. Key rules that affect correctness:
+
+- Use `Literal` union types for string enums in both Python and TypeScript. Never use Python `enum` or TypeScript `enum`.
+- Python functions use keyword-only arguments (`*` separator) for public APIs.
+- Pydantic `BaseModel` for API contracts; `@dataclass(slots=True)` for internal containers.
+- Optional types use `str | None` (not `Optional[str]`).
+- Named exports only in React (`export function Foo`). Default export only for `App.tsx`.
+- Frontend tests colocate with source (`Component.test.tsx`); backend tests go in `server/tests/`.
+- Configuration is `pydantic_settings.BaseSettings` with `ADH_` env prefix (`server/config.py`).
 
 ## Gotchas
 

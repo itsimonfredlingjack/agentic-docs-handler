@@ -182,6 +182,8 @@ export async function* streamWorkspaceChat(
       }
       if (eventType && dataStr) {
         yield { type: eventType, data: JSON.parse(dataStr) } as WorkspaceChatEvent;
+      } else if (part.trim()) {
+        console.warn("[workspace-chat] dropped malformed SSE event", part);
       }
     }
   }
