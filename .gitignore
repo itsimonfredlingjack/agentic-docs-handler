@@ -18,3 +18,20 @@ server/logs/validation/*
 
 # Worktrees
 .worktrees/
+
+# OS files
+.DS_Store
+
+# AI agent configs (per-machine)
+.claude/
+.serena/
+.superpowers/
+
+# MCP testing
+.playwright-mcp/
+
+# Temporary images/screenshots
+*.png
+!docs/**/*.png
+!apps/**/*.png
+!src/assets/**/*.png
