@@ -97,6 +97,12 @@ class FakeDocumentRegistry:
         filtered = [r for r in self._records if kind is None or r.kind == kind]
         return type("Resp", (), {"documents": filtered[:limit], "total": len(filtered)})()
 
+    def get_document(self, *, record_id: str):
+        for r in self._records:
+            if r.id == record_id:
+                return r
+        return None
+
     def counts(self):
         c = Counter(r.kind for r in self._records)
         return type("Counts", (), {

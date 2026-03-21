@@ -8,6 +8,7 @@ export type SidebarFilterItem = {
 
 export const SIDEBAR_FILTER_ITEMS: SidebarFilterItem[] = [
   { id: "all", label: "Alla", countKey: "all" },
+  { id: "recent", label: "Senaste", countKey: "all" },
   { id: "processing", label: "Pågår", countKey: "processing" },
   { id: "receipt", label: "Kvitton", countKey: "receipt" },
   { id: "contract", label: "Avtal", countKey: "contract" },

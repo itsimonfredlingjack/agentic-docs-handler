@@ -468,6 +468,7 @@ def create_router(
                     category=request.category,
                     message=request.message,
                     history=[turn.model_dump() for turn in request.history],
+                    document_id=request.document_id,
                 )
                 yield f"event: context\ndata: {json_module.dumps({'source_count': context.source_count})}\n\n"
                 async for token in workspace_chat_service.stream_response(context):

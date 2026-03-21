@@ -37,8 +37,11 @@ export function NotebookInput({ placeholder, disabled, onSubmit }: Props) {
         onClick={handleSubmit}
         disabled={disabled || !value.trim()}
         className="notebook-input__submit"
+        aria-label="Skicka"
       >
-        {"\u21B5"}
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M2.5 8h11M9 3.5L13.5 8 9 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </button>
     </div>
   );

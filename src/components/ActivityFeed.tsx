@@ -13,13 +13,19 @@ import { isProcessingStatus } from "../lib/status";
 
 function matchesFilter(doc: UiDocument, filter: string): boolean {
   if (isProcessingStatus(doc)) return false;
-  if (filter === "all") return true;
+  if (filter === "all" || filter === "recent") return true;
   if (filter === "processing") {
     return doc.status !== "ready" && doc.status !== "completed" && doc.status !== "failed";
+  }
+  if (filter === "needs_attention") {
+    return doc.status === "failed" || doc.moveStatus === "awaiting_confirmation";
   }
   if (filter === "moved") {
     return doc.moveStatus === "moved";
   }
+  if (filter === "modality_text") return doc.sourceModality === "text";
+  if (filter === "modality_image") return doc.sourceModality === "image";
+  if (filter === "modality_audio") return doc.sourceModality === "audio";
   return doc.kind === filter;
 }
 

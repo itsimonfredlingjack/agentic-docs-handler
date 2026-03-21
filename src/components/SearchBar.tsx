@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useEffectEvent } from "react";
+import Markdown from "react-markdown";
 
 import { useSearch } from "../hooks/useSearch";
+import { useSearchAiSummary } from "../hooks/useSearchAiSummary";
 import { useDocumentStore } from "../store/documentStore";
 
 type SourceChip = {
@@ -32,11 +34,17 @@ type SearchBarProps = {
 export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) {
   const documents = useDocumentStore((state) => state.documents);
   const { query, setQuery, searchState, clearSearch } = useSearch();
+  const { summary, askAi, resetAiSummary } = useSearchAiSummary();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const hasQuery = query.trim().length > 0;
   const resultCount = searchState.resultIds.length + searchState.orphanResults.length;
   const showPanel = hasQuery || searchState.status !== "idle";
+
+  // Reset AI summary when search is cleared or query changes
+  useEffect(() => {
+    if (!hasQuery) resetAiSummary();
+  }, [hasQuery, resetAiSummary]);
 
   const sourceChips = useMemo<SourceChip[]>(() => {
     if (searchState.status !== "ready") {
@@ -65,6 +73,7 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
     }
     if (event.key === "Escape") {
       clearSearch();
+      resetAiSummary();
       inputRef.current?.blur();
     }
   });
@@ -75,6 +84,12 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [onKeyDown]);
+
+  const handleClear = () => {
+    setQuery("");
+    clearSearch();
+    resetAiSummary();
+  };
 
   return (
     <section className="space-y-3">
@@ -98,7 +113,7 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
             ref={inputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Fråga dina dokument..."
+            placeholder="Sök i dokument..."
             aria-label="Sök i dokument"
             className="focus-ring w-full bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
           />
@@ -126,6 +141,19 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
               </span>
             </div>
             <div className="flex items-center gap-2">
+              {searchState.status === "ready" && resultCount > 0 && summary.status === "idle" ? (
+                <button
+                  type="button"
+                  className="focus-ring action-secondary px-2.5 py-1 text-xs"
+                  onClick={() => void askAi(query)}
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="mr-1 inline-block -mt-px">
+                    <path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H5.5L3 13.5V11H3a1 1 0 0 1-1-1V3Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                    <path d="M5.5 5.5h5M5.5 7.5h3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                  </svg>
+                  Fråga AI
+                </button>
+              ) : null}
               {searchState.status === "ready" && resultCount > 0 ? (
                 <button
                   type="button"
@@ -144,7 +172,7 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
                 <button
                   type="button"
                   className="focus-ring action-secondary px-2.5 py-1 text-xs"
-                  onClick={clearSearch}
+                  onClick={handleClear}
                 >
                   Rensa
                 </button>
@@ -175,6 +203,31 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
                   {chip.title}
                 </span>
               ))}
+            </div>
+          ) : null}
+
+          {/* AI Summary */}
+          {summary.status !== "idle" ? (
+            <div className="search-ai-summary control-card p-3">
+              <p className="section-kicker text-[var(--accent-primary)]">AI-svar</p>
+              {summary.status === "streaming" && !summary.text && (
+                <div className="notebook-entry__thinking mt-2">
+                  <span className="notebook-thinking-dot" />
+                  <span className="notebook-thinking-dot" />
+                  <span className="notebook-thinking-dot" />
+                </div>
+              )}
+              {summary.text && (
+                <div className="notebook-prose mt-2 text-sm">
+                  <Markdown>{summary.text}</Markdown>
+                  {summary.status === "streaming" && (
+                    <span className="notebook-cursor">{"\u2588"}</span>
+                  )}
+                </div>
+              )}
+              {summary.status === "error" && summary.errorMessage && (
+                <p className="mt-2 text-sm text-[var(--invoice-color)]">{summary.errorMessage}</p>
+              )}
             </div>
           ) : null}
         </div>

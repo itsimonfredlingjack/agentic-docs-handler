@@ -7,6 +7,7 @@ vi.mock("../hooks/useWorkspaceChat", () => ({
     conversation: undefined,
     isStreaming: false,
     sendMessage: vi.fn(),
+    chatDocument: null,
   }),
 }));
 
@@ -41,7 +42,7 @@ describe("WorkspaceNotebook", () => {
   it("closes panel when close button is clicked", async () => {
     render(<WorkspaceNotebook />);
 
-    await userEvent.click(screen.getByLabelText("Stäng workspace"));
+    await userEvent.click(screen.getByLabelText("Stäng chatt"));
 
     expect(useDocumentStore.getState().activeWorkspace).toBeNull();
   });

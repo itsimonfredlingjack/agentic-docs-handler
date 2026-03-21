@@ -141,12 +141,16 @@ export async function* streamWorkspaceChat(
   category: string,
   message: string,
   history: Array<{ role: string; content: string }>,
+  options?: { signal?: AbortSignal; document_id?: string },
 ): AsyncGenerator<WorkspaceChatEvent> {
   const baseUrl = await resolveBaseUrl();
+  const body: Record<string, unknown> = { category, message, history };
+  if (options?.document_id) body.document_id = options.document_id;
   const response = await fetch(`${baseUrl}/workspace/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ category, message, history }),
+    body: JSON.stringify(body),
+    signal: options?.signal,
   });
 
   if (!response.ok) {

@@ -36,7 +36,7 @@ describe("SearchBar", () => {
 
     await user.keyboard("{Meta>}k{/Meta}");
 
-    expect(screen.getByPlaceholderText("Fråga dina dokument...")).toHaveFocus();
+    expect(screen.getByPlaceholderText("Sök i dokument...")).toHaveFocus();
   });
 
   it("shows an error state and clear action", () => {

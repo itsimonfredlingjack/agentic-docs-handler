@@ -80,7 +80,7 @@ class FakeWorkspaceChatPipeline:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
 
-    async def prepare_context(self, *, category: str, message: str, history: list[dict[str, str]]) -> WorkspaceContext:
+    async def prepare_context(self, *, category: str, message: str, history: list[dict[str, str]], document_id: str | None = None) -> WorkspaceContext:
         self.calls.append({"category": category, "message": message})
         return WorkspaceContext(source_count=3, messages=[{"role": "user", "content": message}], request_id="req-1")
 

@@ -41,6 +41,8 @@ class DocumentSource(Protocol):
         self, *, kind: str | None = None, limit: int = 50, offset: int = 0
     ) -> Any: ...
 
+    def get_document(self, *, record_id: str) -> Any | None: ...
+
 
 @dataclass(slots=True)
 class WorkspaceContext:
@@ -71,12 +73,23 @@ class WorkspaceChatPipeline:
         category: str,
         message: str,
         history: list[dict[str, str]],
+        document_id: str | None = None,
     ) -> WorkspaceContext:
         request_id = str(uuid4())
 
-        # 1. Get all documents in category with extracted fields
+        if document_id:
+            return self._prepare_document_context(
+                document_id=document_id,
+                category=category,
+                message=message,
+                history=history,
+                request_id=request_id,
+            )
+
+        # 1. Get documents (all categories when "all", otherwise filtered)
+        is_global = category == "all"
         listing = self.document_registry.list_documents(
-            kind=category, limit=MAX_CONTEXT_DOCUMENTS,
+            kind=None if is_global else category, limit=MAX_CONTEXT_DOCUMENTS,
         )
         records = listing.documents
         source_count = len(records)
@@ -84,11 +97,12 @@ class WorkspaceChatPipeline:
         # 2. Build structured fields table
         fields_table = self._build_fields_table(records, category)
 
-        # 3. RAG search filtered by category
+        # 3. RAG search (unfiltered when "all", otherwise by category)
         rag_context = ""
         try:
             search_result = await self.search_pipeline.search(
-                message, limit=RAG_SEARCH_LIMIT, mode="fast", document_type=category,
+                message, limit=RAG_SEARCH_LIMIT, mode="fast",
+                document_type=None if is_global else category,
             )
             if search_result.results:
                 snippets = [
@@ -99,10 +113,10 @@ class WorkspaceChatPipeline:
             logger.warning("workspace_chat.rag_search_failed request_id=%s", request_id)
 
         # 4. Build messages
-        label = CATEGORY_LABELS.get(category, category)
+        label = CATEGORY_LABELS.get(category, "Alla dokument") if not is_global else "Alla dokument"
         system_msg = (
             f"{self.system_prompt}\n\n"
-            f"KATEGORI: {label}\n"
+            f"{'ALLA KATEGORIER' if is_global else f'KATEGORI: {label}'}\n"
             f"ANTAL DOKUMENT: {source_count}\n\n"
             f"EXTRAHERADE FÄLT:\n{fields_table}"
         )
@@ -120,6 +134,59 @@ class WorkspaceChatPipeline:
 
         return WorkspaceContext(
             source_count=source_count,
+            messages=messages,
+            request_id=request_id,
+        )
+
+    def _prepare_document_context(
+        self,
+        *,
+        document_id: str,
+        category: str,
+        message: str,
+        history: list[dict[str, str]],
+        request_id: str,
+    ) -> WorkspaceContext:
+        record = self.document_registry.get_document(record_id=document_id)
+        if record is None:
+            raise ValueError(f"Document {document_id} not found")
+
+        # Build rich context from the single document
+        title = getattr(record, "title", "Okänt dokument")
+        summary = getattr(record, "summary", "") or ""
+        extraction = getattr(record, "extraction", None)
+        fields = extraction.fields if extraction is not None else {}
+
+        parts = [f"DOKUMENTTITEL: {title}"]
+        if summary:
+            parts.append(f"SAMMANFATTNING: {summary}")
+        if fields:
+            fields_str = "\n".join(f"  {k}: {v}" for k, v in fields.items() if v)
+            parts.append(f"EXTRAHERADE FÄLT:\n{fields_str}")
+
+        # Include transcription if available
+        transcription = getattr(record, "transcription", None)
+        if transcription is not None:
+            text = getattr(transcription, "text", None)
+            if text:
+                parts.append(f"TRANSKRIBERING:\n{text}")
+
+        doc_context = "\n\n".join(parts)
+
+        label = CATEGORY_LABELS.get(category, category)
+        system_msg = (
+            f"{self.system_prompt}\n\n"
+            f"Du svarar på frågor om ett specifikt dokument av typen {label}.\n\n"
+            f"{doc_context}"
+        )
+
+        messages: list[dict[str, str]] = [{"role": "system", "content": system_msg}]
+        for turn in history[-MAX_HISTORY_TURNS * 2 :]:
+            messages.append({"role": turn["role"], "content": turn["content"]})
+        messages.append({"role": "user", "content": message})
+
+        return WorkspaceContext(
+            source_count=1,
             messages=messages,
             request_id=request_id,
         )

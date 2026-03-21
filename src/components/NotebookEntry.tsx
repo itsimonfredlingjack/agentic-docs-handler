@@ -12,33 +12,49 @@ type Props = {
 export function NotebookEntry({ query, response, sourceCount, errorMessage, isStreaming, streamingText }: Props) {
   const displayText = isStreaming ? streamingText ?? "" : response;
   const hasError = !isStreaming && Boolean(errorMessage);
-  const entryClassName = hasError ? "notebook-entry notebook-entry--error" : "notebook-entry";
-  const responseClassName = hasError
-    ? "notebook-entry__response notebook-prose notebook-entry__response--error"
-    : "notebook-entry__response notebook-prose";
 
   return (
-    <div className={entryClassName}>
+    <div className="notebook-entry">
+      {/* User message */}
       {query && (
-        <p className="notebook-entry__query">
-          <span className="text-[var(--text-muted)]">{"\u25B8"}</span> {query}
-        </p>
-      )}
-      {displayText && (
-        <div className={responseClassName}>
-          <Markdown>{displayText}</Markdown>
-          {isStreaming && <span className="notebook-cursor">{"\u2588"}</span>}
+        <div className="notebook-entry__user">
+          <p className="notebook-entry__user-text">{query}</p>
         </div>
       )}
+
+      {/* AI thinking indicator */}
+      {isStreaming && !displayText && (
+        <div className="notebook-entry__ai">
+          <div className="notebook-entry__thinking">
+            <span className="notebook-thinking-dot" />
+            <span className="notebook-thinking-dot" />
+            <span className="notebook-thinking-dot" />
+          </div>
+        </div>
+      )}
+
+      {/* AI response */}
+      {displayText && (
+        <div className={`notebook-entry__ai ${hasError ? "notebook-entry__ai--error" : ""}`}>
+          <div className="notebook-prose">
+            <Markdown>{displayText}</Markdown>
+            {isStreaming && <span className="notebook-cursor">{"\u2588"}</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Source count */}
       {!isStreaming && response && sourceCount > 0 && (
         <p className="notebook-entry__sources">
-          K\u00E4lla: {sourceCount} dokument analyserade
+          {sourceCount} dokument analyserade
         </p>
       )}
+
+      {/* Error */}
       {!isStreaming && errorMessage && (
-        <p className="notebook-entry__error">
-          <span className="notebook-entry__error-badge">{"\u26A0"} Fel</span> {errorMessage}
-        </p>
+        <div className="notebook-entry__ai notebook-entry__ai--error">
+          <p className="text-sm text-[rgb(253,230,138)]">{errorMessage}</p>
+        </div>
       )}
     </div>
   );

@@ -10,6 +10,7 @@ import { SearchBar } from "./components/SearchBar";
 import { Sidebar } from "./components/Sidebar";
 import { getSidebarFilterLabel } from "./components/sidebarFilters";
 import { WorkspaceNotebook } from "./components/WorkspaceNotebook";
+import { HomeChat } from "./components/HomeChat";
 import { fetchActivity, fetchCounts, fetchDocuments } from "./lib/api";
 import { getClientId } from "./lib/tauri-events";
 import { useDocumentStore } from "./store/documentStore";
@@ -20,7 +21,12 @@ export default function App() {
   const setClientId = useDocumentStore((state) => state.setClientId);
   const sidebarFilter = useDocumentStore((state) => state.sidebarFilter);
   const activeWorkspace = useDocumentStore((s) => s.activeWorkspace);
+  const activeDocumentChat = useDocumentStore((s) => s.activeDocumentChat);
   const [isFilterSheetOpen, setFilterSheetOpen] = useState(false);
+
+  const isHome = sidebarFilter === "all";
+  // Show the right-side chat panel only when NOT on home (home has chat in center)
+  const showSidePanel = !isHome && (activeWorkspace || activeDocumentChat);
 
   useWebSocket();
 
@@ -69,9 +75,9 @@ export default function App() {
           />
           <DropZone />
           <ProcessingRail />
-          <ActivityFeed />
+          {isHome ? <HomeChat /> : <ActivityFeed />}
         </main>
-        {activeWorkspace && (
+        {showSidePanel && (
           <aside className="workspace-panel glass-panel hidden lg:flex">
             <WorkspaceNotebook />
           </aside>

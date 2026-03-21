@@ -99,6 +99,10 @@ class DocumentRegistry:
         with self._lock:
             return list(self._moves.values())
 
+    def get_document(self, *, record_id: str) -> UiDocumentRecord | None:
+        with self._lock:
+            return self._documents.get(record_id)
+
     def upsert_document(self, record: UiDocumentRecord) -> UiDocumentRecord:
         record = self._normalize_record_debug_fields(record)
         with self._lock:

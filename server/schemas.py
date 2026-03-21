@@ -279,6 +279,7 @@ class WorkspaceChatRequest(BaseModel):
     category: str
     message: str = Field(min_length=1)
     history: list[ChatTurn] = Field(default_factory=list)
+    document_id: str | None = None
 
 
 class WorkspaceCategory(BaseModel):

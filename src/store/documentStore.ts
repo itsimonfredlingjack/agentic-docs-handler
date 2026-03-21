@@ -46,6 +46,7 @@ type DocumentStoreState = {
   selectedDocumentId: string | null;
   stageHistory: Record<string, StageEntry[]>;
   activeWorkspace: string | null;
+  activeDocumentChat: string | null;
   conversations: Record<string, WorkspaceConversation>;
   setSelectedDocument: (id: string | null) => void;
   bootstrap: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
@@ -77,6 +78,7 @@ type DocumentStoreState = {
   updateExtractionField: (documentId: string, fieldKey: string, newValue: string) => void;
   setDocumentThumbnail: (requestId: string, thumbnailData: string) => void;
   setActiveWorkspace: (category: string | null) => void;
+  setActiveDocumentChat: (documentId: string | null) => void;
   startWorkspaceQuery: (category: string, query: string) => void;
   appendStreamingToken: (category: string, token: string) => void;
   finalizeStreamingEntry: (category: string, sourceCount: number, errorMessage?: string | null) => void;
@@ -123,7 +125,8 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
   pendingMoveStateByRecordId: {},
   selectedDocumentId: null,
   stageHistory: {},
-  activeWorkspace: null,
+  activeWorkspace: "all",
+  activeDocumentChat: null,
   conversations: {},
   setSelectedDocument: (id) => set({ selectedDocumentId: id }),
   bootstrap: (documents, counts, activity) =>
@@ -456,7 +459,8 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
       docs[target.id] = { ...target, thumbnailData };
       return { documents: docs };
     }),
-  setActiveWorkspace: (category) => set({ activeWorkspace: category }),
+  setActiveWorkspace: (category) => set({ activeWorkspace: category, activeDocumentChat: null }),
+  setActiveDocumentChat: (documentId) => set({ activeDocumentChat: documentId, activeWorkspace: null }),
   startWorkspaceQuery: (category, query) =>
     set((state) => {
       const conv = state.conversations[category] ?? { entries: [], isStreaming: false, streamingText: "" };

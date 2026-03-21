@@ -48,7 +48,12 @@ export type ConnectionState = "connecting" | "connected" | "reconnecting" | "dis
 
 export type SidebarFilter =
   | "all"
+  | "recent"
   | "processing"
+  | "needs_attention"
+  | "modality_text"
+  | "modality_image"
+  | "modality_audio"
   | "receipt"
   | "contract"
   | "invoice"

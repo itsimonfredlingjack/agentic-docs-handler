@@ -117,6 +117,7 @@ export function DetailPanel() {
 }
 
 function ModalContent({ document, history, onClose }: { document: UiDocument; history: import("../store/documentStore").StageEntry[]; onClose: () => void }) {
+  const setActiveDocumentChat = useDocumentStore((state) => state.setActiveDocumentChat);
   const accent = kindColor(document.kind);
   const fields = document.extraction?.fields ?? {};
   const fieldEntries = Object.entries(fields).filter(
@@ -262,6 +263,17 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
         ) : null}
 
         <div className="hud-section mt-auto flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="focus-ring action-secondary px-3 py-1.5 text-xs"
+            onClick={() => { setActiveDocumentChat(document.id); onClose(); }}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="mr-1.5 inline-block -mt-px">
+              <path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H5.5L3 13.5V11H3a1 1 0 0 1-1-1V3Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              <path d="M5.5 5.5h5M5.5 7.5h3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+            Chatta om dokumentet
+          </button>
           {document.sourcePath ? (
             <button
               type="button"
