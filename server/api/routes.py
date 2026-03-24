@@ -24,9 +24,13 @@ from server.schemas import (
     CompleteUndoMoveRequest,
     DismissMoveRequest,
     DismissMoveResponse,
+    EngagementEventRequest,
+    EngagementEventResponse,
     FinalizeMoveRequest,
     FinalizeMoveResponse,
     ProcessResponse,
+    SearchShareBriefRequest,
+    SearchShareBriefResponse,
     SearchResponse,
     TranscriptionResponse,
     UndoMoveRequest,
@@ -93,8 +97,33 @@ def create_router(
     validation_report_loader: Callable[[], dict[str, object]],
     staging_dir: Path | None = None,
     workspace_chat_service: object | None = None,
+    engagement_tracker: object | None = None,
 ) -> APIRouter:
     router = APIRouter()
+
+    def build_share_brief(payload: SearchShareBriefRequest) -> str:
+        source_lines = []
+        for source in payload.sources[:3]:
+            prefix = "Indexed only" if source.indexed_only else "Source"
+            source_lines.append(f"- {prefix}: {source.title}")
+
+        lines = [
+            "AI-Docs brief",
+            f"Question: {payload.query.strip()}",
+        ]
+        rewritten_query = (payload.rewritten_query or "").strip()
+        if rewritten_query and rewritten_query.casefold() != payload.query.strip().casefold():
+            lines.append(f"Search intent: {rewritten_query}")
+        lines.extend(
+            [
+                "",
+                payload.answer.strip(),
+            ]
+        )
+        if source_lines:
+            lines.extend(["", "Sources:", *source_lines])
+        lines.extend(["", "Generated locally with AI-Docs. Source titles only, raw files stay private."])
+        return "\n".join(lines)
 
     @router.get("/healthz")
     async def healthz() -> dict[str, object]:
@@ -154,6 +183,38 @@ def create_router(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=str(error),
             ) from error
+
+    @router.post("/search/share-brief", response_model=SearchShareBriefResponse)
+    async def share_search_brief(payload: SearchShareBriefRequest) -> SearchShareBriefResponse:
+        event = None
+        if engagement_tracker is not None:
+            event = engagement_tracker.record_event(
+                name="share_brief_created",
+                surface="search",
+                metadata={
+                    "query": payload.query.strip(),
+                    "source_count": len(payload.sources),
+                },
+            )
+        return SearchShareBriefResponse(
+            brief_text=build_share_brief(payload),
+            source_count=len(payload.sources),
+            event=event,
+        )
+
+    @router.post("/engagement/events", response_model=EngagementEventResponse)
+    async def track_engagement_event(payload: EngagementEventRequest) -> EngagementEventResponse:
+        if engagement_tracker is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="engagement_tracking_unavailable",
+            )
+        event = engagement_tracker.record_event(
+            name=payload.name,
+            surface=payload.surface,
+            metadata=dict(payload.metadata),
+        )
+        return EngagementEventResponse(success=True, event=event)
 
     @router.post("/transcribe", response_model=TranscriptionResponse)
     async def transcribe(

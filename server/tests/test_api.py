@@ -15,6 +15,7 @@ from server.schemas import (
     DocumentClassification,
     DismissMoveResponse,
     ExtractionResult,
+    EngagementEventResponse,
     MovePlan,
     MoveResult,
     ProcessDiagnostics,
@@ -279,6 +280,75 @@ def test_search_returns_smart_answer_and_ranked_results() -> None:
     payload = response.json()
     assert payload["rewritten_query"] == "invoice amount rewritten"
     assert payload["results"][0]["doc_id"] == "invoice-1"
+
+
+def test_search_share_brief_returns_branded_summary_and_tracks_event(tmp_path: Path) -> None:
+    app = create_app(
+        config=AppConfig(
+            ui_documents_path=tmp_path / "ui_documents.jsonl",
+            move_history_path=tmp_path / "move_history.jsonl",
+            engagement_events_path=tmp_path / "engagement_events.jsonl",
+        ),
+        pipeline=FakePipeline(),
+        readiness_probe=FakeReadinessProbe(),
+        validation_report_loader=lambda: {"status": "missing"},
+        search_service=FakeSearchService(),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/search/share-brief",
+            json={
+                "query": "invoice amount",
+                "rewritten_query": "invoice amount rewritten",
+                "answer": "Marsfakturan är på 900 SEK och förfaller snart.",
+                "sources": [
+                    {"title": "Invoice March", "indexed_only": False},
+                    {"title": "Invoice April", "indexed_only": True},
+                ],
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["brief_text"].startswith("AI-Docs brief")
+    assert "invoice amount" in payload["brief_text"]
+    assert "Invoice March" in payload["brief_text"]
+    assert payload["event"]["name"] == "share_brief_created"
+
+    events_path = tmp_path / "engagement_events.jsonl"
+    stored = events_path.read_text(encoding="utf-8").splitlines()
+    assert len(stored) == 1
+    assert "share_brief_created" in stored[0]
+
+
+def test_engagement_event_endpoint_persists_copy_confirmation(tmp_path: Path) -> None:
+    app = create_app(
+        config=AppConfig(
+            ui_documents_path=tmp_path / "ui_documents.jsonl",
+            move_history_path=tmp_path / "move_history.jsonl",
+            engagement_events_path=tmp_path / "engagement_events.jsonl",
+        ),
+        pipeline=FakePipeline(),
+        readiness_probe=FakeReadinessProbe(),
+        validation_report_loader=lambda: {"status": "missing"},
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/engagement/events",
+            json={
+                "name": "share_brief_copied",
+                "surface": "search",
+                "metadata": {"query": "invoice amount", "source_count": 2},
+            },
+        )
+
+    assert response.status_code == 200
+    payload = EngagementEventResponse.model_validate(response.json())
+    assert payload.success is True
+    assert payload.event.name == "share_brief_copied"
+    assert payload.event.metadata["source_count"] == 2
 
 
 def test_transcribe_returns_structured_transcription() -> None:

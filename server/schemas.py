@@ -136,6 +136,43 @@ class SearchResponse(BaseModel):
     results: list[SearchResult] = Field(default_factory=list)
 
 
+class ShareBriefSource(BaseModel):
+    title: str
+    indexed_only: bool = False
+
+
+class SearchShareBriefRequest(BaseModel):
+    query: str = Field(min_length=1)
+    rewritten_query: str | None = None
+    answer: str = Field(min_length=1)
+    sources: list[ShareBriefSource] = Field(default_factory=list)
+
+
+class EngagementEventRecord(BaseModel):
+    id: str
+    name: str
+    surface: str
+    timestamp: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class SearchShareBriefResponse(BaseModel):
+    brief_text: str
+    source_count: int
+    event: EngagementEventRecord
+
+
+class EngagementEventRequest(BaseModel):
+    name: str
+    surface: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class EngagementEventResponse(BaseModel):
+    success: bool = True
+    event: EngagementEventRecord
+
+
 class TranscriptionWord(BaseModel):
     start: float
     end: float

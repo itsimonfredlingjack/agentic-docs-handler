@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useEffectEvent } from "react";
+import { useEffect, useMemo, useRef, useState, useEffectEvent } from "react";
 import Markdown from "react-markdown";
 
 import { useSearch } from "../hooks/useSearch";
 import { useSearchAiSummary } from "../hooks/useSearchAiSummary";
+import { createSearchShareBrief, trackEngagementEvent } from "../lib/api";
 import { useDocumentStore } from "../store/documentStore";
 
 type SourceChip = {
@@ -36,6 +37,8 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
   const { query, setQuery, searchState, clearSearch } = useSearch();
   const { summary, askAi, resetAiSummary } = useSearchAiSummary();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [shareState, setShareState] = useState<"idle" | "loading" | "copied" | "error">("idle");
+  const [shareError, setShareError] = useState<string | null>(null);
 
   const hasQuery = query.trim().length > 0;
   const resultCount = searchState.resultIds.length + searchState.orphanResults.length;
@@ -43,8 +46,12 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
 
   // Reset AI summary when search is cleared or query changes
   useEffect(() => {
-    if (!hasQuery) resetAiSummary();
-  }, [hasQuery, resetAiSummary]);
+    if (!hasQuery) {
+      resetAiSummary();
+    }
+    setShareState("idle");
+    setShareError(null);
+  }, [hasQuery, query, resetAiSummary, summary.text]);
 
   const sourceChips = useMemo<SourceChip[]>(() => {
     if (searchState.status !== "ready") {
@@ -89,6 +96,40 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
     setQuery("");
     clearSearch();
     resetAiSummary();
+  };
+
+  const handleCopyBrief = async () => {
+    if (!summary.text.trim()) return;
+
+    setShareState("loading");
+    setShareError(null);
+    try {
+      const response = await createSearchShareBrief({
+        query,
+        rewrittenQuery: searchState.rewrittenQuery,
+        answer: summary.text,
+        sources: sourceChips.map((chip) => ({
+          title: chip.title,
+          indexed_only: chip.indexedOnly,
+        })),
+      });
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("clipboard_unavailable");
+      }
+      await navigator.clipboard.writeText(response.brief_text);
+      await trackEngagementEvent({
+        name: "share_brief_copied",
+        surface: "search",
+        metadata: {
+          query,
+          source_count: response.source_count,
+        },
+      });
+      setShareState("copied");
+    } catch (error) {
+      setShareState("error");
+      setShareError(error instanceof Error ? error.message : "share_failed");
+    }
   };
 
   return (
@@ -209,7 +250,19 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
           {/* AI Summary */}
           {summary.status !== "idle" ? (
             <div className="search-ai-summary control-card p-3">
-              <p className="section-kicker text-[var(--accent-primary)]">AI-svar</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="section-kicker text-[var(--accent-primary)]">AI-svar</p>
+                {summary.status === "done" && summary.text ? (
+                  <button
+                    type="button"
+                    className="focus-ring action-secondary px-2.5 py-1 text-xs"
+                    onClick={() => void handleCopyBrief()}
+                    disabled={shareState === "loading"}
+                  >
+                    {shareState === "loading" ? "Skapar..." : shareState === "copied" ? "Kopierad" : "Kopiera brief"}
+                  </button>
+                ) : null}
+              </div>
               {summary.status === "streaming" && !summary.text && (
                 <div className="notebook-entry__thinking mt-2">
                   <span className="notebook-thinking-dot" />
@@ -227,6 +280,11 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
               )}
               {summary.status === "error" && summary.errorMessage && (
                 <p className="mt-2 text-sm text-[var(--invoice-color)]">{summary.errorMessage}</p>
+              )}
+              {shareState === "error" && shareError && (
+                <p className="mt-2 text-sm text-[var(--invoice-color)]">
+                  Kunde inte kopiera briefen. ({shareError})
+                </p>
               )}
             </div>
           ) : null}

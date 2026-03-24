@@ -13,6 +13,7 @@ from server.api.ws import create_ws_router
 from server.clients.ollama_client import AsyncOllamaClient
 from server.config import AppConfig, get_config
 from server.document_registry import DocumentRegistry
+from server.engagement_tracker import EngagementTracker
 from server.logging_config import LLMLogWriter, configure_logging
 from server.mcp.app import mount_mcp_server
 from server.mcp.services import build_app_services
@@ -109,11 +110,13 @@ def create_app(
     config.validation_log_dir.mkdir(parents=True, exist_ok=True)
     config.ui_documents_path.parent.mkdir(parents=True, exist_ok=True)
     config.move_history_path.parent.mkdir(parents=True, exist_ok=True)
+    config.engagement_events_path.parent.mkdir(parents=True, exist_ok=True)
     config.chatgpt_upload_staging_dir.mkdir(parents=True, exist_ok=True)
     config.staging_dir.mkdir(parents=True, exist_ok=True)
 
     classifier_llm: AsyncOllamaClient | None = None
     realtime_manager = realtime_manager or ConnectionManager()
+    engagement_tracker = EngagementTracker(events_path=config.engagement_events_path)
     document_registry = document_registry or DocumentRegistry(
         documents_path=config.ui_documents_path,
         move_history_path=config.move_history_path,
@@ -250,6 +253,7 @@ def create_app(
             validation_report_loader=services.validation_report_loader,
             staging_dir=config.staging_dir,
             workspace_chat_service=workspace_chat_service,
+            engagement_tracker=engagement_tracker,
         )
     )
     app.include_router(create_ws_router(realtime_manager=services.realtime_manager))

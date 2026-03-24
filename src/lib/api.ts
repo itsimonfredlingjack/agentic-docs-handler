@@ -4,9 +4,12 @@ import type {
     DocumentCounts,
     DocumentListResponse,
     FinalizeMoveResponse,
+    EngagementEventResponse,
     MoveExecutionResult,
     ProcessResponse,
     SearchResponse,
+    SearchShareBriefResponse,
+    ShareBriefSource,
     UiDocument,
     UndoMoveResponse,
     WorkspaceChatEvent,
@@ -52,6 +55,40 @@ export async function fetchActivity(limit = 10): Promise<ActivityResponse> {
 export async function searchDocuments(query: string, limit = 8, mode: "fast" | "full" = "fast"): Promise<SearchResponse> {
   const params = new URLSearchParams({ query, limit: String(limit), mode });
   return fetchJson<SearchResponse>(`/search?${params.toString()}`);
+}
+
+export async function createSearchShareBrief(args: {
+  query: string;
+  rewrittenQuery: string;
+  answer: string;
+  sources: ShareBriefSource[];
+}): Promise<SearchShareBriefResponse> {
+  return fetchJson<SearchShareBriefResponse>("/search/share-brief", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query: args.query,
+      rewritten_query: args.rewrittenQuery,
+      answer: args.answer,
+      sources: args.sources,
+    }),
+  });
+}
+
+export async function trackEngagementEvent(args: {
+  name: string;
+  surface: string;
+  metadata?: Record<string, unknown>;
+}): Promise<EngagementEventResponse> {
+  return fetchJson<EngagementEventResponse>("/engagement/events", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: args.name,
+      surface: args.surface,
+      metadata: args.metadata ?? {},
+    }),
+  });
 }
 
 export async function processFile(args: {

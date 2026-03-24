@@ -25,3 +25,10 @@ rules:
       min_confidence: 0.8
     destination: ~/Documents/Motesanteckningar/{year}/{month}
     auto_move: false
+  # Catch-all: everything that doesn't match above gets a permanent home
+  - name: generic
+    when:
+      document_type: generic
+      min_confidence: 0.0
+    destination: ~/Documents/Agentic Docs/{year}/{month}
+    auto_move: true

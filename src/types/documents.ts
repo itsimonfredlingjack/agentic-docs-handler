@@ -234,6 +234,30 @@ export type SearchResponse = {
   results: SearchResult[];
 };
 
+export type ShareBriefSource = {
+  title: string;
+  indexed_only: boolean;
+};
+
+export type EngagementEventRecord = {
+  id: string;
+  name: string;
+  surface: string;
+  timestamp: string;
+  metadata: Record<string, unknown>;
+};
+
+export type SearchShareBriefResponse = {
+  brief_text: string;
+  source_count: number;
+  event: EngagementEventRecord;
+};
+
+export type EngagementEventResponse = {
+  success: boolean;
+  event: EngagementEventRecord;
+};
+
 export type UndoMoveResponse = {
   success: boolean;
   from_path: string;

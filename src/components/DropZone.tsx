@@ -96,9 +96,7 @@ export function DropZone() {
             moveExecutor: "client",
           });
           await reconcileProcessResponse(response, clientId, upsertDocument, applyMoveFinalized);
-          if (response.move_status !== "awaiting_confirmation") {
-            clearRememberedUpload(job.requestId);
-          }
+          clearRememberedUpload(job.requestId);
         } catch (error) {
           markJobFailed(
             job.requestId,

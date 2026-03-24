@@ -47,6 +47,7 @@ class AppConfig(BaseSettings):
     lancedb_table_name: str = "document_chunks"
     ui_documents_path: Path = Path("server/data/ui_documents.jsonl")
     move_history_path: Path = Path("server/data/move_history.jsonl")
+    engagement_events_path: Path = Path("server/data/engagement_events.jsonl")
     embedding_model_name: str = "nomic-ai/nomic-embed-text-v1.5"
     embedding_model_revision: str = "e5cf08aadaa33385f5990def41f7a23405aec398"
     embedding_device: str = "cpu"
