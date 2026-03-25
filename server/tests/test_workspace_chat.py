@@ -359,3 +359,106 @@ async def test_prepare_context_rag_first_only_includes_matched_docs(tmp_path) ->
     assert "Coop" not in fields_section
     # source_count should be total docs in category (2), not just matched (1)
     assert context.source_count == 2
+
+
+@pytest.mark.asyncio
+async def test_prepare_context_stale_index_entry_skipped(tmp_path) -> None:
+    """Search returns doc_id with no matching registry record — silently skipped."""
+    ollama = FakeOllamaClient()
+    search = SearchPipeline(
+        db_path=tmp_path / "lancedb",
+        embedder=FakeEmbedder(),
+    )
+    # Index a doc that does NOT exist in registry
+    search.index_documents([
+        IndexedDocument(doc_id="ghost", title="Ghost", source_path="/ghost.pdf",
+                        text="ghost document data", metadata={"document_type": "receipt"}),
+        IndexedDocument(doc_id="r1", title="Real", source_path="/r1.pdf",
+                        text="real document data", metadata={"document_type": "receipt"}),
+    ])
+    registry = FakeDocumentRegistry([
+        build_test_record(record_id="r1", title="Real Doc", kind="receipt",
+                          fields={"vendor": "ICA", "amount": "500"}),
+    ])
+
+    pipeline = WorkspaceChatPipeline(
+        ollama_client=ollama, search_pipeline=search,
+        document_registry=registry, system_prompt="Test.",
+    )
+
+    context = await pipeline.prepare_context(
+        category="receipt", message="test", history=[],
+    )
+
+    system_msg = context.messages[0]["content"]
+    assert "ICA" in system_msg  # real doc enriched
+    # Ghost has no registry record — it must not appear in the enriched fields table
+    assert "EXTRAHERADE" in system_msg
+    fields_section = system_msg.split("EXTRAHERADE")[1].split("RELEVANTA")[0] if "RELEVANTA" in system_msg else system_msg.split("EXTRAHERADE")[1]
+    assert "Ghost" not in fields_section  # stale entry skipped from fields table
+    assert "ICA" in fields_section  # real entry present in fields table
+
+
+@pytest.mark.asyncio
+async def test_prepare_context_fallback_when_search_empty(tmp_path) -> None:
+    """When RAG returns 0 results, fall back to list_documents."""
+    ollama = FakeOllamaClient()
+    search = SearchPipeline(
+        db_path=tmp_path / "lancedb",
+        embedder=FakeEmbedder(),
+    )
+    # Empty search index — no documents indexed
+    registry = FakeDocumentRegistry([
+        build_test_record(record_id="r1", title="Kvitto ICA", kind="receipt",
+                          fields={"vendor": "ICA", "amount": "500"}),
+    ])
+
+    pipeline = WorkspaceChatPipeline(
+        ollama_client=ollama, search_pipeline=search,
+        document_registry=registry, system_prompt="Test.",
+    )
+
+    context = await pipeline.prepare_context(
+        category="receipt", message="Visa allt", history=[],
+    )
+
+    system_msg = context.messages[0]["content"]
+    # Fallback should include registry docs
+    assert "ICA" in system_msg
+    assert context.source_count == 1
+
+
+@pytest.mark.asyncio
+async def test_prepare_context_truncates_large_history(tmp_path) -> None:
+    """History exceeding budget is truncated from the oldest."""
+    ollama = FakeOllamaClient()
+    search = SearchPipeline(
+        db_path=tmp_path / "lancedb",
+        embedder=FakeEmbedder(),
+    )
+    search.index_documents([
+        IndexedDocument(doc_id="r1", title="K1", source_path="/r1.pdf",
+                        text="data", metadata={"document_type": "receipt"}),
+    ])
+    registry = FakeDocumentRegistry([
+        build_test_record(record_id="r1", title="K1", kind="receipt", fields={"amount": "100"}),
+    ])
+
+    pipeline = WorkspaceChatPipeline(
+        ollama_client=ollama, search_pipeline=search,
+        document_registry=registry, system_prompt="Test.",
+        num_ctx=1024,  # very small budget to force truncation
+    )
+
+    long_history = []
+    for i in range(20):
+        long_history.append({"role": "user", "content": f"Question {i} " * 50})
+        long_history.append({"role": "assistant", "content": f"Answer {i} " * 50})
+
+    context = await pipeline.prepare_context(
+        category="receipt", message="Latest question", history=long_history,
+    )
+
+    # Should not crash, and should have fewer history messages than input
+    history_msgs = [m for m in context.messages if m["role"] != "system" and m["content"] != "Latest question"]
+    assert len(history_msgs) < 40  # truncated from original
