@@ -46,9 +46,14 @@ Make everything run locally on the Mac except Whisper, which stays on ai-server2
 
 **`.env.example`:**
 - Remove all `ADH_MCP_*` variables
-- Remove all `ADH_CHATGPT_*` variables
 - `ADH_OLLAMA_BASE_URL` stays as `http://localhost:11434/v1` (local Ollama)
 - `ADH_WHISPER_BASE_URL` stays as `http://ai-server2:8090`
+
+**`src/types/documents.ts`:**
+- Remove `"server"` from `MoveExecutor` type (align with backend schema change)
+
+**`src/lib/api.ts`:**
+- Remove any `"server"` references in `move_executor` usage
 
 **`CLAUDE.md`:**
 - Rewrite architecture section: Mac runs everything, Whisper proxied to ai-server2
@@ -59,8 +64,11 @@ Make everything run locally on the Mac except Whisper, which stays on ai-server2
 - Update gotchas (remove ai-server references)
 - Update env vars list
 
+**`AGENTS.md`:**
+- Same scope of changes as `CLAUDE.md` (keep aligned per repo convention)
+
 **`README.md`:**
-- Update to reflect local-first architecture
+- Update to reflect local-first architecture (create if missing)
 
 ### What Does NOT Change
 
@@ -69,7 +77,7 @@ Make everything run locally on the Mac except Whisper, which stays on ai-server2
 - `server/api/ws.py` — WebSocket unchanged
 - `server/pipelines/whisper_proxy.py` — Whisper proxy to ai-server2 stays
 - `scripts/deploy_whisper_server.sh` — Whisper deploy stays
-- Frontend (Tauri + React) — unchanged, already points to configurable backend URL
+- Frontend (Tauri + React) — unchanged except `MoveExecutor` type cleanup in `src/types/documents.ts`
 - `server/tests/test_api.py`, `server/tests/test_workspace_api.py`, `server/tests/test_workspace_chat.py` — stay (test the preserved functionality)
 
 ### Architecture After
@@ -84,13 +92,16 @@ Mac (Tauri 2 + React 19)
   └── Tauri UI → localhost:9000
 ```
 
-### `server/mcp/services.py` Dependency
+### `server/mcp/services.py` Migration
 
-`build_app_services()` in `server/mcp/services.py` is currently imported by `server/main.py` to construct the shared service container. This function needs to either:
-- Be moved to a new location (e.g., `server/services.py`) before deleting `server/mcp/`, or
-- Be inlined into `server/main.py`
+`build_app_services()` and `AppServices` in `server/mcp/services.py` are imported by `server/main.py` to construct the shared service container. Before deleting `server/mcp/`:
 
-The function bundles config, pipeline, search, registry, realtime, readiness, and validation into a single object. Check its current shape before deciding.
+1. Create `server/services.py`
+2. Move `AppServices` dataclass, `KnowledgeDocument`, `load_default_documents`, and `build_app_services` into it
+3. Remove `allowed_roots()` and `resolve_path()` methods from `AppServices` (MCP-only)
+4. Update `server/main.py` import: `from server.services import build_app_services`
+5. `app.state.services` assignment stays as a diagnostic/extension point
+6. Then delete `server/mcp/`
 
 ## Testing Strategy
 
