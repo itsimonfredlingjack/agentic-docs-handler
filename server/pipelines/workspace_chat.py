@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -22,6 +23,8 @@ CATEGORY_LABELS = {
 MAX_HISTORY_TURNS = 10
 MAX_CONTEXT_DOCUMENTS = 200
 RAG_SEARCH_LIMIT = 8
+
+_CURRENCY_SUFFIX_RE = re.compile(r"\s*(kr|sek)\s*$", re.IGNORECASE)
 
 
 class StreamingLLM(Protocol):
@@ -202,6 +205,25 @@ class WorkspaceChatPipeline:
             temperature=self.temperature,
         ):
             yield token
+
+    @staticmethod
+    def _parse_numeric(value: str) -> float | None:
+        """Parse a Swedish-formatted numeric string to float, or return None."""
+        text = value.strip()
+        if not text:
+            return None
+        # Strip currency suffix
+        text = _CURRENCY_SUFFIX_RE.sub("", text).strip()
+        if not text:
+            return None
+        # Remove internal spaces (thousands separators)
+        text = text.replace(" ", "")
+        # Remove non-breaking spaces
+        text = text.replace("\u00a0", "")
+        try:
+            return float(text)
+        except ValueError:
+            return None
 
     @staticmethod
     def _build_fields_table(records: list[Any], category: str) -> str:

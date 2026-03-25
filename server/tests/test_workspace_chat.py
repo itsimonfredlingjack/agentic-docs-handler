@@ -249,3 +249,28 @@ async def test_workspace_chat_builds_fields_table(tmp_path) -> None:
     assert "500" in system_msg
     assert "300" in system_msg
     assert "ANTAL DOKUMENT: 2" in system_msg
+
+
+def test_parse_numeric_plain_integer() -> None:
+    assert WorkspaceChatPipeline._parse_numeric("500") == 500.0
+
+
+def test_parse_numeric_with_currency_suffix() -> None:
+    assert WorkspaceChatPipeline._parse_numeric("500 kr") == 500.0
+    assert WorkspaceChatPipeline._parse_numeric("1200 SEK") == 1200.0
+
+
+def test_parse_numeric_swedish_thousands() -> None:
+    assert WorkspaceChatPipeline._parse_numeric("127 340 kr") == 127340.0
+    assert WorkspaceChatPipeline._parse_numeric("1 200") == 1200.0
+
+
+def test_parse_numeric_decimal() -> None:
+    assert WorkspaceChatPipeline._parse_numeric("99.50") == 99.5
+
+
+def test_parse_numeric_returns_none_for_non_numeric() -> None:
+    assert WorkspaceChatPipeline._parse_numeric("ICA Maxi") is None
+    assert WorkspaceChatPipeline._parse_numeric("ca 500") is None
+    assert WorkspaceChatPipeline._parse_numeric("") is None
+    assert WorkspaceChatPipeline._parse_numeric("N/A") is None
