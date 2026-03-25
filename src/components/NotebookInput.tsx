@@ -4,9 +4,10 @@ type Props = {
   placeholder: string;
   disabled: boolean;
   onSubmit: (message: string) => void;
+  onFocusChange?: (focused: boolean) => void;
 };
 
-export function NotebookInput({ placeholder, disabled, onSubmit }: Props) {
+export function NotebookInput({ placeholder, disabled, onSubmit, onFocusChange }: Props) {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -29,6 +30,8 @@ export function NotebookInput({ placeholder, disabled, onSubmit }: Props) {
             handleSubmit();
           }
         }}
+        onFocus={() => onFocusChange?.(true)}
+        onBlur={() => onFocusChange?.(false)}
         placeholder={placeholder}
         disabled={disabled}
         className="notebook-input__field"

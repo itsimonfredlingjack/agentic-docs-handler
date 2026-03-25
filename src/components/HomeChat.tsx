@@ -3,8 +3,10 @@ import { useDocumentStore } from "../store/documentStore";
 import { useWorkspaceChat } from "../hooks/useWorkspaceChat";
 import { NotebookEntry } from "./NotebookEntry";
 import { NotebookInput } from "./NotebookInput";
+import { AiPresence } from "./AiPresence";
 import { kindColor } from "../lib/document-colors";
 import type { UiDocument, UiDocumentKind } from "../types/documents";
+import { useAiPresenceModel } from "../hooks/useAiPresenceModel";
 
 const MAX_CARDS = 6;
 
@@ -94,6 +96,8 @@ export function HomeChat() {
   const { conversation, isStreaming, sendMessage } = useWorkspaceChat();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [previewDocId, setPreviewDocId] = useState<string | null>(null);
+  const [isPresenceHovered, setPresenceHovered] = useState(false);
+  const [isInputFocused, setInputFocused] = useState(false);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -127,6 +131,11 @@ export function HomeChat() {
   }, []);
 
   const hasEntries = conversation && conversation.entries.length > 0;
+  const presence = useAiPresenceModel({
+    isFocused: isInputFocused,
+    isHovered: isPresenceHovered,
+    isStreaming,
+  });
 
   return (
     <div className="flex min-h-0 flex-1 flex-col relative">
@@ -162,11 +171,17 @@ export function HomeChat() {
           })
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-6 px-4">
-            <div className="ai-orb">
-              <div className="ai-orb__halo" />
-              <div className="ai-orb__glass">
-                <div className="ai-orb__inner" />
-              </div>
+            <div
+              className="ai-presence-wrap"
+              onMouseEnter={() => setPresenceHovered(true)}
+              onMouseLeave={() => setPresenceHovered(false)}
+            >
+              <AiPresence
+                mode={presence.mode}
+                accentKind={presence.accentKind}
+                processingStage={presence.processingStage}
+                connectionState={presence.connectionState}
+              />
             </div>
             <div className="text-center">
               <p className="text-lg font-semibold text-[var(--text-primary)]">
@@ -198,6 +213,7 @@ export function HomeChat() {
           placeholder="Ställ en fråga..."
           disabled={isStreaming}
           onSubmit={handleSubmit}
+          onFocusChange={setInputFocused}
         />
       </div>
 
