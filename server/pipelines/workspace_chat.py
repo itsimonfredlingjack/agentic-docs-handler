@@ -22,7 +22,8 @@ CATEGORY_LABELS = {
 
 MAX_HISTORY_TURNS = 10
 MAX_CONTEXT_DOCUMENTS = 200
-RAG_SEARCH_LIMIT = 8
+RAG_SEARCH_LIMIT = 12
+FALLBACK_DOCUMENT_LIMIT = 20
 MAX_AGGREGATE_FIELDS = 5
 
 # Token budget proportions
@@ -117,50 +118,93 @@ class WorkspaceChatPipeline:
                 request_id=request_id,
             )
 
-        # 1. Get documents (all categories when "all", otherwise filtered)
         is_global = category == "all"
+        budget = compute_token_budget(self.num_ctx)
+
+        # 1. Fetch all documents for aggregate stats + source_count
         listing = self.document_registry.list_documents(
             kind=None if is_global else category, limit=MAX_CONTEXT_DOCUMENTS,
         )
-        records = listing.documents
-        source_count = len(records)
+        all_records = listing.documents
+        source_count = len(all_records)
 
-        # 2. Build structured fields table
-        fields_table = self._build_fields_table(records, category)
-
-        # 3. RAG search (unfiltered when "all", otherwise by category)
-        rag_context = ""
+        # 2. RAG search
+        enriched_records: list[Any] = []
+        rag_snippets: list[str] = []
         try:
             search_result = await self.search_pipeline.search(
                 message, limit=RAG_SEARCH_LIMIT, mode="fast",
                 document_type=None if is_global else category,
             )
             if search_result.results:
-                snippets = [
+                rag_snippets = [
                     f"[{r.title}]: {r.snippet}" for r in search_result.results
                 ]
-                rag_context = "\n".join(snippets)
+                # Enrich: fetch full records for matched doc_ids
+                seen_ids: set[str] = set()
+                for r in search_result.results:
+                    if r.doc_id in seen_ids:
+                        continue
+                    seen_ids.add(r.doc_id)
+                    record = self.document_registry.get_document(record_id=r.doc_id)
+                    if record is not None:
+                        enriched_records.append(record)
+                    else:
+                        logger.debug(
+                            "workspace_chat.stale_index_entry doc_id=%s request_id=%s",
+                            r.doc_id, request_id,
+                        )
         except Exception:
-            logger.warning("workspace_chat.rag_search_failed request_id=%s", request_id)
+            logger.warning("workspace_chat.rag_search_failed request_id=%s", request_id, exc_info=True)
 
-        # 4. Build messages
+        # 3. Fallback: if RAG returned nothing, reuse all_records slice
+        if not enriched_records:
+            enriched_records = all_records[:FALLBACK_DOCUMENT_LIMIT]
+
+        # 4. Build sections
+        aggregate = self._build_aggregate_summary(all_records, category)
+        fields_table = self._build_fields_table(enriched_records, category)
+        rag_context = "\n".join(rag_snippets)
+
+        # 5. Token-budgeted assembly
         label = CATEGORY_LABELS.get(category, "Alla dokument") if not is_global else "Alla dokument"
-        system_msg = (
+        system_header = (
             f"{self.system_prompt}\n\n"
             f"{'ALLA KATEGORIER' if is_global else f'KATEGORI: {label}'}\n"
             f"ANTAL DOKUMENT: {source_count}\n\n"
-            f"EXTRAHERADE FÄLT:\n{fields_table}"
+            f"{aggregate}\n\n"
         )
+
+        # Truncate fields table to budget
+        if estimate_tokens(fields_table) > budget["fields"]:
+            rows = fields_table.split("\n")
+            while len(rows) > 3 and estimate_tokens("\n".join(rows)) > budget["fields"]:
+                rows.pop(-1)
+            fields_table = "\n".join(rows)
+
+        system_msg = system_header + f"EXTRAHERADE FÄLT:\n{fields_table}"
+
+        # Truncate RAG snippets to budget
+        if rag_context and estimate_tokens(rag_context) > budget["rag"]:
+            lines = rag_context.split("\n")
+            while len(lines) > 1 and estimate_tokens("\n".join(lines)) > budget["rag"]:
+                lines.pop(-1)
+            rag_context = "\n".join(lines)
+
         if rag_context:
             system_msg += f"\n\nRELEVANTA TEXTUTDRAG:\n{rag_context}"
 
         messages: list[dict[str, str]] = [{"role": "system", "content": system_msg}]
 
-        # Add conversation history (capped)
-        for turn in history[-MAX_HISTORY_TURNS * 2 :]:
+        # Truncate history to budget
+        history_turns = history[-MAX_HISTORY_TURNS * 2:]
+        history_budget_chars = budget["history"] * 4
+        while history_turns and sum(len(t["content"]) for t in history_turns) > history_budget_chars:
+            history_turns.pop(0)
+
+        for turn in history_turns:
             messages.append({"role": turn["role"], "content": turn["content"]})
 
-        # Add current user message
         messages.append({"role": "user", "content": message})
 
         return WorkspaceContext(

@@ -319,3 +319,43 @@ def test_token_budget_proportions() -> None:
     assert 6000 < budget["fields"] < 7000
     # System should get ~10% = ~1638
     assert 1400 < budget["system"] < 1900
+
+
+@pytest.mark.asyncio
+async def test_prepare_context_rag_first_only_includes_matched_docs(tmp_path) -> None:
+    """Field table should only contain documents that matched the RAG search."""
+    ollama = FakeOllamaClient()
+    search = SearchPipeline(
+        db_path=tmp_path / "lancedb",
+        embedder=FakeEmbedder(),
+    )
+    # Index only r1 — r2 is in registry but not in search index
+    search.index_documents([
+        IndexedDocument(doc_id="r1", title="Kvitto ICA", source_path="/r1.pdf",
+                        text="ICA Maxi kvitto moms 100", metadata={"document_type": "receipt"}),
+    ])
+    registry = FakeDocumentRegistry([
+        build_test_record(record_id="r1", title="Kvitto ICA", kind="receipt",
+                          fields={"vendor": "ICA", "amount": "500"}),
+        build_test_record(record_id="r2", title="Kvitto Coop", kind="receipt",
+                          fields={"vendor": "Coop", "amount": "300"}),
+    ])
+
+    pipeline = WorkspaceChatPipeline(
+        ollama_client=ollama, search_pipeline=search,
+        document_registry=registry, system_prompt="Test.",
+    )
+
+    context = await pipeline.prepare_context(
+        category="receipt", message="Vad kostade ICA?", history=[],
+    )
+
+    system_msg = context.messages[0]["content"]
+    # r1 matched search — should be in field table
+    assert "ICA" in system_msg
+    # r2 did NOT match — field table section (before STATISTIK) should not contain Coop
+    assert "EXTRAHERADE" in system_msg
+    fields_section = system_msg.split("EXTRAHERADE")[1].split("RELEVANTA")[0] if "RELEVANTA" in system_msg else system_msg.split("EXTRAHERADE")[1].split("STATISTIK")[0]
+    assert "Coop" not in fields_section
+    # source_count should be total docs in category (2), not just matched (1)
+    assert context.source_count == 2
