@@ -269,6 +269,11 @@ def test_parse_numeric_decimal() -> None:
     assert WorkspaceChatPipeline._parse_numeric("99.50") == 99.5
 
 
+def test_parse_numeric_comma_decimal() -> None:
+    assert WorkspaceChatPipeline._parse_numeric("99,50") == 99.5
+    assert WorkspaceChatPipeline._parse_numeric("1 299,00 kr") == 1299.0
+
+
 def test_parse_numeric_returns_none_for_non_numeric() -> None:
     assert WorkspaceChatPipeline._parse_numeric("ICA Maxi") is None
     assert WorkspaceChatPipeline._parse_numeric("ca 500") is None
@@ -462,3 +467,6 @@ async def test_prepare_context_truncates_large_history(tmp_path) -> None:
     # Should not crash, and should have fewer history messages than input
     history_msgs = [m for m in context.messages if m["role"] != "system" and m["content"] != "Latest question"]
     assert len(history_msgs) < 40  # truncated from original
+    # History should never start with an orphaned assistant message
+    if history_msgs:
+        assert history_msgs[0]["role"] == "user"

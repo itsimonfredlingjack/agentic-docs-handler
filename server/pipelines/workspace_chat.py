@@ -201,6 +201,9 @@ class WorkspaceChatPipeline:
         history_budget_chars = budget["history"] * 4
         while history_turns and sum(len(t["content"]) for t in history_turns) > history_budget_chars:
             history_turns.pop(0)
+        # Don't start history with an orphaned assistant message
+        if history_turns and history_turns[0]["role"] == "assistant":
+            history_turns.pop(0)
 
         for turn in history_turns:
             messages.append({"role": turn["role"], "content": turn["content"]})
@@ -288,10 +291,10 @@ class WorkspaceChatPipeline:
         text = _CURRENCY_SUFFIX_RE.sub("", text).strip()
         if not text:
             return None
-        # Remove internal spaces (thousands separators)
-        text = text.replace(" ", "")
-        # Remove non-breaking spaces
-        text = text.replace("\u00a0", "")
+        # Remove internal spaces and non-breaking spaces (thousands separators)
+        text = text.replace(" ", "").replace("\u00a0", "")
+        # Swedish comma decimal → dot decimal
+        text = text.replace(",", ".")
         try:
             return float(text)
         except ValueError:
