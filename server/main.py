@@ -211,12 +211,13 @@ def create_app(
     if workspace_chat_service is None and search_service is not None and classifier_llm is not None:
         log_writer = classifier_llm.log_writer
         workspace_llm = _make_llm(config, log_writer, "workspace_chat")
-        from server.pipelines.workspace_chat import WorkspaceChatPipeline
+        from server.pipelines.workspace_chat import WorkspaceChatPipeline, DEFAULT_NUM_CTX
         workspace_chat_service = WorkspaceChatPipeline(
             ollama_client=workspace_llm,
             search_pipeline=search_service,
             document_registry=document_registry,
             system_prompt=read_prompt(config.prompts_dir / "workspace_system.txt"),
+            num_ctx=config.resolve_num_ctx("workspace_chat") or DEFAULT_NUM_CTX,
         )
 
     validation_report_loader = validation_report_loader or (

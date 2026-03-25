@@ -89,12 +89,14 @@ class WorkspaceChatPipeline:
         document_registry: DocumentSource,
         system_prompt: str,
         temperature: float = 0.3,
+        num_ctx: int = DEFAULT_NUM_CTX,
     ) -> None:
         self.ollama_client = ollama_client
         self.search_pipeline = search_pipeline
         self.document_registry = document_registry
         self.system_prompt = system_prompt
         self.temperature = temperature
+        self.num_ctx = num_ctx
 
     async def prepare_context(
         self,
