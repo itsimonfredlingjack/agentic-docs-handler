@@ -23,6 +23,7 @@ CATEGORY_LABELS = {
 MAX_HISTORY_TURNS = 10
 MAX_CONTEXT_DOCUMENTS = 200
 RAG_SEARCH_LIMIT = 8
+MAX_AGGREGATE_FIELDS = 5
 
 _CURRENCY_SUFFIX_RE = re.compile(r"\s*(kr|sek)\s*$", re.IGNORECASE)
 
@@ -224,6 +225,41 @@ class WorkspaceChatPipeline:
             return float(text)
         except ValueError:
             return None
+
+    @staticmethod
+    def _build_aggregate_summary(records: list[Any], category: str) -> str:
+        """Build a compact one-line summary with aggregate statistics."""
+        count = len(records)
+        label = CATEGORY_LABELS.get(category, "dokument")
+        if count == 0:
+            return f"STATISTIK: Inga {label.lower()} i kategorin."
+
+        # Collect numeric values per field key
+        numeric_fields: dict[str, list[float]] = {}
+        for record in records:
+            extraction = getattr(record, "extraction", None)
+            if extraction is None or not hasattr(extraction, "fields"):
+                continue
+            for key, value in extraction.fields.items():
+                if not isinstance(value, str) or not value.strip():
+                    continue
+                parsed = WorkspaceChatPipeline._parse_numeric(value)
+                if parsed is not None:
+                    numeric_fields.setdefault(key, []).append(parsed)
+
+        if not numeric_fields:
+            return f"STATISTIK: {count} {label.lower()} i kategorin."
+
+        # Build compact field summaries (top N by occurrence count)
+        sorted_fields = sorted(numeric_fields.items(), key=lambda kv: -len(kv[1]))
+        parts = [f"STATISTIK: {count} {label.lower()}"]
+        for key, values in sorted_fields[:MAX_AGGREGATE_FIELDS]:
+            total = sum(values)
+            mean = total / len(values)
+            part = f"{key}: summa {total:,.0f}, snitt {mean:,.0f}".replace(",", " ")
+            parts.append(part)
+
+        return " | ".join(parts)
 
     @staticmethod
     def _build_fields_table(records: list[Any], category: str) -> str:

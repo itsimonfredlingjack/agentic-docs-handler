@@ -274,3 +274,29 @@ def test_parse_numeric_returns_none_for_non_numeric() -> None:
     assert WorkspaceChatPipeline._parse_numeric("ca 500") is None
     assert WorkspaceChatPipeline._parse_numeric("") is None
     assert WorkspaceChatPipeline._parse_numeric("N/A") is None
+
+
+def test_build_aggregate_summary_with_numeric_fields() -> None:
+    records = [
+        build_test_record(record_id="r1", title="K1", fields={"vendor": "ICA", "amount": "500 kr", "vat_amount": "100"}),
+        build_test_record(record_id="r2", title="K2", fields={"vendor": "Coop", "amount": "300 kr", "vat_amount": "60"}),
+    ]
+    result = WorkspaceChatPipeline._build_aggregate_summary(records, "receipt")
+    assert "2 kvitton" in result.lower() or "2" in result
+    # Should contain aggregated numeric fields
+    assert "800" in result  # sum of amount
+    assert "160" in result  # sum of vat_amount
+
+
+def test_build_aggregate_summary_no_numeric_fields() -> None:
+    records = [
+        build_test_record(record_id="r1", title="K1", fields={"vendor": "ICA", "note": "test"}),
+    ]
+    result = WorkspaceChatPipeline._build_aggregate_summary(records, "receipt")
+    assert "1" in result
+    assert "kvitton" in result.lower()
+
+
+def test_build_aggregate_summary_empty_records() -> None:
+    result = WorkspaceChatPipeline._build_aggregate_summary([], "receipt")
+    assert "0" in result or "inga" in result.lower()
