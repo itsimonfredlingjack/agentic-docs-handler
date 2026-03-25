@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from server.pipelines.search import IndexedDocument, SearchPipeline
-from server.pipelines.workspace_chat import WorkspaceChatPipeline
+from server.pipelines.workspace_chat import WorkspaceChatPipeline, estimate_tokens, compute_token_budget
 from server.schemas import ExtractionResult, UiDocumentRecord
 
 
@@ -300,3 +300,22 @@ def test_build_aggregate_summary_no_numeric_fields() -> None:
 def test_build_aggregate_summary_empty_records() -> None:
     result = WorkspaceChatPipeline._build_aggregate_summary([], "receipt")
     assert "0" in result or "inga" in result.lower()
+
+
+def test_estimate_tokens() -> None:
+    assert estimate_tokens("abcd") == 1  # 4 chars = 1 token
+    assert estimate_tokens("abcdefgh") == 2  # 8 chars = 2 tokens
+    assert estimate_tokens("") == 0
+
+
+def test_token_budget_scales_with_num_ctx() -> None:
+    budget = compute_token_budget(16384)
+    assert budget["system"] + budget["fields"] + budget["rag"] + budget["history"] + budget["margin"] == 16384
+
+
+def test_token_budget_proportions() -> None:
+    budget = compute_token_budget(16384)
+    # Fields should get ~40% = ~6553
+    assert 6000 < budget["fields"] < 7000
+    # System should get ~10% = ~1638
+    assert 1400 < budget["system"] < 1900

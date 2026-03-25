@@ -25,7 +25,32 @@ MAX_CONTEXT_DOCUMENTS = 200
 RAG_SEARCH_LIMIT = 8
 MAX_AGGREGATE_FIELDS = 5
 
+# Token budget proportions
+BUDGET_SYSTEM = 0.10
+BUDGET_FIELDS = 0.40
+BUDGET_RAG = 0.20
+BUDGET_HISTORY = 0.20
+BUDGET_MARGIN = 0.10
+
+DEFAULT_NUM_CTX = 16384
+
 _CURRENCY_SUFFIX_RE = re.compile(r"\s*(kr|sek)\s*$", re.IGNORECASE)
+
+
+def estimate_tokens(text: str) -> int:
+    """Estimate token count: ~4 characters per token (conservative for Swedish)."""
+    return len(text) // 4
+
+
+def compute_token_budget(num_ctx: int) -> dict[str, int]:
+    """Compute token budgets per section from the total context window size."""
+    return {
+        "system": int(num_ctx * BUDGET_SYSTEM),
+        "fields": int(num_ctx * BUDGET_FIELDS),
+        "rag": int(num_ctx * BUDGET_RAG),
+        "history": int(num_ctx * BUDGET_HISTORY),
+        "margin": num_ctx - int(num_ctx * BUDGET_SYSTEM) - int(num_ctx * BUDGET_FIELDS) - int(num_ctx * BUDGET_RAG) - int(num_ctx * BUDGET_HISTORY),
+    }
 
 
 class StreamingLLM(Protocol):
