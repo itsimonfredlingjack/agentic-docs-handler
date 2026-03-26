@@ -6,27 +6,25 @@ Keep this file aligned with `AGENTS.md` when commands or workflows change.
 
 ## What This Is
 
-Local AI-powered document handler. Files come through a Tauri desktop app, a FastAPI backend classifies and extracts with Qwen via Ollama, documents are organized by YAML rules, indexed for hybrid search, and exposed through an MCP surface for ChatGPT.
+Local-first AI-powered document handler. Everything runs on the Mac: a Tauri desktop app ingests files, a local FastAPI backend classifies and extracts with Qwen via Ollama, documents are organized by YAML rules and indexed for hybrid search. Only Whisper transcription is proxied to ai-server2.
 
 ## Architecture
 
 ```text
 Mac (Tauri 2 + React 19)
-  ├── Rust WS bridge → ws://ai-server:9000/ws
-  ├── React UI → HTTP to ai-server:9000
-  └── ai-server (FastAPI :9000)
-        ├── Ollama :11434
-        ├── sentence-transformers + LanceDB
-        ├── FileOrganizer (YAML rules)
-        ├── MCP mounted at /mcp
-        └── Whisper proxy → ai-server2:8090
+  ├── FastAPI backend (localhost:9000)
+  │     ├── Ollama (localhost:11434)
+  │     ├── sentence-transformers + LanceDB
+  │     ├── FileOrganizer (YAML rules)
+  │     └── Whisper proxy → ai-server2:8090
+  └── Tauri UI → localhost:9000
 ```
 
 Layer rule:
 
 - `server/pipelines/` is the core logic layer.
-- `server/api/` and `server/mcp/` may import from `server/pipelines/`.
-- `server/pipelines/` must never import from `server/api/`, `server/mcp/`, or UI layers.
+- `server/api/` may import from `server/pipelines/`.
+- `server/pipelines/` must never import from `server/api/` or UI layers.
 
 Pipeline flow:
 
@@ -38,8 +36,8 @@ Pipeline flow:
 
 Move execution model:
 
-- `move_executor="server"` executes the file move immediately on the backend.
 - `move_executor="client"` yields client-pending states (`auto_pending_client` / `awaiting_confirmation`); the desktop app finalizes through move endpoints.
+- `move_executor="none"` skips the move step entirely.
 - `job.completed` is emitted after indexing finishes, except when waiting on client move confirmation.
 
 ## Commands
@@ -59,9 +57,6 @@ PYTHONPATH=. pytest server/tests/test_workspace_api.py -q
 
 # Focused workspace chat pipeline tests
 PYTHONPATH=. pytest server/tests/test_workspace_chat.py -q
-
-# Focused ChatGPT MCP tests
-PYTHONPATH=. pytest server/tests/test_mcp_chatgpt_tools.py -q
 
 # Frontend tests (Vitest + jsdom + @testing-library)
 npm test
@@ -90,9 +85,6 @@ npm run tauri dev
 # Start backend
 uvicorn server.main:app --host 0.0.0.0 --port 9000
 
-# Deploy backend to ai-server
-bash scripts/deploy_ai_server.sh
-
 # Deploy Whisper to ai-server2
 bash scripts/deploy_whisper_server.sh
 
@@ -105,8 +97,8 @@ PYTHONPATH=. pytest server/tests -q && npm test && npm run build && cargo check 
 - Local setup: `python3.14 -m venv .venv`, activate it, `pip install -r server/requirements.txt`, then `npm install`. Copy `.env.example` to `.env` when needed.
 - Backend-only development: start `uvicorn`, then use `/healthz`, `/readyz`, `/validation/report`, `/search`, `/documents`, `/documents/counts`, `/activity`, `/workspace/categories`, and `POST /process` for spot checks. `POST /workspace/chat` streams SSE with `context`, `token`, `done`, and `error` events.
 - Frontend and Tauri: `npm run dev` for the renderer, `npm run tauri dev` for the desktop shell, `cargo check --manifest-path src-tauri/Cargo.toml` for Rust-side validation.
-- Verification before shipping: run the full verification chain; if widget or MCP UI resources changed, confirm `apps/chatgpt-widget/dist/widget.js` and `apps/chatgpt-widget/dist/widget.css` are present in this checkout.
-- Deploy: `scripts/deploy_ai_server.sh` syncs via rsync, restarts in tmux session `adh-phase3`, clears port 9000, checks `/healthz`, and sends a warmup to `/search?query=warmup`. `scripts/deploy_whisper_server.sh` deploys to `ai-server2` in tmux session `adh-whisper` on port 8090.
+- Verification before shipping: run the full verification chain.
+- Deploy: `scripts/deploy_whisper_server.sh` deploys to `ai-server2` in tmux session `adh-whisper` on port 8090.
 
 ## WebSocket Events
 
@@ -117,19 +109,6 @@ Per-client events (routed by `client_id`, no broadcast):
 - `file.moved`, `file.move_undone`, `move.dismissed`
 
 Tauri commands exposed to the renderer: `get_client_id`, `get_backend_base_url`, `reconnect_backend_ws`.
-
-## MCP And ChatGPT
-
-- MCP is mounted inside the FastAPI process at `/mcp`. It is not a separate service.
-- Public MCP URL: `https://docsgpt.fredlingautomation.dev/mcp`
-- Current read/preview tools include `search`, `search_documents`, `fetch`, `get_system_status`, `get_validation_report`, `get_activity_log`, `get_workspace_categories`, `classify_text`, `classify_image`, `classify_document`, `extract_fields`, `preview_document_processing`, `transcribe_audio`, and `list_file_rules`.
-- ChatGPT upload flow uses fileParam tools such as `analyze_uploaded_document`, `transcribe_uploaded_audio`, and `preview_organize_uploaded`.
-- Organization through ChatGPT must follow the two-step guard:
-  `preview_organize_uploaded` → `confirm_organize_uploaded`
-- `confirm_organize_uploaded` requires the returned `confirm_token` plus an `idempotency_key`.
-- Session follow-up uses `search_session_documents` and `fetch_session_document`.
-- Widget resource path: `ui://widget/docs-console-v1.html`
-- Widget HTML is assembled from `apps/chatgpt-widget/dist/widget.js` and `apps/chatgpt-widget/dist/widget.css` in this checkout
 
 ## Key Files
 
@@ -146,14 +125,6 @@ Tauri commands exposed to the renderer: `get_client_id`, `get_backend_base_url`,
 - `server/api/ws.py` - WebSocket endpoint
 - `server/realtime.py` - per-client WebSocket routing
 - `server/file_rules.yaml` - destination and naming rules
-- `server/mcp/app.py` - MCP mount
-- `server/mcp/services.py` - shared MCP service container
-- `server/mcp/read_tools.py` - read-only and preview tools
-- `server/mcp/write_tools.py` - mutating organize tool
-- `server/mcp/chatgpt_tools.py` - ChatGPT upload and write-guard tools
-- `server/mcp/chatgpt_file_ingest.py` - ChatGPT file staging
-- `server/mcp/chatgpt_sessions.py` - session document tracking and TTL cleanup
-- `server/tests/test_mcp_chatgpt_tools.py` - ChatGPT widget + write-guard tests
 - `server/tests/test_workspace_api.py` - workspace HTTP/SSE tests
 - `server/tests/test_workspace_chat.py` - workspace chat pipeline tests
 - `src/store/documentStore.ts` - UI state source of truth (Zustand)
@@ -176,10 +147,9 @@ See `CODE_STYLE.md` for full conventions. Key rules that affect correctness:
 ## Gotchas
 
 - `PYTHONPATH=.` is required for pytest commands.
-- The real backend normally runs on `ai-server`; the Mac mainly runs the Tauri frontend.
+- The backend runs locally on the Mac alongside the Tauri frontend.
 - Ollama concurrency is effectively `1`, so LLM-heavy work queues.
 - PDFs without extractable text fall back to the image pipeline.
 - Local uploads stage under `/tmp/agentic-docs/server-staging` before processing.
-- ChatGPT upload staging is cleaned up by a TTL-based background loop.
 - Env vars are prefixed `ADH_`; check `.env.example` before adding config.
-- Key env vars: `ADH_OLLAMA_BASE_URL`, `ADH_OLLAMA_MODEL`, `ADH_OLLAMA_MODEL_CLASSIFIER`, `ADH_OLLAMA_MODEL_EXTRACTOR`, `ADH_OLLAMA_MODEL_WORKSPACE_CHAT`, `ADH_OLLAMA_NUM_CTX_WORKSPACE_CHAT`, `ADH_WHISPER_BASE_URL`, `ADH_LANCEDB_PATH`, `ADH_UI_DOCUMENTS_PATH`, `ADH_MCP_ENABLED`, `ADH_MCP_MOUNT_PATH`, `ADH_CHATGPT_WRITE_GUARD_ENABLED`, `ADH_CHATGPT_UPLOAD_MAX_BYTES`, `ADH_CHATGPT_WIDGET_ENABLED`, `ADH_STAGING_DIR`, `ADH_CORS_ALLOWED_ORIGINS`.
+- Key env vars: `ADH_OLLAMA_BASE_URL`, `ADH_OLLAMA_MODEL`, `ADH_OLLAMA_MODEL_CLASSIFIER`, `ADH_OLLAMA_MODEL_EXTRACTOR`, `ADH_OLLAMA_MODEL_WORKSPACE_CHAT`, `ADH_OLLAMA_NUM_CTX_WORKSPACE_CHAT`, `ADH_WHISPER_BASE_URL`, `ADH_LANCEDB_PATH`, `ADH_UI_DOCUMENTS_PATH`, `ADH_CORS_ALLOWED_ORIGINS`.
