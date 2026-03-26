@@ -15,7 +15,6 @@ from server.config import AppConfig, get_config
 from server.document_registry import DocumentRegistry
 from server.engagement_tracker import EngagementTracker
 from server.logging_config import LLMLogWriter, configure_logging
-from server.mcp.app import mount_mcp_server
 from server.services import build_app_services
 from server.pipelines.classifier import DocumentClassifier
 from server.pipelines.extractor import DocumentExtractor
@@ -101,7 +100,6 @@ def create_app(
     realtime_manager: object | None = None,
     readiness_probe: Callable[[], dict[str, object]] | None = None,
     validation_report_loader: Callable[[], dict[str, object]] | None = None,
-    mcp_enabled: bool | None = None,
     workspace_chat_service: object | None = None,
 ) -> FastAPI:
     configure_logging()
@@ -111,7 +109,6 @@ def create_app(
     config.ui_documents_path.parent.mkdir(parents=True, exist_ok=True)
     config.move_history_path.parent.mkdir(parents=True, exist_ok=True)
     config.engagement_events_path.parent.mkdir(parents=True, exist_ok=True)
-    config.chatgpt_upload_staging_dir.mkdir(parents=True, exist_ok=True)
     config.staging_dir.mkdir(parents=True, exist_ok=True)
 
     classifier_llm: AsyncOllamaClient | None = None
@@ -259,8 +256,6 @@ def create_app(
     )
     app.include_router(create_ws_router(realtime_manager=services.realtime_manager))
     app.state.services = services
-    if mcp_enabled if mcp_enabled is not None else config.mcp_enabled:
-        mount_mcp_server(app, services, config.mcp_mount_path)
 
     @app.get("/", include_in_schema=False)
     async def root() -> JSONResponse:
