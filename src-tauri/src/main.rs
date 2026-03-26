@@ -162,7 +162,7 @@ fn main() {
             let app_handle = app.handle().clone();
             let client_id = load_or_create_client_id(&app_handle)?;
             let backend_base_url =
-                std::env::var("ADH_BACKEND_URL").unwrap_or_else(|_| "http://ai-server:9000".into());
+                std::env::var("ADH_BACKEND_URL").unwrap_or_else(|_| "http://localhost:9000".into());
             let reconnect_notify = Arc::new(Notify::new());
 
             app.manage(AppRuntimeState {
