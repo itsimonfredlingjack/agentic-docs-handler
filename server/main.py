@@ -16,7 +16,7 @@ from server.document_registry import DocumentRegistry
 from server.engagement_tracker import EngagementTracker
 from server.logging_config import LLMLogWriter, configure_logging
 from server.mcp.app import mount_mcp_server
-from server.mcp.services import build_app_services
+from server.services import build_app_services
 from server.pipelines.classifier import DocumentClassifier
 from server.pipelines.extractor import DocumentExtractor
 from server.pipelines.file_organizer import FileOrganizer
