@@ -17,7 +17,7 @@ export type UiDocumentKind =
   | "generic"
   | "file_moved";
 
-export type MoveExecutor = "none" | "client" | "server";
+export type MoveExecutor = "none" | "client";
 
 export type MoveStatus =
   | "not_requested"

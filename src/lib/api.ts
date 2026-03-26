@@ -97,7 +97,7 @@ export async function processFile(args: {
   clientId: string;
   requestId: string;
   executeMove?: boolean;
-  moveExecutor?: "none" | "client" | "server";
+  moveExecutor?: "none" | "client";
 }): Promise<ProcessResponse> {
   const formData = new FormData();
   formData.append("file", args.file);

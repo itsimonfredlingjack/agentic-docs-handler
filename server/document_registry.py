@@ -35,7 +35,7 @@ class MoveHistoryEntry(BaseModel):
     from_path: str
     to_path: str
     created_at: str
-    executor: str = "server"
+    executor: str = "client"
     finalized_at: str | None = None
     finalize_error: str | None = None
     undone_at: str | None = None
@@ -235,7 +235,7 @@ class DocumentRegistry:
         from_path: str,
         to_path: str,
         client_id: str | None = None,
-        executor: str = "server",
+        executor: str = "client",
     ) -> MoveHistoryEntry:
         entry = self._build_move_entry(
             request_id=request_id,
@@ -244,7 +244,7 @@ class DocumentRegistry:
             to_path=to_path,
             client_id=client_id,
             executor=executor,
-            finalized=executor == "server",
+            finalized=False,
         )
         with self._lock:
             self._moves[entry.undo_token] = entry

@@ -14,7 +14,7 @@ DocumentType = Literal[
 ]
 SourceModality = Literal["text", "image", "audio"]
 FileActionType = Literal["none", "auto_moved", "needs_confirmation", "failed"]
-MoveExecutor = Literal["none", "client", "server"]
+MoveExecutor = Literal["none", "client"]
 MoveStatus = Literal[
     "not_requested",
     "planned",

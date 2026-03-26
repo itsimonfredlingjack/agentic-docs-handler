@@ -288,17 +288,6 @@ def create_router(
                 move_executor=move_executor,
             )
 
-            if (
-                staged_path is not None
-                and move_executor == "server"
-                and response.move_result.success
-            ):
-                try:
-                    staged_path.unlink(missing_ok=True)
-                    staged_path = None
-                except OSError:
-                    pass
-
             elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
             logger.info(
                 "api.process.completed request_id=%s record_id=%s client_id=%s elapsed_ms=%s move_status=%s",

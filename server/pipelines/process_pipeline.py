@@ -386,25 +386,7 @@ class DocumentProcessPipeline:
             status = "move_planned"
             undo_token: str | None = None
 
-            if move_executor == "server" and execute_move and move_plan.auto_move_allowed and source_path:
-                move_result = self.organizer.execute_move(move_plan, Path(source_path))
-                if move_result.success:
-                    move_status = "moved"
-                    status = "move_executed"
-                    if self.document_registry is not None and move_result.from_path and move_result.to_path:
-                        undo_token = self.document_registry.record_move(
-                            request_id=request_id,
-                            record_id=record_id,
-                            from_path=move_result.from_path,
-                            to_path=move_result.to_path,
-                            client_id=client_id,
-                            executor="server",
-                        ).undo_token
-                else:
-                    move_status = "move_failed"
-                    status = "failed_runtime"
-                    error_code = "move_failed"
-            elif move_plan.destination:
+            if move_plan.destination:
                 if move_plan.auto_move_allowed and move_executor == "client":
                     move_status = "auto_pending_client"
                 elif move_plan.auto_move_allowed:
