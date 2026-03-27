@@ -78,10 +78,11 @@ class AsyncOllamaClient:
             max_retries=0,
         )
 
-    def _extra_body(self) -> dict[str, Any] | None:
-        if self.num_ctx is None:
-            return None
-        return {"options": {"num_ctx": self.num_ctx}}
+    def _extra_body(self) -> dict[str, Any]:
+        body: dict[str, Any] = {"think": False}
+        if self.num_ctx is not None:
+            body["options"] = {"num_ctx": self.num_ctx}
+        return body
 
     async def chat_json_with_meta(
         self,
@@ -97,9 +98,7 @@ class AsyncOllamaClient:
             "messages": list(messages),
             "temperature": temperature,
         }
-        extra = self._extra_body()
-        if extra is not None:
-            payload["extra_body"] = extra
+        payload["extra_body"] = self._extra_body()
 
         attempt = 0
         while True:
@@ -199,9 +198,7 @@ class AsyncOllamaClient:
             "messages": list(messages),
             "temperature": temperature,
         }
-        extra = self._extra_body()
-        if extra is not None:
-            payload["extra_body"] = extra
+        payload["extra_body"] = self._extra_body()
         attempt = 0
         while True:
             started_at = time.perf_counter()
@@ -286,9 +283,7 @@ class AsyncOllamaClient:
             "temperature": temperature,
             "stream": True,
         }
-        extra = self._extra_body()
-        if extra is not None:
-            payload["extra_body"] = extra
+        payload["extra_body"] = self._extra_body()
         started_at = time.perf_counter()
         logger.info(
             "ollama.stream.start request_id=%s prompt_name=%s model=%s",
