@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 
 from server.document_registry import DocumentRegistry
+from server.migrations.jsonl_to_sqlite import create_schema, create_inbox_workspace
 from server.schemas import (
     DocumentClassification,
     ExtractionResult,
@@ -11,6 +12,15 @@ from server.schemas import (
     MoveResult,
     UiDocumentRecord,
 )
+
+
+def _make_registry(tmp_path: Path) -> DocumentRegistry:
+    """Create a fresh registry with schema initialized."""
+    db_path = tmp_path / "test.db"
+    registry = DocumentRegistry(db_path=db_path)
+    create_schema(registry.conn)
+    create_inbox_workspace(registry.conn)
+    return registry
 
 
 def build_record(*, record_id: str, source_path: str) -> UiDocumentRecord:
@@ -59,32 +69,23 @@ def build_record(*, record_id: str, source_path: str) -> UiDocumentRecord:
 
 
 def test_registry_persists_documents_and_counts(tmp_path: Path) -> None:
-    registry = DocumentRegistry(
-        documents_path=tmp_path / "ui_documents.jsonl",
-        move_history_path=tmp_path / "move_history.jsonl",
-    )
+    registry = _make_registry(tmp_path)
     registry.upsert_document(build_record(record_id="doc-1", source_path="/tmp/sorted/receipt.png"))
 
-    reloaded = DocumentRegistry(
-        documents_path=tmp_path / "ui_documents.jsonl",
-        move_history_path=tmp_path / "move_history.jsonl",
-    )
+    # Re-read from the same DB (verifies SQLite persistence, not just in-memory)
+    registry2 = DocumentRegistry(db_path=tmp_path / "test.db")
 
-    payload = reloaded.list_documents(limit=10)
-
+    payload = registry2.list_documents(limit=10)
     assert payload.total == 1
     assert payload.documents[0].id == "doc-1"
-    counts = reloaded.counts()
+    counts = registry2.counts()
     assert counts.all == 1
     assert counts.receipt == 1
     assert counts.moved == 1
 
 
 def test_registry_undo_move_restores_file_and_document_path(tmp_path: Path) -> None:
-    registry = DocumentRegistry(
-        documents_path=tmp_path / "ui_documents.jsonl",
-        move_history_path=tmp_path / "move_history.jsonl",
-    )
+    registry = _make_registry(tmp_path)
     incoming_dir = tmp_path / "incoming"
     sorted_dir = tmp_path / "sorted"
     incoming_dir.mkdir()

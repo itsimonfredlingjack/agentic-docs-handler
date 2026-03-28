@@ -11,6 +11,16 @@ from server.api.routes import _maybe_cleanup_staging, _CLEANUP_MAX_AGE_SECONDS
 from server.config import AppConfig
 from server.document_registry import DocumentRegistry
 from server.main import create_app
+from server.migrations.jsonl_to_sqlite import create_schema, create_inbox_workspace
+
+
+def _make_registry(tmp_path: Path) -> DocumentRegistry:
+    """Create a DocumentRegistry with initialized SQLite schema."""
+    db_path = tmp_path / "test.db"
+    registry = DocumentRegistry(db_path=db_path)
+    create_schema(registry.conn)
+    create_inbox_workspace(registry.conn)
+    return registry
 from server.schemas import (
     DocumentClassification,
     DismissMoveResponse,
@@ -283,13 +293,11 @@ def test_search_returns_smart_answer_and_ranked_results() -> None:
 
 
 def test_search_share_brief_returns_branded_summary_and_tracks_event(tmp_path: Path) -> None:
+    registry = _make_registry(tmp_path)
     app = create_app(
-        config=AppConfig(
-            ui_documents_path=tmp_path / "ui_documents.jsonl",
-            move_history_path=tmp_path / "move_history.jsonl",
-            engagement_events_path=tmp_path / "engagement_events.jsonl",
-        ),
+        config=AppConfig(sqlite_db_path=tmp_path / "test.db"),
         pipeline=FakePipeline(),
+        document_registry=registry,
         readiness_probe=FakeReadinessProbe(),
         validation_report_loader=lambda: {"status": "missing"},
         search_service=FakeSearchService(),
@@ -316,20 +324,21 @@ def test_search_share_brief_returns_branded_summary_and_tracks_event(tmp_path: P
     assert "Invoice March" in payload["brief_text"]
     assert payload["event"]["name"] == "share_brief_created"
 
-    events_path = tmp_path / "engagement_events.jsonl"
-    stored = events_path.read_text(encoding="utf-8").splitlines()
-    assert len(stored) == 1
-    assert "share_brief_created" in stored[0]
+    # Verify event persisted in SQLite
+    import sqlite3
+    conn = sqlite3.connect(str(tmp_path / "test.db"))
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("SELECT * FROM engagement_event WHERE name = 'share_brief_created'").fetchall()
+    assert len(rows) == 1
+    conn.close()
 
 
 def test_engagement_event_endpoint_persists_copy_confirmation(tmp_path: Path) -> None:
+    registry = _make_registry(tmp_path)
     app = create_app(
-        config=AppConfig(
-            ui_documents_path=tmp_path / "ui_documents.jsonl",
-            move_history_path=tmp_path / "move_history.jsonl",
-            engagement_events_path=tmp_path / "engagement_events.jsonl",
-        ),
+        config=AppConfig(sqlite_db_path=tmp_path / "test.db"),
         pipeline=FakePipeline(),
+        document_registry=registry,
         readiness_probe=FakeReadinessProbe(),
         validation_report_loader=lambda: {"status": "missing"},
     )
@@ -422,10 +431,7 @@ def test_activity_endpoint_returns_recent_events() -> None:
 
 
 def test_activity_and_documents_hide_internal_flags_from_warnings(tmp_path: Path) -> None:
-    registry = DocumentRegistry(
-        documents_path=tmp_path / "ui_documents.jsonl",
-        move_history_path=tmp_path / "move_history.jsonl",
-    )
+    registry = _make_registry(tmp_path)
     registry.upsert_document(
         UiDocumentRecord(
             id="doc-debug-1",
@@ -505,10 +511,7 @@ def test_ws_endpoint_emits_connection_ready_event() -> None:
 
 
 def test_moves_undo_restores_file_from_registry(tmp_path: Path) -> None:
-    registry = DocumentRegistry(
-        documents_path=tmp_path / "ui_documents.jsonl",
-        move_history_path=tmp_path / "move_history.jsonl",
-    )
+    registry = _make_registry(tmp_path)
     incoming_dir = tmp_path / "incoming"
     sorted_dir = tmp_path / "sorted"
     incoming_dir.mkdir()
@@ -584,10 +587,7 @@ def test_moves_undo_restores_file_from_registry(tmp_path: Path) -> None:
 
 
 def test_moves_finalize_updates_registry(tmp_path: Path) -> None:
-    registry = DocumentRegistry(
-        documents_path=tmp_path / "ui_documents.jsonl",
-        move_history_path=tmp_path / "move_history.jsonl",
-    )
+    registry = _make_registry(tmp_path)
     registry.upsert_document(
         UiDocumentRecord(
             id="doc-2",
@@ -650,10 +650,7 @@ def test_moves_finalize_updates_registry(tmp_path: Path) -> None:
 
 
 def test_moves_undo_complete_marks_move_undone(tmp_path: Path) -> None:
-    registry = DocumentRegistry(
-        documents_path=tmp_path / "ui_documents.jsonl",
-        move_history_path=tmp_path / "move_history.jsonl",
-    )
+    registry = _make_registry(tmp_path)
     registry.upsert_document(
         UiDocumentRecord(
             id="doc-3",
@@ -723,10 +720,7 @@ def test_moves_undo_complete_marks_move_undone(tmp_path: Path) -> None:
 
 
 def test_moves_dismiss_updates_registry(tmp_path: Path) -> None:
-    registry = DocumentRegistry(
-        documents_path=tmp_path / "ui_documents.jsonl",
-        move_history_path=tmp_path / "move_history.jsonl",
-    )
+    registry = _make_registry(tmp_path)
     source_path = str(tmp_path / "contract.pdf")
     registry.upsert_document(
         UiDocumentRecord(
@@ -800,10 +794,7 @@ def test_moves_dismiss_updates_registry(tmp_path: Path) -> None:
 
 
 def test_moves_dismiss_returns_422_for_non_pending_record(tmp_path: Path) -> None:
-    registry = DocumentRegistry(
-        documents_path=tmp_path / "ui_documents.jsonl",
-        move_history_path=tmp_path / "move_history.jsonl",
-    )
+    registry = _make_registry(tmp_path)
     registry.upsert_document(
         UiDocumentRecord(
             id="doc-5",

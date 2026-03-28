@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from server.document_registry import DocumentRegistry
+from server.migrations.jsonl_to_sqlite import create_schema, create_inbox_workspace
 from server.pipelines.classifier import ClassificationValidationError
 from server.pipelines.process_pipeline import DocumentProcessPipeline
 from server.schemas import (
@@ -268,10 +269,10 @@ class InvalidJsonClassifier:
 
 @pytest.mark.asyncio
 async def test_audio_process_upload_returns_transcription_and_registry_record(tmp_path: Path) -> None:
-    registry = DocumentRegistry(
-        documents_path=tmp_path / "ui_documents.jsonl",
-        move_history_path=tmp_path / "move_history.jsonl",
-    )
+    db_path = tmp_path / "test.db"
+    registry = DocumentRegistry(db_path=db_path)
+    create_schema(registry.conn)
+    create_inbox_workspace(registry.conn)
     realtime = FakeRealtimeManager()
     search = FakeSearchPipeline()
     pipeline = DocumentProcessPipeline(
@@ -309,10 +310,10 @@ async def test_audio_process_upload_returns_transcription_and_registry_record(tm
 
 @pytest.mark.asyncio
 async def test_process_upload_returns_before_slow_search_indexing_finishes(tmp_path: Path) -> None:
-    registry = DocumentRegistry(
-        documents_path=tmp_path / "ui_documents.jsonl",
-        move_history_path=tmp_path / "move_history.jsonl",
-    )
+    db_path = tmp_path / "test.db"
+    registry = DocumentRegistry(db_path=db_path)
+    create_schema(registry.conn)
+    create_inbox_workspace(registry.conn)
     realtime = FakeRealtimeManager()
     search = BlockingSearchPipeline()
     pipeline = DocumentProcessPipeline(
@@ -353,10 +354,10 @@ async def test_process_upload_returns_before_slow_search_indexing_finishes(tmp_p
 
 @pytest.mark.asyncio
 async def test_process_upload_serializes_classify_and_extract_per_document(tmp_path: Path) -> None:
-    registry = DocumentRegistry(
-        documents_path=tmp_path / "ui_documents.jsonl",
-        move_history_path=tmp_path / "move_history.jsonl",
-    )
+    db_path = tmp_path / "test.db"
+    registry = DocumentRegistry(db_path=db_path)
+    create_schema(registry.conn)
+    create_inbox_workspace(registry.conn)
     events: list[str] = []
     pipeline = DocumentProcessPipeline(
         classifier=SequencedClassifier(events),
@@ -413,10 +414,10 @@ async def test_process_upload_serializes_classify_and_extract_per_document(tmp_p
 
 @pytest.mark.asyncio
 async def test_process_upload_skips_extractor_for_meeting_notes_documents(tmp_path: Path) -> None:
-    registry = DocumentRegistry(
-        documents_path=tmp_path / "ui_documents.jsonl",
-        move_history_path=tmp_path / "move_history.jsonl",
-    )
+    db_path = tmp_path / "test.db"
+    registry = DocumentRegistry(db_path=db_path)
+    create_schema(registry.conn)
+    create_inbox_workspace(registry.conn)
     pipeline = DocumentProcessPipeline(
         classifier=FakeClassifier(),
         extractor=StrictExtractor(),
@@ -443,10 +444,10 @@ async def test_process_upload_skips_extractor_for_meeting_notes_documents(tmp_pa
 
 @pytest.mark.asyncio
 async def test_process_upload_uses_shorter_text_for_classification_than_extraction(tmp_path: Path) -> None:
-    registry = DocumentRegistry(
-        documents_path=tmp_path / "ui_documents.jsonl",
-        move_history_path=tmp_path / "move_history.jsonl",
-    )
+    db_path = tmp_path / "test.db"
+    registry = DocumentRegistry(db_path=db_path)
+    create_schema(registry.conn)
+    create_inbox_workspace(registry.conn)
     classifier = LengthTrackingClassifier()
     extractor = LengthTrackingExtractor()
     pipeline = DocumentProcessPipeline(
@@ -476,10 +477,10 @@ async def test_process_upload_uses_shorter_text_for_classification_than_extracti
 
 @pytest.mark.asyncio
 async def test_process_upload_uses_pdf_image_fallback_when_extracted_text_is_empty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    registry = DocumentRegistry(
-        documents_path=tmp_path / "ui_documents.jsonl",
-        move_history_path=tmp_path / "move_history.jsonl",
-    )
+    db_path = tmp_path / "test.db"
+    registry = DocumentRegistry(db_path=db_path)
+    create_schema(registry.conn)
+    create_inbox_workspace(registry.conn)
     classifier = PdfImageFallbackClassifier()
     pipeline = DocumentProcessPipeline(
         classifier=classifier,
@@ -520,10 +521,10 @@ async def test_process_upload_uses_pdf_image_fallback_when_extracted_text_is_emp
 
 @pytest.mark.asyncio
 async def test_process_upload_falls_back_when_classifier_returns_empty_fields(tmp_path: Path) -> None:
-    registry = DocumentRegistry(
-        documents_path=tmp_path / "ui_documents.jsonl",
-        move_history_path=tmp_path / "move_history.jsonl",
-    )
+    db_path = tmp_path / "test.db"
+    registry = DocumentRegistry(db_path=db_path)
+    create_schema(registry.conn)
+    create_inbox_workspace(registry.conn)
     pipeline = DocumentProcessPipeline(
         classifier=EmptyFieldClassifier(),
         extractor=FakeExtractor(),
@@ -552,10 +553,10 @@ async def test_process_upload_falls_back_when_classifier_returns_empty_fields(tm
 
 @pytest.mark.asyncio
 async def test_process_upload_invalid_json_fallback_uses_clean_title_summary_and_diagnostics(tmp_path: Path) -> None:
-    registry = DocumentRegistry(
-        documents_path=tmp_path / "ui_documents.jsonl",
-        move_history_path=tmp_path / "move_history.jsonl",
-    )
+    db_path = tmp_path / "test.db"
+    registry = DocumentRegistry(db_path=db_path)
+    create_schema(registry.conn)
+    create_inbox_workspace(registry.conn)
     pipeline = DocumentProcessPipeline(
         classifier=InvalidJsonClassifier(),
         extractor=FakeExtractor(),

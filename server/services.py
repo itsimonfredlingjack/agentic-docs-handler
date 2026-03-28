@@ -73,13 +73,8 @@ class AppServices:
         return events
 
     def load_file_rules(self) -> dict[str, object]:
-        if self.organizer is not None and hasattr(self.organizer, "rule_set"):
-            rule_set = getattr(self.organizer, "rule_set")
-            if hasattr(rule_set, "model_dump"):
-                return rule_set.model_dump(mode="json")
-            if isinstance(rule_set, dict):
-                return rule_set
-        return yaml.safe_load(self.config.file_rules_path.read_text(encoding="utf-8")) or {}
+        # Deprecated: file rules replaced by workspace-based organization.
+        return {}
 
 
 def load_default_documents(repo_root: Path) -> dict[str, KnowledgeDocument]:

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -15,10 +17,11 @@ from server.config import AppConfig, get_config
 from server.document_registry import DocumentRegistry
 from server.engagement_tracker import EngagementTracker
 from server.logging_config import LLMLogWriter, configure_logging
+from server.migrations.jsonl_to_sqlite import create_schema, create_inbox_workspace, is_migrated, run_migration
+from server.pipelines.noop_organizer import NoOpOrganizer
 from server.services import build_app_services
 from server.pipelines.classifier import DocumentClassifier
 from server.pipelines.extractor import DocumentExtractor
-from server.pipelines.file_organizer import FileOrganizer
 from server.pipelines.process_pipeline import DocumentProcessPipeline
 from server.pipelines.search import (
     IndexedDocument,
@@ -27,6 +30,9 @@ from server.pipelines.search import (
 )
 from server.pipelines.whisper_proxy import WhisperProxy
 from server.realtime import ConnectionManager
+from server.workspace_registry import WorkspaceRegistry
+
+logger = logging.getLogger(__name__)
 
 
 class ReadinessProbe:
@@ -90,6 +96,35 @@ def load_validation_report(path: Path) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _setup_database(config: AppConfig) -> DocumentRegistry:
+    """Initialize SQLite database, run migration if needed, return DocumentRegistry."""
+    config.sqlite_db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    document_registry = DocumentRegistry(db_path=config.sqlite_db_path)
+    conn = document_registry.conn
+
+    if not is_migrated(conn):
+        logger.info("Database not initialized — running schema creation and JSONL migration")
+        create_schema(conn)
+        create_inbox_workspace(conn)
+
+        # Migrate existing JSONL data if present
+        if config.ui_documents_path.exists() or config.move_history_path.exists():
+            run_migration(
+                db_path=config.sqlite_db_path,
+                documents_path=config.ui_documents_path,
+                move_history_path=config.move_history_path,
+                events_path=config.engagement_events_path,
+            )
+            # Reconnect after migration
+            document_registry.close()
+            document_registry = DocumentRegistry(db_path=config.sqlite_db_path)
+    else:
+        logger.info("Database already initialized — skipping migration")
+
+    return document_registry
+
+
 def create_app(
     *,
     config: AppConfig | None = None,
@@ -101,23 +136,27 @@ def create_app(
     readiness_probe: Callable[[], dict[str, object]] | None = None,
     validation_report_loader: Callable[[], dict[str, object]] | None = None,
     workspace_chat_service: object | None = None,
+    workspace_registry: object | None = None,
 ) -> FastAPI:
     configure_logging()
     config = config or get_config()
     config.llm_log_dir.mkdir(parents=True, exist_ok=True)
     config.validation_log_dir.mkdir(parents=True, exist_ok=True)
-    config.ui_documents_path.parent.mkdir(parents=True, exist_ok=True)
-    config.move_history_path.parent.mkdir(parents=True, exist_ok=True)
-    config.engagement_events_path.parent.mkdir(parents=True, exist_ok=True)
     config.staging_dir.mkdir(parents=True, exist_ok=True)
 
     classifier_llm: AsyncOllamaClient | None = None
     realtime_manager = realtime_manager or ConnectionManager()
-    engagement_tracker = EngagementTracker(events_path=config.engagement_events_path)
-    document_registry = document_registry or DocumentRegistry(
-        documents_path=config.ui_documents_path,
-        move_history_path=config.move_history_path,
-    )
+
+    # Database setup
+    _owns_db = document_registry is None
+    if document_registry is None:
+        document_registry = _setup_database(config)
+
+    engagement_tracker = EngagementTracker(conn=document_registry.conn)
+
+    if workspace_registry is None:
+        workspace_registry = WorkspaceRegistry(conn=document_registry.conn)
+
     if pipeline is None or readiness_probe is None:
         log_writer = LLMLogWriter(config.llm_log_dir)
         classifier_llm = _make_llm(config, log_writer, "classifier")
@@ -144,7 +183,7 @@ def create_app(
             },
             temperature=config.extract_temperature,
         )
-        organizer = FileOrganizer(config.file_rules_path)
+        organizer = NoOpOrganizer()
         pipeline = DocumentProcessPipeline(
             classifier=classifier,
             extractor=extractor,
@@ -231,7 +270,13 @@ def create_app(
         validation_report_loader=validation_report_loader,
     )
 
-    app = FastAPI(title="Agentic Docs Handler Phase 5")
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        yield
+        if _owns_db and hasattr(document_registry, "close"):
+            document_registry.close()
+
+    app = FastAPI(title="Brainfileing", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=config.cors_allowed_origins,
@@ -252,6 +297,7 @@ def create_app(
             staging_dir=config.staging_dir,
             workspace_chat_service=workspace_chat_service,
             engagement_tracker=engagement_tracker,
+            workspace_registry=workspace_registry,
         )
     )
     app.include_router(create_ws_router(realtime_manager=services.realtime_manager))
@@ -259,7 +305,7 @@ def create_app(
 
     @app.get("/", include_in_schema=False)
     async def root() -> JSONResponse:
-        return JSONResponse({"name": "agentic-docs-handler", "status": "ok", "phase": 5})
+        return JSONResponse({"name": "brainfileing", "status": "ok", "phase": 5})
 
     return app
 

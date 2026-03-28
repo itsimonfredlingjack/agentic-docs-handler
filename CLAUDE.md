@@ -6,7 +6,7 @@ Keep this file aligned with `AGENTS.md` when commands or workflows change.
 
 ## What This Is
 
-Local-first AI-powered document handler. Everything runs on the Mac: a Tauri desktop app ingests files, a local FastAPI backend classifies and extracts with Qwen via Ollama, documents are organized by YAML rules and indexed for hybrid search. Only Whisper transcription is proxied to ai-server2.
+Local-first AI-powered workspace file manager (working name: Brainfileing). Everything runs on the Mac: a Tauri desktop app ingests files into AI-powered workspaces, a local FastAPI backend classifies and extracts with Qwen via Ollama, documents are organized into workspaces and indexed for hybrid search. Only Whisper transcription is proxied to ai-server2.
 
 ## Architecture
 
@@ -14,8 +14,9 @@ Local-first AI-powered document handler. Everything runs on the Mac: a Tauri des
 Mac (Tauri 2 + React 19)
   ├── FastAPI backend (localhost:9000)
   │     ├── Ollama (localhost:11434)
+  │     ├── SQLite (brainfileing.db) + FTS5
   │     ├── sentence-transformers + LanceDB
-  │     ├── FileOrganizer (YAML rules)
+  │     ├── WorkspaceRegistry (workspace CRUD)
   │     └── Whisper proxy → ai-server2:8090
   └── Tauri UI → localhost:9000
 ```
@@ -112,21 +113,21 @@ Tauri commands exposed to the renderer: `get_client_id`, `get_backend_base_url`,
 
 ## Key Files
 
-- `server/main.py` - app factory and service wiring
+- `server/main.py` - app factory, SQLite setup, migration, service wiring
+- `server/document_registry.py` - SQLite-backed document persistence (replaces JSONL)
+- `server/workspace_registry.py` - workspace CRUD operations
+- `server/migrations/schema.sql` - SQLite DDL (all tables, indexes, FTS5)
+- `server/migrations/jsonl_to_sqlite.py` - one-time JSONL → SQLite migration
 - `server/pipelines/process_pipeline.py` - main processing orchestration
-- `server/pipelines/search.py` - hybrid search
-- `server/pipelines/thumbnails.py` - thumbnail generation
+- `server/pipelines/search.py` - hybrid search (LanceDB vectors + keywords)
 - `server/pipelines/workspace_chat.py` - workspace retrieval + streamed answers
-- `server/pipelines/file_organizer.py` - YAML-driven file moves
+- `server/pipelines/noop_organizer.py` - stub organizer (workspaces replace YAML rules)
 - `server/pipelines/classifier.py` - document classification
 - `server/pipelines/extractor.py` - field extraction
-- `server/document_registry.py` - UI document read model
-- `server/api/routes.py` - ingest, search, moves, workspace HTTP routes
+- `server/api/routes.py` - ingest, search, moves, workspace CRUD HTTP routes
 - `server/api/ws.py` - WebSocket endpoint
 - `server/realtime.py` - per-client WebSocket routing
-- `server/file_rules.yaml` - destination and naming rules
-- `server/tests/test_workspace_api.py` - workspace HTTP/SSE tests
-- `server/tests/test_workspace_chat.py` - workspace chat pipeline tests
+- `server/schemas.py` - all Pydantic models including workspace types
 - `src/store/documentStore.ts` - UI state source of truth (Zustand)
 - `src/hooks/useWebSocket.ts` - renderer WebSocket integration
 - `src-tauri/src/main.rs` - Tauri commands and bootstrap

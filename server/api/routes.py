@@ -19,6 +19,7 @@ from server.pipelines.search import SearchPipelineError
 from server.pipelines.whisper_proxy import WhisperProxyError
 from server.schemas import (
     ActivityResponse,
+    CreateWorkspaceRequest,
     DocumentCountsResponse,
     DocumentListResponse,
     CompleteUndoMoveRequest,
@@ -28,6 +29,7 @@ from server.schemas import (
     EngagementEventResponse,
     FinalizeMoveRequest,
     FinalizeMoveResponse,
+    MoveFilesToWorkspaceRequest,
     ProcessResponse,
     SearchShareBriefRequest,
     SearchShareBriefResponse,
@@ -35,9 +37,12 @@ from server.schemas import (
     TranscriptionResponse,
     UndoMoveRequest,
     UndoMoveResponse,
+    UpdateWorkspaceRequest,
     WorkspaceCategoriesResponse,
     WorkspaceCategory,
     WorkspaceChatRequest,
+    WorkspaceListResponse,
+    WorkspaceResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -98,6 +103,7 @@ def create_router(
     staging_dir: Path | None = None,
     workspace_chat_service: object | None = None,
     engagement_tracker: object | None = None,
+    workspace_registry: object | None = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -528,5 +534,111 @@ def create_router(
                 yield f"event: error\ndata: {json_module.dumps({'error': str(exc)})}\n\n"
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+    # ------------------------------------------------------------------
+    # Workspace CRUD endpoints
+    # ------------------------------------------------------------------
+
+    @router.get("/workspaces", response_model=WorkspaceListResponse)
+    async def list_workspaces() -> WorkspaceListResponse:
+        if workspace_registry is None:
+            raise HTTPException(503, "workspace registry unavailable")
+        return workspace_registry.list_workspaces()
+
+    @router.post("/workspaces", response_model=WorkspaceResponse, status_code=201)
+    async def create_workspace(request: CreateWorkspaceRequest) -> WorkspaceResponse:
+        if workspace_registry is None:
+            raise HTTPException(503, "workspace registry unavailable")
+        ws = workspace_registry.create_workspace(
+            name=request.name,
+            description=request.description,
+            cover_color=request.cover_color,
+        )
+        result = workspace_registry.list_workspaces()
+        match = next((w for w in result.workspaces if w.id == ws.id), None)
+        if match is None:
+            raise HTTPException(500, "workspace creation failed")
+        return match
+
+    @router.get("/workspaces/{workspace_id}", response_model=WorkspaceResponse)
+    async def get_workspace(workspace_id: str) -> WorkspaceResponse:
+        if workspace_registry is None:
+            raise HTTPException(503, "workspace registry unavailable")
+        ws = workspace_registry.get_workspace(workspace_id=workspace_id)
+        if ws is None:
+            raise HTTPException(404, "workspace not found")
+        result = workspace_registry.list_workspaces()
+        match = next((w for w in result.workspaces if w.id == ws.id), None)
+        if match is None:
+            raise HTTPException(404, "workspace not found")
+        return match
+
+    @router.patch("/workspaces/{workspace_id}", response_model=WorkspaceResponse)
+    async def update_workspace(workspace_id: str, request: UpdateWorkspaceRequest) -> WorkspaceResponse:
+        if workspace_registry is None:
+            raise HTTPException(503, "workspace registry unavailable")
+        try:
+            workspace_registry.update_workspace(
+                workspace_id=workspace_id,
+                name=request.name,
+                description=request.description,
+                cover_color=request.cover_color,
+            )
+        except KeyError:
+            raise HTTPException(404, "workspace not found")
+        result = workspace_registry.list_workspaces()
+        match = next((w for w in result.workspaces if w.id == workspace_id), None)
+        if match is None:
+            raise HTTPException(404, "workspace not found")
+        return match
+
+    @router.delete("/workspaces/{workspace_id}", status_code=204)
+    async def delete_workspace(workspace_id: str) -> None:
+        if workspace_registry is None:
+            raise HTTPException(503, "workspace registry unavailable")
+        try:
+            workspace_registry.delete_workspace(workspace_id=workspace_id)
+        except KeyError:
+            raise HTTPException(404, "workspace not found")
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+
+    @router.get("/workspaces/{workspace_id}/files", response_model=DocumentListResponse)
+    async def workspace_files(
+        workspace_id: str,
+        limit: int = Query(default=50, ge=1, le=200),
+        offset: int = Query(default=0, ge=0),
+    ) -> DocumentListResponse:
+        if document_registry is None:
+            raise HTTPException(503, "document registry unavailable")
+        if workspace_registry is None:
+            raise HTTPException(503, "workspace registry unavailable")
+        ws = workspace_registry.get_workspace(workspace_id=workspace_id)
+        if ws is None:
+            raise HTTPException(404, "workspace not found")
+        # Query documents filtered by workspace_id
+        rows = document_registry.conn.execute(
+            "SELECT * FROM document WHERE workspace_id = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+            (workspace_id, limit, offset),
+        ).fetchall()
+        total_row = document_registry.conn.execute(
+            "SELECT COUNT(*) FROM document WHERE workspace_id = ?", (workspace_id,)
+        ).fetchone()
+        from server.document_registry import _row_to_record
+        documents = [_row_to_record(row) for row in rows]
+        return DocumentListResponse(documents=documents, total=total_row[0] if total_row else 0)
+
+    @router.post("/workspaces/{workspace_id}/files")
+    async def move_files_to_workspace(workspace_id: str, request: MoveFilesToWorkspaceRequest) -> dict:
+        if workspace_registry is None:
+            raise HTTPException(503, "workspace registry unavailable")
+        try:
+            moved = workspace_registry.move_files_to_workspace(
+                file_ids=request.file_ids,
+                workspace_id=workspace_id,
+            )
+        except KeyError:
+            raise HTTPException(404, "workspace not found")
+        return {"moved": moved}
 
     return router

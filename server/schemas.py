@@ -336,3 +336,59 @@ class CompleteUndoMoveRequest(BaseModel):
     to_path: str
     success: bool
     error: str | None = None
+
+
+# ------------------------------------------------------------------
+# Workspace models
+# ------------------------------------------------------------------
+
+class Workspace(BaseModel):
+    id: str
+    name: str
+    description: str = ""
+    ai_brief: str = ""
+    ai_entities: list[dict[str, Any]] = Field(default_factory=list)
+    ai_topics: list[str] = Field(default_factory=list)
+    cover_color: str = ""
+    is_inbox: bool = False
+    created_at: str
+    updated_at: str
+
+
+class WorkspaceWithCount(BaseModel):
+    workspace: Workspace
+    file_count: int = 0
+
+
+class CreateWorkspaceRequest(BaseModel):
+    name: str = Field(min_length=1)
+    description: str = ""
+    cover_color: str = ""
+
+
+class UpdateWorkspaceRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    cover_color: str | None = None
+
+
+class MoveFilesToWorkspaceRequest(BaseModel):
+    file_ids: list[str] = Field(min_length=1)
+
+
+class WorkspaceResponse(BaseModel):
+    id: str
+    name: str
+    description: str
+    ai_brief: str
+    ai_entities: list[dict[str, Any]] = Field(default_factory=list)
+    ai_topics: list[str] = Field(default_factory=list)
+    cover_color: str
+    is_inbox: bool
+    file_count: int = 0
+    created_at: str
+    updated_at: str
+
+
+class WorkspaceListResponse(BaseModel):
+    workspaces: list[WorkspaceResponse] = Field(default_factory=list)

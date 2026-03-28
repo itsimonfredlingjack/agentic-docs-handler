@@ -43,6 +43,7 @@ class AppConfig(BaseSettings):
     llm_log_dir: Path = Path("server/logs/llm")
     validation_log_dir: Path = Path("server/logs/validation")
     validation_report_path: Path = Path("server/logs/validation/latest.json")
+    sqlite_db_path: Path = Path("server/data/brainfileing.db")
     lancedb_path: Path = Path("server/data/lancedb")
     lancedb_table_name: str = "document_chunks"
     ui_documents_path: Path = Path("server/data/ui_documents.jsonl")

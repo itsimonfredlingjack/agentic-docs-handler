@@ -20,6 +20,7 @@ from server.document_registry import DocumentRegistry
 from server.pipelines.classifier import ClassificationValidationError, DocumentClassifier
 from server.pipelines.extractor import DocumentExtractor, ExtractionValidationError
 from server.pipelines.file_organizer import FileOrganizer
+from server.pipelines.noop_organizer import NoOpOrganizer
 from server.pipelines.search import IndexedDocument
 from server.pipelines.thumbnails import generate_thumbnail
 from server.pipelines.whisper_proxy import WhisperProxy, WhisperProxyError
@@ -72,7 +73,7 @@ class DocumentProcessPipeline:
         *,
         classifier: DocumentClassifier,
         extractor: DocumentExtractor,
-        organizer: FileOrganizer,
+        organizer: FileOrganizer | NoOpOrganizer,
         whisper_service: WhisperProxy | None = None,
         document_registry: DocumentRegistry | None = None,
         realtime_manager: object | None = None,
