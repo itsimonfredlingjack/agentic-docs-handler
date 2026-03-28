@@ -19,6 +19,7 @@ from server.clients.ollama_client import OllamaServiceError
 from server.document_registry import DocumentRegistry
 from server.pipelines.classifier import ClassificationValidationError, DocumentClassifier
 from server.pipelines.extractor import DocumentExtractor, ExtractionValidationError
+from server.pipelines.entity_extractor import EntityExtractionError, EntityExtractor
 from server.pipelines.file_organizer import FileOrganizer
 from server.pipelines.noop_organizer import NoOpOrganizer
 from server.pipelines.search import IndexedDocument
@@ -78,6 +79,7 @@ class DocumentProcessPipeline:
         document_registry: DocumentRegistry | None = None,
         realtime_manager: object | None = None,
         search_pipeline: object | None = None,
+        entity_extractor: EntityExtractor | None = None,
         max_text_characters: int = 12000,
         classifier_max_text_characters: int | None = None,
         llm_sequence_lock: asyncio.Lock | None = None,
@@ -85,6 +87,7 @@ class DocumentProcessPipeline:
         self.classifier = classifier
         self.extractor = extractor
         self.organizer = organizer
+        self.entity_extractor = entity_extractor
         self.whisper_service = whisper_service
         self.document_registry = document_registry
         self.realtime_manager = realtime_manager
@@ -360,6 +363,40 @@ class DocumentProcessPipeline:
                         elapsed_ms=timings["extract_ms"],
                     )
 
+                # --- Entity extraction (runs for all document types) ---
+                entity_result = None
+                if self.entity_extractor is not None and extracted_text.strip():
+                    entity_started = time.perf_counter()
+                    self._log_pipeline_event(
+                        "pipeline.entity_extract.start",
+                        request_id=request_id,
+                        client_id=client_id,
+                        filename=filename,
+                        mime_type=mime_type,
+                        source_modality=source_modality,
+                        record_id=record_id,
+                    )
+                    try:
+                        entity_result = await self.entity_extractor.extract(
+                            text=extracted_text[: self.max_text_characters],
+                            request_id=request_id,
+                        )
+                    except EntityExtractionError:
+                        pipeline_flags.append("entity_extractor_invalid_json_fallback")
+                        logger.warning("Entity extraction failed for %s — continuing", request_id)
+                    timings["entity_extract_ms"] = round((time.perf_counter() - entity_started) * 1000, 2)
+                    self._log_pipeline_event(
+                        "pipeline.entity_extract.done",
+                        request_id=request_id,
+                        client_id=client_id,
+                        filename=filename,
+                        mime_type=mime_type,
+                        source_modality=source_modality,
+                        record_id=record_id,
+                        elapsed_ms=timings.get("entity_extract_ms", 0),
+                        entity_count=len(entity_result.entities) if entity_result else 0,
+                    )
+
             await self._progress(
                 client_id, request_id, "extracted", "Fält extraherade",
                 data={"extraction": extraction.model_dump(mode="json")},
@@ -448,6 +485,17 @@ class DocumentProcessPipeline:
                 thumbnail_data=thumbnail_data,
             )
             self._persist_record(response)
+
+            # Persist extracted entities to SQLite
+            if entity_result and entity_result.entities and self.document_registry is not None:
+                try:
+                    self.document_registry.upsert_entities(
+                        file_id=record_id,
+                        entities=entity_result.entities,
+                    )
+                except Exception:
+                    logger.warning("Failed to persist entities for %s — continuing", request_id, exc_info=True)
+
             self._log_pipeline_event(
                 "pipeline.persist.done",
                 request_id=request_id,
@@ -494,6 +542,10 @@ class DocumentProcessPipeline:
                             "document_type": classification.document_type,
                             "summary": classification.summary,
                             "tags": classification.tags,
+                            "entities": [
+                                {"name": e.name, "type": e.entity_type}
+                                for e in (entity_result.entities if entity_result else [])
+                            ],
                         },
                     ),
                 )

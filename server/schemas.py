@@ -61,6 +61,19 @@ class ExtractionResult(BaseModel):
     missing_fields: list[str] = Field(default_factory=list)
 
 
+EntityType = Literal["person", "company", "date", "amount", "place", "topic"]
+
+
+class ExtractedEntity(BaseModel):
+    name: str
+    entity_type: EntityType
+    context: str = ""
+
+
+class EntityExtractionResult(BaseModel):
+    entities: list[ExtractedEntity] = Field(default_factory=list)
+
+
 class MovePlan(BaseModel):
     rule_name: str | None = None
     destination: str | None = None

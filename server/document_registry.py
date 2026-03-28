@@ -15,6 +15,7 @@ from server.schemas import (
     DocumentCountsResponse,
     DocumentListResponse,
     DismissMoveResponse,
+    ExtractedEntity,
     ExtractionResult,
     FinalizeMoveResponse,
     MovePlan,
@@ -184,6 +185,69 @@ class DocumentRegistry:
 
     def close(self) -> None:
         self._conn.close()
+
+    # ------------------------------------------------------------------
+    # Entity persistence
+    # ------------------------------------------------------------------
+
+    def upsert_entities(
+        self,
+        *,
+        file_id: str,
+        entities: list[ExtractedEntity],
+    ) -> int:
+        """Store extracted entities and link them to a document.
+
+        Uses INSERT OR IGNORE for the entity table (dedup by name+type)
+        and INSERT OR REPLACE for file_entity (updates context on re-extraction).
+        Returns the number of entity links written.
+        """
+        if not entities:
+            return 0
+        with self._conn:
+            for entity in entities:
+                entity_id = f"ent-{uuid4().hex[:12]}"
+                # Insert entity if not already present (UNIQUE on name, entity_type)
+                self._conn.execute(
+                    """
+                    INSERT OR IGNORE INTO entity (id, name, entity_type)
+                    VALUES (?, ?, ?)
+                    """,
+                    (entity_id, entity.name, entity.entity_type),
+                )
+                # Look up the canonical entity id (may differ from ours if already existed)
+                row = self._conn.execute(
+                    "SELECT id FROM entity WHERE name = ? AND entity_type = ?",
+                    (entity.name, entity.entity_type),
+                ).fetchone()
+                if row is None:
+                    continue
+                canonical_id = row["id"]
+                self._conn.execute(
+                    """
+                    INSERT OR REPLACE INTO file_entity (file_id, entity_id, context)
+                    VALUES (?, ?, ?)
+                    """,
+                    (file_id, canonical_id, entity.context),
+                )
+        return len(entities)
+
+    def get_entities_for_document(self, *, record_id: str) -> list[dict[str, str]]:
+        """Return entities linked to a document as dicts with name, entity_type, context."""
+        rows = self._conn.execute(
+            """
+            SELECT e.name, e.entity_type, fe.context
+            FROM file_entity fe
+            JOIN entity e ON e.id = fe.entity_id
+            WHERE fe.file_id = ?
+            ORDER BY e.entity_type, e.name
+            """,
+            (record_id,),
+        ).fetchall()
+        return [
+            {"name": row["name"], "entity_type": row["entity_type"], "context": row["context"]}
+            for row in rows
+        ]
 
     # ------------------------------------------------------------------
     # Document CRUD

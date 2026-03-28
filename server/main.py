@@ -18,6 +18,7 @@ from server.document_registry import DocumentRegistry
 from server.engagement_tracker import EngagementTracker
 from server.logging_config import LLMLogWriter, configure_logging
 from server.migrations.jsonl_to_sqlite import create_schema, create_inbox_workspace, is_migrated, run_migration
+from server.pipelines.entity_extractor import EntityExtractor
 from server.pipelines.noop_organizer import NoOpOrganizer
 from server.services import build_app_services
 from server.pipelines.classifier import DocumentClassifier
@@ -53,6 +54,7 @@ class ReadinessProbe:
             config.prompts_dir / "extractors" / "invoice.txt",
             config.prompts_dir / "extractors" / "meeting_notes.txt",
             config.prompts_dir / "extractors" / "generic.txt",
+            config.prompts_dir / "entity_system.txt",
         ]
 
     def __call__(self) -> dict[str, object]:
@@ -183,6 +185,12 @@ def create_app(
             },
             temperature=config.extract_temperature,
         )
+        entity_extractor_llm = _make_llm(config, log_writer, "entity_extractor")
+        entity_extractor = EntityExtractor(
+            ollama_client=entity_extractor_llm,
+            system_prompt=read_prompt(config.prompts_dir / "entity_system.txt"),
+            temperature=config.extract_temperature,
+        )
         organizer = NoOpOrganizer()
         pipeline = DocumentProcessPipeline(
             classifier=classifier,
@@ -191,6 +199,7 @@ def create_app(
             whisper_service=whisper_service,
             document_registry=document_registry,
             realtime_manager=realtime_manager,
+            entity_extractor=entity_extractor,
             max_text_characters=config.max_text_characters,
             classifier_max_text_characters=config.classifier_max_text_characters,
         )

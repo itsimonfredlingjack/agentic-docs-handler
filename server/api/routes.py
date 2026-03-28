@@ -172,6 +172,16 @@ def create_router(
             return ActivityResponse()
         return ActivityResponse(events=document_registry.list_activity(limit=limit))
 
+    @router.get("/documents/{record_id}/entities")
+    async def document_entities(record_id: str) -> dict:
+        if document_registry is None:
+            raise HTTPException(503, "document registry unavailable")
+        doc = document_registry.get_document(record_id=record_id)
+        if doc is None:
+            raise HTTPException(404, "document not found")
+        entities = document_registry.get_entities_for_document(record_id=record_id)
+        return {"record_id": record_id, "entities": entities}
+
     @router.get("/search", response_model=SearchResponse)
     async def search(
         query: str = Query(min_length=1),
