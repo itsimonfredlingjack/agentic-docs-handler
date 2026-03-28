@@ -19,6 +19,7 @@ from server.engagement_tracker import EngagementTracker
 from server.logging_config import LLMLogWriter, configure_logging
 from server.migrations.jsonl_to_sqlite import create_schema, create_inbox_workspace, is_migrated, run_migration
 from server.pipelines.entity_extractor import EntityExtractor
+from server.pipelines.workspace_brief import WorkspaceBriefPipeline
 from server.pipelines.noop_organizer import NoOpOrganizer
 from server.services import build_app_services
 from server.pipelines.classifier import DocumentClassifier
@@ -55,6 +56,7 @@ class ReadinessProbe:
             config.prompts_dir / "extractors" / "meeting_notes.txt",
             config.prompts_dir / "extractors" / "generic.txt",
             config.prompts_dir / "entity_system.txt",
+            config.prompts_dir / "workspace_brief_system.txt",
         ]
 
     def __call__(self) -> dict[str, object]:
@@ -253,6 +255,7 @@ def create_app(
     if search_service is not None and hasattr(pipeline, "search_pipeline"):
         setattr(pipeline, "search_pipeline", search_service)
 
+    workspace_brief_service: WorkspaceBriefPipeline | None = None
     if workspace_chat_service is None and search_service is not None and classifier_llm is not None:
         log_writer = classifier_llm.log_writer
         workspace_llm = _make_llm(config, log_writer, "workspace_chat")
@@ -263,6 +266,12 @@ def create_app(
             document_registry=document_registry,
             system_prompt=read_prompt(config.prompts_dir / "workspace_system.txt"),
             num_ctx=config.resolve_num_ctx("workspace_chat") or DEFAULT_NUM_CTX,
+        )
+        workspace_brief_service = WorkspaceBriefPipeline(
+            ollama_client=workspace_llm,
+            system_prompt=read_prompt(config.prompts_dir / "workspace_brief_system.txt"),
+            document_registry=document_registry,
+            workspace_registry=workspace_registry,
         )
 
     validation_report_loader = validation_report_loader or (
@@ -307,6 +316,7 @@ def create_app(
             workspace_chat_service=workspace_chat_service,
             engagement_tracker=engagement_tracker,
             workspace_registry=workspace_registry,
+            workspace_brief_service=workspace_brief_service,
         )
     )
     app.include_router(create_ws_router(realtime_manager=services.realtime_manager))

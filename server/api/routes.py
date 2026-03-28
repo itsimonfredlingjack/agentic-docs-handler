@@ -104,6 +104,7 @@ def create_router(
     workspace_chat_service: object | None = None,
     engagement_tracker: object | None = None,
     workspace_registry: object | None = None,
+    workspace_brief_service: object | None = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -612,6 +613,16 @@ def create_router(
             raise HTTPException(404, "workspace not found")
         except ValueError as exc:
             raise HTTPException(400, str(exc))
+
+    @router.post("/workspaces/{workspace_id}/brief")
+    async def generate_workspace_brief(workspace_id: str) -> dict:
+        if workspace_brief_service is None:
+            raise HTTPException(503, "workspace brief service unavailable")
+        try:
+            result = await workspace_brief_service.generate(workspace_id=workspace_id)
+        except KeyError:
+            raise HTTPException(404, "workspace not found")
+        return {"workspace_id": workspace_id, **result}
 
     @router.get("/workspaces/{workspace_id}/files", response_model=DocumentListResponse)
     async def workspace_files(

@@ -309,6 +309,19 @@ class DocumentRegistry:
             )
         return self.get_document(record_id=record_id)
 
+    def list_documents_by_workspace(
+        self,
+        *,
+        workspace_id: str,
+        limit: int = 200,
+    ) -> list[UiDocumentRecord]:
+        """Return documents belonging to a workspace, ordered by updated_at DESC."""
+        rows = self._conn.execute(
+            "SELECT * FROM document WHERE workspace_id = ? ORDER BY updated_at DESC LIMIT ?",
+            (workspace_id, limit),
+        ).fetchall()
+        return [_row_to_record(row) for row in rows]
+
     def list_documents(
         self,
         *,
