@@ -14,6 +14,7 @@ import type {
     UndoMoveResponse,
     WorkspaceChatEvent,
 } from "../types/documents";
+import type { WorkspaceListResponse, WorkspaceResponse } from "../types/workspace";
 import { mapRegistryRecordToUiDocument } from "./document-mappers";
 import { getBackendBaseUrl } from "./tauri-events";
 
@@ -171,6 +172,67 @@ export async function completeClientUndo(args: {
       success: args.result.success,
       error: args.result.error ?? null,
     }),
+  });
+}
+
+export async function fetchWorkspaces(): Promise<WorkspaceListResponse> {
+  return fetchJson<WorkspaceListResponse>("/workspaces");
+}
+
+export async function createWorkspace(
+  name: string,
+  description?: string,
+  cover_color?: string,
+): Promise<WorkspaceResponse> {
+  return fetchJson<WorkspaceResponse>("/workspaces", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, description, cover_color }),
+  });
+}
+
+export async function updateWorkspace(
+  id: string,
+  fields: Partial<Pick<WorkspaceResponse, "name" | "description" | "cover_color">>,
+): Promise<WorkspaceResponse> {
+  return fetchJson<WorkspaceResponse>(`/workspaces/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+}
+
+export async function deleteWorkspace(id: string): Promise<void> {
+  const baseUrl = await resolveBaseUrl();
+  const response = await fetch(`${baseUrl}/workspaces/${id}`, { method: "DELETE" });
+  if (!response.ok) {
+    throw new Error(`/workspaces/${id}:${response.status}`);
+  }
+}
+
+export async function fetchWorkspaceFiles(
+  workspaceId: string,
+  limit = 50,
+  offset = 0,
+): Promise<DocumentListResponse> {
+  const payload = await fetchJson<{
+    documents: Array<Parameters<typeof mapRegistryRecordToUiDocument>[0]>;
+    total: number;
+  }>(`/workspaces/${workspaceId}/files?limit=${limit}&offset=${offset}`);
+  return {
+    documents: payload.documents.map((document) => mapRegistryRecordToUiDocument(document)) as UiDocument[],
+    total: payload.total,
+  };
+}
+
+export async function moveFilesToWorkspace(
+  workspaceId: string,
+  fileIds: string[],
+): Promise<{ moved: number }> {
+  return fetchJson<{ moved: number }>(`/workspaces/${workspaceId}/files`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ file_ids: fileIds }),
   });
 }
 
