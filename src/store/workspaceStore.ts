@@ -1,0 +1,81 @@
+import { create } from "zustand";
+
+import type { WorkspaceResponse } from "../types/workspace";
+import {
+  fetchWorkspaces as apiFetchWorkspaces,
+  createWorkspace as apiCreateWorkspace,
+  updateWorkspace as apiUpdateWorkspace,
+  deleteWorkspace as apiDeleteWorkspace,
+} from "../lib/api";
+
+type WorkspaceStoreState = {
+  workspaces: WorkspaceResponse[];
+  activeWorkspaceId: string | null;
+  loading: boolean;
+  error: string | null;
+  chatPanelOpen: boolean;
+
+  fetchWorkspaces: () => Promise<void>;
+  setActiveWorkspace: (id: string) => void;
+  createWorkspace: (name: string) => Promise<WorkspaceResponse>;
+  updateWorkspace: (id: string, fields: { name?: string; description?: string; cover_color?: string }) => Promise<void>;
+  deleteWorkspace: (id: string) => Promise<void>;
+  toggleChatPanel: () => void;
+  setChatPanelOpen: (open: boolean) => void;
+};
+
+export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
+  workspaces: [],
+  activeWorkspaceId: null,
+  loading: false,
+  error: null,
+  chatPanelOpen: false,
+
+  fetchWorkspaces: async () => {
+    set({ loading: true, error: null });
+    try {
+      const list = await apiFetchWorkspaces();
+      const workspaces = list.workspaces;
+      set((state) => {
+        const nextActive =
+          state.activeWorkspaceId !== null
+            ? state.activeWorkspaceId
+            : (workspaces.find((w) => w.is_inbox)?.id ?? null);
+        return { workspaces, activeWorkspaceId: nextActive, loading: false };
+      });
+    } catch (err) {
+      set({ loading: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  },
+
+  setActiveWorkspace: (id) => set({ activeWorkspaceId: id, chatPanelOpen: false }),
+
+  createWorkspace: async (name) => {
+    const created = await apiCreateWorkspace(name);
+    await get().fetchWorkspaces();
+    set({ activeWorkspaceId: created.id });
+    return created;
+  },
+
+  updateWorkspace: async (id, fields) => {
+    await apiUpdateWorkspace(id, fields);
+    await get().fetchWorkspaces();
+  },
+
+  deleteWorkspace: async (id) => {
+    await apiDeleteWorkspace(id);
+    const { activeWorkspaceId } = get();
+    if (activeWorkspaceId === id) {
+      // Refetch first so we can find the inbox
+      await get().fetchWorkspaces();
+      const inbox = get().workspaces.find((w) => w.is_inbox);
+      set({ activeWorkspaceId: inbox?.id ?? null });
+    } else {
+      await get().fetchWorkspaces();
+    }
+  },
+
+  toggleChatPanel: () => set((state) => ({ chatPanelOpen: !state.chatPanelOpen })),
+
+  setChatPanelOpen: (open) => set({ chatPanelOpen: open }),
+}));
