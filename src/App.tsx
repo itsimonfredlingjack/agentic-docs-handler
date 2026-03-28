@@ -1,89 +1,96 @@
-import { useEffect, startTransition, useState } from "react";
+import { useEffect, useState, startTransition } from "react";
 
+import { CommandPalette } from "./components/CommandPalette";
 import { DetailPanel } from "./components/DetailPanel";
-import { DropZone } from "./components/DropZone";
-import { ProcessingRail } from "./components/ProcessingRail";
-import { ActivityFeed } from "./components/ActivityFeed";
 import { FileMoveToast } from "./components/FileMoveToast";
-import { MobileFilterSheet } from "./components/MobileFilterSheet";
-import { SearchBar } from "./components/SearchBar";
-import { Sidebar } from "./components/Sidebar";
-import { getSidebarFilterLabel } from "./components/sidebarFilters";
+import { WorkspaceSidebar } from "./components/WorkspaceSidebar";
+import { WorkspaceView } from "./components/WorkspaceView";
 import { WorkspaceNotebook } from "./components/WorkspaceNotebook";
-import { HomeChat } from "./components/HomeChat";
-import { fetchActivity, fetchCounts, fetchDocuments } from "./lib/api";
+import { fetchWorkspaceFiles } from "./lib/api";
 import { getClientId } from "./lib/tauri-events";
 import { useDocumentStore } from "./store/documentStore";
+import { useWorkspaceStore } from "./store/workspaceStore";
 import { useWebSocket } from "./hooks/useWebSocket";
 
 export default function App() {
-  const bootstrap = useDocumentStore((state) => state.bootstrap);
-  const setClientId = useDocumentStore((state) => state.setClientId);
-  const sidebarFilter = useDocumentStore((state) => state.sidebarFilter);
-  const activeWorkspace = useDocumentStore((s) => s.activeWorkspace);
-  const activeDocumentChat = useDocumentStore((s) => s.activeDocumentChat);
-  const [isFilterSheetOpen, setFilterSheetOpen] = useState(false);
-
-  const isHome = sidebarFilter === "all";
-  // Show the right-side chat panel only when NOT on home (home has chat in center)
-  const showSidePanel = !isHome && (activeWorkspace || activeDocumentChat);
+  const bootstrap = useDocumentStore((s) => s.bootstrap);
+  const setClientId = useDocumentStore((s) => s.setClientId);
+  const chatPanelOpen = useWorkspaceStore((s) => s.chatPanelOpen);
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const fetchWorkspaces = useWorkspaceStore((s) => s.fetchWorkspaces);
+  const [cmdkOpen, setCmdkOpen] = useState(false);
 
   useWebSocket();
 
+  // Bootstrap: fetch client ID and workspaces
   useEffect(() => {
     let cancelled = false;
-
     async function load() {
       try {
-        const [clientId, documentsPayload, counts, activity] = await Promise.all([
-          getClientId(),
-          fetchDocuments(50),
-          fetchCounts(),
-          fetchActivity(10),
-        ]);
-        if (cancelled) {
-          return;
-        }
+        const clientId = await getClientId();
+        if (cancelled) return;
         setClientId(clientId);
-        startTransition(() => {
-          bootstrap(documentsPayload.documents, counts, activity.events);
-        });
+        await fetchWorkspaces();
       } catch (error) {
-        if (!cancelled) {
-          console.error("app.bootstrap.failed", error);
-        }
+        if (!cancelled) console.error("app.bootstrap.failed", error);
       }
     }
-
     void load();
+    return () => { cancelled = true; };
+  }, [setClientId, fetchWorkspaces]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [bootstrap, setClientId]);
+  // When active workspace changes, fetch its files
+  useEffect(() => {
+    if (!activeWorkspaceId) return;
+    let cancelled = false;
+    async function loadFiles() {
+      try {
+        const payload = await fetchWorkspaceFiles(activeWorkspaceId!, 50);
+        if (cancelled) return;
+        startTransition(() => {
+          bootstrap(
+            payload.documents,
+            { all: payload.total, processing: 0, receipt: 0, contract: 0, invoice: 0, meeting_notes: 0, audio: 0, generic: 0, moved: 0 },
+            [],
+          );
+        });
+      } catch (error) {
+        if (!cancelled) console.error("workspace.files.failed", error);
+      }
+    }
+    void loadFiles();
+    return () => { cancelled = true; };
+  }, [activeWorkspaceId, bootstrap]);
+
+  // Global ⌘K listener
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "k" && e.metaKey) {
+        e.preventDefault();
+        setCmdkOpen((prev) => !prev);
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden text-[var(--text-primary)]" style={{ background: '#111118' }}>
-      <div className="flex min-h-0 flex-1 w-full max-w-[1720px] gap-3 overflow-hidden p-3">
+    <div className="flex h-full flex-col overflow-hidden text-[var(--text-primary)]" style={{ background: "#111118" }}>
+      <div className="flex min-h-0 flex-1 gap-0 overflow-hidden">
         <div className="hidden shrink-0 lg:block">
-          <Sidebar />
+          <WorkspaceSidebar />
         </div>
-        <main className="glass-panel flex min-h-0 flex-1 flex-col items-stretch gap-4 p-4">
-          <SearchBar
-            activeFilterLabel={getSidebarFilterLabel(sidebarFilter)}
-            onOpenFilters={() => setFilterSheetOpen(true)}
-          />
-          <DropZone />
-          <ProcessingRail />
-          {isHome ? <HomeChat /> : <ActivityFeed />}
-        </main>
-        {showSidePanel && (
+
+        <WorkspaceView />
+
+        {chatPanelOpen && (
           <aside className="workspace-panel glass-panel hidden lg:flex">
             <WorkspaceNotebook />
           </aside>
         )}
       </div>
-      <MobileFilterSheet open={isFilterSheetOpen} onClose={() => setFilterSheetOpen(false)} />
+
+      <CommandPalette open={cmdkOpen} onOpenChange={setCmdkOpen} />
       <FileMoveToast />
       <DetailPanel />
     </div>
