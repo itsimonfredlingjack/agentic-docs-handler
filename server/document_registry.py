@@ -261,16 +261,25 @@ class DocumentRegistry:
             return None
         return _row_to_record(row)
 
-    def upsert_document(self, record: UiDocumentRecord) -> UiDocumentRecord:
+    def upsert_document(
+        self,
+        record: UiDocumentRecord,
+        *,
+        workspace_id: str | None = None,
+    ) -> UiDocumentRecord:
         record = self._normalize_record_debug_fields(record)
-        # Preserve existing workspace_id on update; default to inbox on first insert
-        existing = self._conn.execute(
-            "SELECT workspace_id FROM document WHERE id = ?", (record.id,)
-        ).fetchone()
-        if existing is not None:
-            ws_id = existing["workspace_id"]
+        if workspace_id is not None:
+            # Caller explicitly sets workspace (e.g. workspace suggestion pipeline)
+            ws_id = workspace_id
         else:
-            ws_id = self._get_inbox_id()
+            # Preserve existing workspace_id on update; default to inbox on first insert
+            existing = self._conn.execute(
+                "SELECT workspace_id FROM document WHERE id = ?", (record.id,)
+            ).fetchone()
+            if existing is not None:
+                ws_id = existing["workspace_id"]
+            else:
+                ws_id = self._get_inbox_id()
         params = _record_to_params(record, workspace_id=ws_id)
         with self._conn:
             self._conn.execute(_UPSERT_SQL, params)

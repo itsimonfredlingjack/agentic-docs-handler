@@ -20,6 +20,7 @@ from server.document_registry import DocumentRegistry
 from server.pipelines.classifier import ClassificationValidationError, DocumentClassifier
 from server.pipelines.extractor import DocumentExtractor, ExtractionValidationError
 from server.pipelines.entity_extractor import EntityExtractionError, EntityExtractor
+from server.pipelines.workspace_suggester import WorkspaceSuggester
 from server.pipelines.file_organizer import FileOrganizer
 from server.pipelines.noop_organizer import NoOpOrganizer
 from server.pipelines.search import IndexedDocument
@@ -80,6 +81,8 @@ class DocumentProcessPipeline:
         realtime_manager: object | None = None,
         search_pipeline: object | None = None,
         entity_extractor: EntityExtractor | None = None,
+        workspace_suggester: WorkspaceSuggester | None = None,
+        workspace_registry: object | None = None,
         max_text_characters: int = 12000,
         classifier_max_text_characters: int | None = None,
         llm_sequence_lock: asyncio.Lock | None = None,
@@ -88,6 +91,8 @@ class DocumentProcessPipeline:
         self.extractor = extractor
         self.organizer = organizer
         self.entity_extractor = entity_extractor
+        self.workspace_suggester = workspace_suggester
+        self.workspace_registry = workspace_registry
         self.whisper_service = whisper_service
         self.document_registry = document_registry
         self.realtime_manager = realtime_manager
@@ -397,6 +402,57 @@ class DocumentProcessPipeline:
                         entity_count=len(entity_result.entities) if entity_result else 0,
                     )
 
+            # --- Workspace suggestion ---
+            suggested_workspace_id: str | None = None
+            if (
+                self.workspace_suggester is not None
+                and self.workspace_registry is not None
+                and hasattr(self.workspace_registry, "list_workspaces")
+            ):
+                try:
+                    ws_list = self.workspace_registry.list_workspaces()
+                    non_inbox = [
+                        {"id": w.id, "name": w.name, "description": w.description, "ai_brief": w.ai_brief}
+                        for w in ws_list.workspaces
+                        if not w.is_inbox
+                    ]
+                    if non_inbox:
+                        entity_dicts = [
+                            {"name": e.name, "entity_type": e.entity_type}
+                            for e in (entity_result.entities if entity_result else [])
+                        ]
+                        suggestion = await self.workspace_suggester.suggest(
+                            title=classification.title,
+                            summary=classification.summary,
+                            document_type=classification.document_type,
+                            entities=entity_dicts,
+                            workspaces=non_inbox,
+                            request_id=request_id,
+                        )
+                        if suggestion.auto_assigned and suggestion.workspace_id:
+                            suggested_workspace_id = suggestion.workspace_id
+                            self._log_pipeline_event(
+                                "pipeline.workspace_suggest.assigned",
+                                request_id=request_id,
+                                client_id=client_id,
+                                filename=filename,
+                                workspace_id=suggestion.workspace_id,
+                                workspace_name=suggestion.workspace_name,
+                                confidence=suggestion.confidence,
+                            )
+                        else:
+                            self._log_pipeline_event(
+                                "pipeline.workspace_suggest.inbox",
+                                request_id=request_id,
+                                client_id=client_id,
+                                filename=filename,
+                                confidence=suggestion.confidence,
+                                reason=suggestion.reason,
+                            )
+                except Exception:
+                    logger.warning("Workspace suggestion failed for %s — staying in inbox", request_id, exc_info=True)
+                    pipeline_flags.append("workspace_suggest_failed")
+
             await self._progress(
                 client_id, request_id, "extracted", "Fält extraherade",
                 data={"extraction": extraction.model_dump(mode="json")},
@@ -484,7 +540,7 @@ class DocumentProcessPipeline:
                 ),
                 thumbnail_data=thumbnail_data,
             )
-            self._persist_record(response)
+            self._persist_record(response, workspace_id=suggested_workspace_id)
 
             # Persist extracted entities to SQLite
             if entity_result and entity_result.entities and self.document_registry is not None:
@@ -664,7 +720,12 @@ class DocumentProcessPipeline:
             retryable = error.status_code >= 500
             return "", None, "audio_processing_unavailable", retryable
 
-    def _persist_record(self, response: ProcessResponse) -> None:
+    def _persist_record(
+        self,
+        response: ProcessResponse,
+        *,
+        workspace_id: str | None = None,
+    ) -> None:
         if self.document_registry is None:
             return
         self.document_registry.upsert_document(
@@ -695,7 +756,8 @@ class DocumentProcessPipeline:
                 warnings=response.warnings,
                 diagnostics=response.diagnostics,
                 thumbnail_data=response.thumbnail_data,
-            )
+            ),
+            workspace_id=workspace_id,
         )
 
     async def drain_background_tasks(self) -> None:

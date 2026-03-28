@@ -20,6 +20,7 @@ from server.logging_config import LLMLogWriter, configure_logging
 from server.migrations.jsonl_to_sqlite import create_schema, create_inbox_workspace, is_migrated, run_migration
 from server.pipelines.entity_extractor import EntityExtractor
 from server.pipelines.workspace_brief import WorkspaceBriefPipeline
+from server.pipelines.workspace_suggester import WorkspaceSuggester
 from server.pipelines.noop_organizer import NoOpOrganizer
 from server.services import build_app_services
 from server.pipelines.classifier import DocumentClassifier
@@ -57,6 +58,7 @@ class ReadinessProbe:
             config.prompts_dir / "extractors" / "generic.txt",
             config.prompts_dir / "entity_system.txt",
             config.prompts_dir / "workspace_brief_system.txt",
+            config.prompts_dir / "workspace_suggest_system.txt",
         ]
 
     def __call__(self) -> dict[str, object]:
@@ -193,6 +195,11 @@ def create_app(
             system_prompt=read_prompt(config.prompts_dir / "entity_system.txt"),
             temperature=config.extract_temperature,
         )
+        workspace_suggester_instance = WorkspaceSuggester(
+            ollama_client=_make_llm(config, log_writer, "workspace_suggester"),
+            system_prompt=read_prompt(config.prompts_dir / "workspace_suggest_system.txt"),
+            temperature=config.extract_temperature,
+        )
         organizer = NoOpOrganizer()
         pipeline = DocumentProcessPipeline(
             classifier=classifier,
@@ -202,6 +209,8 @@ def create_app(
             document_registry=document_registry,
             realtime_manager=realtime_manager,
             entity_extractor=entity_extractor,
+            workspace_suggester=workspace_suggester_instance,
+            workspace_registry=workspace_registry,
             max_text_characters=config.max_text_characters,
             classifier_max_text_characters=config.classifier_max_text_characters,
         )
