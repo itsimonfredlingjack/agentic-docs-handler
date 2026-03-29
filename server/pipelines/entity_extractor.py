@@ -6,6 +6,7 @@ from document text using the configured Ollama model.
 from __future__ import annotations
 
 import json
+import inspect
 import logging
 from typing import Any
 
@@ -64,10 +65,10 @@ class EntityExtractor:
         try:
             payload = json.loads(extract_json_object_text(raw))
             result = EntityExtractionResult.model_validate(payload)
-            self._record_log(meta, raw, json_parse_ok=True, schema_validation_ok=True)
+            await self._record_log(meta, raw, json_parse_ok=True, schema_validation_ok=True)
             return _normalize_and_deduplicate(result)
         except (json.JSONDecodeError, ValidationError) as error:
-            self._record_log(meta, raw, json_parse_ok=_is_json(raw), schema_validation_ok=False)
+            await self._record_log(meta, raw, json_parse_ok=_is_json(raw), schema_validation_ok=False)
             raise EntityExtractionError("entity extractor produced invalid JSON") from error
 
     async def _invoke_model(
@@ -96,7 +97,7 @@ class EntityExtractor:
         )
         return raw, None
 
-    def _record_log(
+    async def _record_log(
         self,
         meta: dict[str, Any] | None,
         raw: str,
@@ -106,7 +107,7 @@ class EntityExtractor:
     ) -> None:
         if not meta or not hasattr(self.ollama_client, "log_writer"):
             return
-        self.ollama_client.log_writer.write_call(
+        result = self.ollama_client.log_writer.write_call(
             request_id=meta["request_id"],
             prompt_name=meta["prompt_name"],
             model=self.ollama_client.model,
@@ -117,6 +118,8 @@ class EntityExtractor:
             json_parse_ok=json_parse_ok,
             schema_validation_ok=schema_validation_ok,
         )
+        if inspect.isawaitable(result):
+            await result
 
 
 def _normalize_and_deduplicate(result: EntityExtractionResult) -> EntityExtractionResult:

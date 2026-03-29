@@ -155,6 +155,7 @@ export type ProcessResponse = {
 export type UiDocument = {
   id: string;
   requestId: string;
+  workspaceId?: string | null;
   title: string;
   summary: string;
   mimeType: string;
@@ -422,3 +423,25 @@ export type WorkspaceChatEvent =
   | { type: "token"; data: { text: string } }
   | { type: "done"; data: Record<string, never> }
   | { type: "error"; data: { error: string } };
+
+export type DiscoveryRelationType = "duplicate" | "related" | "version";
+
+export type DiscoveryFileRef = {
+  id: string;
+  title: string;
+  source_path: string | null;
+};
+
+export type DiscoveryCard = {
+  id: string;
+  relation_type: DiscoveryRelationType;
+  confidence: number;
+  explanation: string;
+  files: DiscoveryFileRef[];
+  created_at: string;
+};
+
+export type WorkspaceDiscoveryResponse = {
+  workspace_id: string;
+  cards: DiscoveryCard[];
+};

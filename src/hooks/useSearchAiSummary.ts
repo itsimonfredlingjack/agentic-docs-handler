@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { streamWorkspaceChat } from "../lib/api";
+import { useWorkspaceStore } from "../store/workspaceStore";
 
 type SummaryState = {
   status: "idle" | "streaming" | "done" | "error";
@@ -12,6 +13,7 @@ const IDLE: SummaryState = { status: "idle", text: "", errorMessage: null };
 export function useSearchAiSummary() {
   const [state, setState] = useState<SummaryState>(IDLE);
   const abortRef = useRef<AbortController | null>(null);
+  const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
 
   const ask = useCallback(async (query: string) => {
     // Abort any previous request
@@ -24,8 +26,9 @@ export function useSearchAiSummary() {
     try {
       let text = "";
       let tokenCount = 0;
-      for await (const event of streamWorkspaceChat("all", query, [], {
+      for await (const event of streamWorkspaceChat(undefined, query, [], {
         signal: controller.signal,
+        workspace_id: activeWorkspaceId ?? undefined,
       })) {
         if (event.type === "token") {
           text += event.data.text;
@@ -51,7 +54,7 @@ export function useSearchAiSummary() {
         errorMessage: error instanceof Error ? error.message : "Anslutningsfel",
       });
     }
-  }, []);
+  }, [activeWorkspaceId]);
 
   const reset = useCallback(() => {
     abortRef.current?.abort();

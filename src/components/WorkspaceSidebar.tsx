@@ -29,73 +29,94 @@ export function WorkspaceSidebar() {
 
   return (
     <nav className="workspace-sidebar">
-      <div className="workspace-sidebar__brand">Workspaces</div>
+      {/* App Header Zone */}
+      <div className="flex items-center justify-between px-3 pt-4 pb-2">
+        <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+          Local Library
+        </h2>
+        <div className="workspace-sidebar__kbd-hint" aria-hidden="true">
+          <kbd className="mac-kbd">⌘K</kbd>
+        </div>
+      </div>
 
-      {inbox && (
-        <button
-          type="button"
-          className="workspace-item"
-          data-active={activeWorkspaceId === inbox.id ? "true" : undefined}
-          onClick={() => setActiveWorkspace(inbox.id)}
-        >
-          <span className="workspace-item__dot" style={{ background: INBOX_COLOR }} />
-          <span className="workspace-item__name">{inbox.name}</span>
-          <span className="workspace-item__count">{inbox.file_count}</span>
-        </button>
-      )}
+      <div className="flex-1 overflow-y-auto px-2 space-y-4 mt-2">
+        {/* Inbox Section */}
+        {inbox && (
+          <div className="space-y-0.5">
+            <button
+              type="button"
+              className="workspace-item"
+              data-active={activeWorkspaceId === inbox.id ? "true" : undefined}
+              onClick={() => setActiveWorkspace(inbox.id)}
+            >
+              <div className="flex flex-1 items-center gap-2.5 min-w-0">
+                <span className="workspace-item__dot" style={{ background: INBOX_COLOR }} />
+                <span className="workspace-item__name truncate">{inbox.name}</span>
+              </div>
+              <span className="workspace-item__count shrink-0">{inbox.file_count}</span>
+            </button>
+          </div>
+        )}
 
-      <div className="workspace-sidebar__divider" />
+        {/* Workspaces Section */}
+        <div className="space-y-1">
+          <div className="px-2 pb-1">
+            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-[rgba(255,255,255,0.25)]">
+              Collections
+            </h3>
+          </div>
+          <div className="space-y-0.5">
+            {others.map((ws, index) => (
+              <button
+                key={ws.id}
+                type="button"
+                className="workspace-item"
+                data-active={activeWorkspaceId === ws.id ? "true" : undefined}
+                onClick={() => setActiveWorkspace(ws.id)}
+              >
+                <div className="flex flex-1 items-center gap-2.5 min-w-0">
+                  <span
+                    className="workspace-item__dot"
+                    style={{ background: ws.cover_color || getColor(index) }}
+                  />
+                  <span className="workspace-item__name truncate">{ws.name}</span>
+                </div>
+                <span className="workspace-item__count shrink-0">{ws.file_count}</span>
+              </button>
+            ))}
+          </div>
 
-      <div className="workspace-sidebar__section-label">Workspaces</div>
-
-      {others.map((ws, index) => (
-        <button
-          key={ws.id}
-          type="button"
-          className="workspace-item"
-          data-active={activeWorkspaceId === ws.id ? "true" : undefined}
-          onClick={() => setActiveWorkspace(ws.id)}
-        >
-          <span
-            className="workspace-item__dot"
-            style={{ background: ws.cover_color || getColor(index) }}
-          />
-          <span className="workspace-item__name">{ws.name}</span>
-          <span className="workspace-item__count">{ws.file_count}</span>
-        </button>
-      ))}
-
-      <div className="workspace-sidebar__spacer" />
-
-      {showForm ? (
-        <form className="workspace-sidebar__create-form" onSubmit={handleSubmit}>
-          <input
-            className="workspace-sidebar__create-input"
-            type="text"
-            placeholder="Workspace namn"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                setShowForm(false);
-                setInputValue("");
-              }
-            }}
-          />
-        </form>
-      ) : (
-        <button
-          type="button"
-          className="workspace-sidebar__create-btn"
-          onClick={() => setShowForm(true)}
-        >
-          + Ny workspace
-        </button>
-      )}
-
-      <div className="workspace-sidebar__kbd-hint">
-        <kbd>⌘K</kbd>
+          {/* Create New Inline Form */}
+          <div className="pt-2 px-1">
+            {showForm ? (
+              <form className="flex mt-1" onSubmit={handleSubmit}>
+                <input
+                  className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.1)] rounded px-2.5 py-1.5 text-xs text-white outline-none focus:border-[var(--accent-primary)] placeholder-[rgba(255,255,255,0.3)] transition-colors"
+                  type="text"
+                  placeholder="name..."
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  autoFocus
+                  onBlur={() => setShowForm(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      setShowForm(false);
+                      setInputValue("");
+                    }
+                  }}
+                />
+              </form>
+            ) : (
+              <button
+                type="button"
+                className="flex items-center gap-2 text-[11px] font-medium text-[rgba(255,255,255,0.4)] hover:text-[rgba(255,255,255,0.8)] transition-colors py-1.5 px-2 rounded-md hover:bg-[rgba(255,255,255,0.04)] w-full text-left"
+                onClick={() => setShowForm(true)}
+              >
+                <span className="text-[14px] leading-none -mt-px">+</span> New collection
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </nav>
   );

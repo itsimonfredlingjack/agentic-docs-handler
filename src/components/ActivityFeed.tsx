@@ -53,10 +53,14 @@ export function ActivityFeed() {
       .filter((doc) => matchesFilter(doc, sidebarFilter));
   }, [documents, documentOrder, sidebarFilter, search]);
 
-  const now = useMemo(() => Date.now(), [orderedDocs]);
+  const processingDocs = useMemo(() => orderedDocs.filter((doc) => isProcessingStatus(doc) && doc.status !== 'ready'), [orderedDocs]);
+  const pendingMoves = useMemo(() => orderedDocs.filter((doc) => doc.moveStatus === "awaiting_confirmation"), [orderedDocs]);
+  const feedDocs = useMemo(() => orderedDocs.filter((doc) => !processingDocs.includes(doc) && !pendingMoves.includes(doc)), [orderedDocs, processingDocs, pendingMoves]);
+
+  const now = useMemo(() => Date.now(), [feedDocs]);
   const groups = useMemo(
-    () => groupByTime(orderedDocs, (doc) => doc.updatedAt ?? doc.createdAt, now),
-    [orderedDocs, now],
+    () => groupByTime(feedDocs, (doc) => doc.updatedAt ?? doc.createdAt, now),
+    [feedDocs, now],
   );
 
   const [focusedIndex, setFocusedIndex] = useState(-1);
@@ -151,12 +155,64 @@ export function ActivityFeed() {
   }
 
   return (
-    <section id="document-canvas" className="space-y-1 pb-3">
-      <div className="flex items-center justify-between gap-3 px-1">
-        <p className="section-kicker">
-          {useSearch ? "Sökresultat" : "Dokument"}
+    <section id="document-canvas" className="space-y-4 pb-3">
+      {/* Engine Room */}
+      {processingDocs.length > 0 && (
+        <div className="border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.4)] rounded-md p-3">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-[10px] tracking-[0.08em] uppercase text-[var(--text-muted)] font-bold">Local Compute</span>
+            <span className="text-[10px] tracking-widest text-[var(--accent-primary)] font-[var(--font-mono)]">{processingDocs.length} Active</span>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[var(--accent-primary)] text-xs animate-pulse">█</span>
+              <span className="truncate flex-1 text-xs font-medium text-white">{processingDocs[0].title}</span>
+              <span className="text-[10px] text-[var(--text-disabled)] uppercase font-[var(--font-mono)]">[{processingDocs[0].status}]</span>
+            </div>
+            {processingDocs.length > 1 && (
+              <div className="pl-4 text-[10px] text-[var(--text-disabled)] font-[var(--font-mono)] opacity-70">
+                + {processingDocs.length - 1} queued
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Pending Routing */}
+      {pendingMoves.length > 0 && (
+        <div className="border border-[var(--meeting-color)] bg-[rgba(255,159,10,0.06)] rounded-md p-3">
+           <div className="text-[10px] uppercase text-[var(--meeting-color)] mb-2.5 tracking-[0.08em] font-bold flex justify-between">
+             <span>Awaiting Routing</span>
+             <span>({pendingMoves.length})</span>
+           </div>
+           <div className="flex flex-col gap-0.5">
+             {pendingMoves.map(move => (
+                <div key={move.id} className="flex flex-col sm:flex-row sm:items-center justify-between py-1.5 border-b border-[rgba(255,255,255,0.04)] last:border-0 gap-2">
+                  <div className="flex flex-col min-w-0 pr-2">
+                     <span className="truncate text-xs font-medium text-white">{move.title}</span>
+                     <span className="truncate text-[10px] text-[var(--text-muted)] font-[var(--font-mono)] mt-0.5">
+                       {move.sourcePath?.split("/").pop()} → {move.movePlan?.destination?.split("/").slice(-3).join("/") || "Unknown"}
+                     </span>
+                  </div>
+                  {/* TODO: Implement bulk/single approve dispatch properly instead of using retry tricks */}
+                  <button className="shrink-0 bg-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.15)] text-white text-[11px] px-3 py-1 rounded transition-colors self-start sm:self-auto border border-[rgba(255,255,255,0.04)]" onClick={() => {
+                        console.log("Approve missing action handler", move.id);
+                  }}>Approve</button>
+                </div>
+             ))}
+           </div>
+        </div>
+      )}
+
+      {/* Normal Feed */}
+      <div className="flex items-center justify-between gap-3 px-1 border-b border-[rgba(255,255,255,0.06)] pb-1.5">
+        <p className="text-[10px] tracking-[0.08em] uppercase font-bold text-[var(--text-muted)]">
+          {useSearch ? "Search Results" : "Indexed Documents"}
+          {useSearch && processingDocs.length > 0 && (
+            <span className="ml-2 text-[var(--text-disabled)] normal-case font-normal">(Vector indexing in progress for recent files...)</span>
+          )}
         </p>
-        <p className="font-mono text-[11px] text-[var(--text-muted)]">{orderedDocs.length}</p>
+        <p className="font-[var(--font-mono)] text-[10px] text-[var(--text-muted)]">{feedDocs.length}</p>
       </div>
       <div className="activity-feed" ref={feedRef}>
         {groups.map((group) => (

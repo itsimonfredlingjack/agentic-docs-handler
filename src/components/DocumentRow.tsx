@@ -45,22 +45,24 @@ export function DocumentRow({ document, focused, snippet, searchQuery, onSelect,
       {/* Row 1: dot + title + status pill + time */}
       <div className="flex items-center gap-2">
         <span
-          className="inline-block h-[6px] w-[6px] shrink-0 rounded-full"
+          className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
           style={{ backgroundColor: kindColor(document.kind) }}
         />
-        <span className="min-w-0 flex-1 truncate text-[15px] font-bold text-[var(--text-primary)]">
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--text-primary)]">
           {document.title}
         </span>
-        <span
-          className="status-pill shrink-0"
-          style={{
-            color: statusColor,
-            backgroundColor: `color-mix(in srgb, ${statusColor} 12%, transparent)`,
-          }}
-        >
-          {statusLabel}
-        </span>
-        <span className="shrink-0 text-[11px] text-[var(--text-muted)]">{timeLabel}</span>
+        {!["klar", "färdig"].includes(statusLabel.toLowerCase()) && (
+          <span
+            className="status-pill shrink-0"
+            style={{
+              color: statusColor,
+              backgroundColor: `color-mix(in srgb, ${statusColor} 12%, transparent)`,
+            }}
+          >
+            {statusLabel}
+          </span>
+        )}
+        <span className="shrink-0 font-[var(--font-mono)] text-[10px] text-[var(--text-muted)]">{timeLabel}</span>
       </div>
 
       {/* Row 2: key line + destination */}

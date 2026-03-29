@@ -150,10 +150,11 @@ describe("ProcessingRail", () => {
     for (const status of ["queued", "uploading"] as const) {
       const doc = makeDoc({ id: `doc-${status}`, status, kind: "invoice" });
       seedStore([doc]);
-      const { container } = render(<ProcessingRail />);
+      const { container, unmount } = render(<ProcessingRail />);
       const card = container.querySelector("[data-testid='rail-card']");
       expect(card?.classList.contains("rail-card--unclassified")).toBe(true);
       expect(card?.classList.contains("rail-card--classify-pending")).toBe(false);
+      unmount();
     }
   });
 
@@ -267,12 +268,16 @@ describe("ProcessingRail", () => {
       kind: "invoice" as const,
       documentType: "invoice",
     };
-    useDocumentStore.setState({
-      documents: { "doc-1": completedVersion },
-      documentOrder: ["doc-1"],
-      stageHistory: { "req-1": [{ stage: "uploading", at: 1000 }, { stage: "completed", at: 5000 }] },
+    act(() => {
+      useDocumentStore.setState({
+        documents: { "doc-1": completedVersion },
+        documentOrder: ["doc-1"],
+        stageHistory: { "req-1": [{ stage: "uploading", at: 1000 }, { stage: "completed", at: 5000 }] },
+      });
     });
-    rerender(<ProcessingRail />);
+    act(() => {
+      rerender(<ProcessingRail />);
+    });
     expect(screen.getByText(/Faktura/)).toBeInTheDocument();
   });
 });

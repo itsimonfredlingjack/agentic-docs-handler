@@ -1,22 +1,26 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useDocumentStore } from "../store/documentStore";
 import { streamWorkspaceChat } from "../lib/api";
+import { useWorkspaceStore } from "../store/workspaceStore";
 
 export function useWorkspaceChat() {
-  const activeWorkspace = useDocumentStore((s) => s.activeWorkspace);
   const activeDocumentChat = useDocumentStore((s) => s.activeDocumentChat);
   const documents = useDocumentStore((s) => s.documents);
   const conversations = useDocumentStore((s) => s.conversations);
   const startQuery = useDocumentStore((s) => s.startWorkspaceQuery);
   const appendToken = useDocumentStore((s) => s.appendStreamingToken);
   const finalize = useDocumentStore((s) => s.finalizeStreamingEntry);
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
 
   const abortRef = useRef<AbortController | null>(null);
 
-  // Derive conversation key: category name for category chat, "doc:{id}" for document chat
   const chatDocument = activeDocumentChat ? documents[activeDocumentChat] : null;
-  const conversationKey = activeWorkspace ?? (activeDocumentChat ? `doc:${activeDocumentChat}` : null);
-  const category = activeWorkspace ?? chatDocument?.kind ?? "generic";
+  const isDocumentMode = activeDocumentChat !== null;
+  const conversationKey = isDocumentMode
+    ? `doc:${activeDocumentChat}`
+    : activeWorkspaceId;
+  const category = chatDocument?.kind;
+  const workspaceId = activeWorkspaceId ?? undefined;
 
   const conversation = conversationKey ? conversations[conversationKey] : undefined;
   const isStreaming = conversation?.isStreaming ?? false;
@@ -60,6 +64,7 @@ export function useWorkspaceChat() {
         for await (const event of streamWorkspaceChat(category, message, history, {
           signal: controller.signal,
           document_id: docId ?? undefined,
+          workspace_id: workspaceId,
         })) {
           if (event.type === "context") {
             sourceCount = event.data.source_count;
@@ -86,7 +91,7 @@ export function useWorkspaceChat() {
       }
       finalize(conversationKey, sourceCount, errorMessage);
     },
-    [conversationKey, category, startQuery, appendToken, finalize],
+    [conversationKey, category, workspaceId, startQuery, appendToken, finalize],
   );
 
   return { conversation, isStreaming, sendMessage, chatDocument };

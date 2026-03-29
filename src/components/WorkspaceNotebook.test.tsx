@@ -13,30 +13,42 @@ vi.mock("../hooks/useWorkspaceChat", () => ({
 
 import { WorkspaceNotebook } from "./WorkspaceNotebook";
 import { useDocumentStore } from "../store/documentStore";
+import { useWorkspaceStore } from "../store/workspaceStore";
 
 describe("WorkspaceNotebook", () => {
   beforeEach(() => {
     useDocumentStore.setState({
-      activeWorkspace: "receipt",
-      counts: {
-        all: 1,
-        processing: 0,
-        receipt: 1,
-        contract: 0,
-        invoice: 0,
-        meeting_notes: 0,
-        audio: 0,
-        generic: 0,
-        moved: 0,
-      },
+      activeWorkspace: null,
+      activeDocumentChat: null,
+    });
+    useWorkspaceStore.setState({
+      workspaces: [
+        {
+          id: "ws-1",
+          name: "Bostadsrätten",
+          description: "",
+          ai_brief: "",
+          ai_entities: [],
+          ai_topics: [],
+          cover_color: "#aabbcc",
+          is_inbox: false,
+          file_count: 1,
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+      activeWorkspaceId: "ws-1",
+      loading: false,
+      error: null,
+      chatPanelOpen: true,
     });
   });
 
   it("renders the notebook input and empty state", () => {
     render(<WorkspaceNotebook />);
 
-    expect(screen.getByPlaceholderText("Fråga dina kvitton...")).toBeInTheDocument();
-    expect(screen.getByText("Fråga dina kvitton vad som helst")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Fråga Bostadsrätten...")).toBeInTheDocument();
+    expect(screen.getByText("Fråga Bostadsrätten vad som helst")).toBeInTheDocument();
   });
 
   it("closes panel when close button is clicked", async () => {
@@ -44,6 +56,6 @@ describe("WorkspaceNotebook", () => {
 
     await userEvent.click(screen.getByLabelText("Stäng chatt"));
 
-    expect(useDocumentStore.getState().activeWorkspace).toBeNull();
+    expect(useWorkspaceStore.getState().chatPanelOpen).toBe(false);
   });
 });

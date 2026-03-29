@@ -30,9 +30,16 @@ function statusLabel(status: ReturnType<typeof useSearch>["searchState"]["status
 type SearchBarProps = {
   activeFilterLabel: string;
   onOpenFilters: () => void;
+  showFilters?: boolean;
+  enableAiSummary?: boolean;
 };
 
-export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) {
+export function SearchBar({
+  activeFilterLabel,
+  onOpenFilters,
+  showFilters = true,
+  enableAiSummary = true,
+}: SearchBarProps) {
   const documents = useDocumentStore((state) => state.documents);
   const { query, setQuery, searchState, clearSearch } = useSearch();
   const { summary, askAi, resetAiSummary } = useSearchAiSummary();
@@ -158,18 +165,22 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
             aria-label="Sök i dokument"
             className="focus-ring w-full bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
           />
-          <span className="hidden rounded-xl border border-white/8 bg-white/6 px-2 py-1 font-mono text-[11px] text-[var(--text-secondary)] md:inline">
-            ⌘K · /
-          </span>
+          <div className="hidden items-center gap-1.5 md:flex">
+            <kbd className="mac-kbd">⌘K</kbd>
+            <span className="text-[10px] text-[rgba(255,255,255,0.2)]">/</span>
+            <kbd className="mac-kbd">/</kbd>
+          </div>
         </label>
-        <button
-          type="button"
-          className="focus-ring action-secondary h-14 shrink-0 px-3 text-xs lg:hidden"
-          onClick={onOpenFilters}
-          aria-label="Öppna filter"
-        >
-          Filter: {activeFilterLabel}
-        </button>
+        {showFilters ? (
+          <button
+            type="button"
+            className="focus-ring action-secondary h-14 shrink-0 px-3 text-xs lg:hidden"
+            onClick={onOpenFilters}
+            aria-label="Öppna filter"
+          >
+            Filter: {activeFilterLabel}
+          </button>
+        ) : null}
       </div>
 
       {showPanel ? (
@@ -182,7 +193,7 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
               </span>
             </div>
             <div className="flex items-center gap-2">
-              {searchState.status === "ready" && resultCount > 0 && summary.status === "idle" ? (
+              {enableAiSummary && searchState.status === "ready" && resultCount > 0 && summary.status === "idle" ? (
                 <button
                   type="button"
                   className="focus-ring action-secondary px-2.5 py-1 text-xs"
@@ -248,7 +259,7 @@ export function SearchBar({ activeFilterLabel, onOpenFilters }: SearchBarProps) 
           ) : null}
 
           {/* AI Summary */}
-          {summary.status !== "idle" ? (
+          {enableAiSummary && summary.status !== "idle" ? (
             <div className="search-ai-summary control-card p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="section-kicker text-[var(--accent-primary)]">AI-svar</p>

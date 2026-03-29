@@ -216,6 +216,7 @@ class TranscriptionResponse(BaseModel):
 class UiDocumentRecord(BaseModel):
     id: str
     request_id: str
+    workspace_id: str | None = None
     title: str
     summary: str
     mime_type: str
@@ -326,7 +327,8 @@ class ChatTurn(BaseModel):
 
 
 class WorkspaceChatRequest(BaseModel):
-    category: str
+    workspace_id: str | None = None
+    category: str | None = None
     message: str = Field(min_length=1)
     history: list[ChatTurn] = Field(default_factory=list)
     document_id: str | None = None
@@ -405,3 +407,26 @@ class WorkspaceResponse(BaseModel):
 
 class WorkspaceListResponse(BaseModel):
     workspaces: list[WorkspaceResponse] = Field(default_factory=list)
+
+
+DiscoveryRelationType = Literal["duplicate", "related", "version"]
+
+
+class DiscoveryFileRef(BaseModel):
+    id: str
+    title: str
+    source_path: str | None = None
+
+
+class DiscoveryCard(BaseModel):
+    id: str
+    relation_type: DiscoveryRelationType
+    confidence: float
+    explanation: str
+    files: list[DiscoveryFileRef] = Field(default_factory=list)
+    created_at: str
+
+
+class WorkspaceDiscoveryResponse(BaseModel):
+    workspace_id: str
+    cards: list[DiscoveryCard] = Field(default_factory=list)

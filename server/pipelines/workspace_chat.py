@@ -71,6 +71,10 @@ class DocumentSource(Protocol):
         self, *, kind: str | None = None, limit: int = 50, offset: int = 0
     ) -> Any: ...
 
+    def list_documents_by_workspace(
+        self, *, workspace_id: str, limit: int = 200
+    ) -> list[Any]: ...
+
     def get_document(self, *, record_id: str) -> Any | None: ...
 
 
@@ -102,7 +106,8 @@ class WorkspaceChatPipeline:
     async def prepare_context(
         self,
         *,
-        category: str,
+        workspace_id: str | None = None,
+        category: str | None = None,
         message: str,
         history: list[dict[str, str]],
         document_id: str | None = None,
@@ -113,17 +118,27 @@ class WorkspaceChatPipeline:
             return self._prepare_document_context(
                 document_id=document_id,
                 category=category,
+                workspace_id=workspace_id,
                 message=message,
                 history=history,
                 request_id=request_id,
             )
 
-        is_global = category == "all"
+        if workspace_id is not None:
+            return await self._prepare_workspace_context(
+                workspace_id=workspace_id,
+                message=message,
+                history=history,
+                request_id=request_id,
+            )
+
+        resolved_category = category or "all"
+        is_global = resolved_category == "all"
         budget = compute_token_budget(self.num_ctx)
 
         # 1. Fetch all documents for aggregate stats + source_count
         listing = self.document_registry.list_documents(
-            kind=None if is_global else category, limit=MAX_CONTEXT_DOCUMENTS,
+            kind=None if is_global else resolved_category, limit=MAX_CONTEXT_DOCUMENTS,
         )
         all_records = listing.documents
         source_count = len(all_records)
@@ -134,7 +149,7 @@ class WorkspaceChatPipeline:
         try:
             search_result = await self.search_pipeline.search(
                 message, limit=RAG_SEARCH_LIMIT, mode="fast",
-                document_type=None if is_global else category,
+                document_type=None if is_global else resolved_category,
             )
             if search_result.results:
                 rag_snippets = [
@@ -162,12 +177,12 @@ class WorkspaceChatPipeline:
             enriched_records = all_records[:FALLBACK_DOCUMENT_LIMIT]
 
         # 4. Build sections
-        aggregate = self._build_aggregate_summary(all_records, category)
-        fields_table = self._build_fields_table(enriched_records, category)
+        aggregate = self._build_aggregate_summary(all_records, resolved_category)
+        fields_table = self._build_fields_table(enriched_records, resolved_category)
         rag_context = "\n".join(rag_snippets)
 
         # 5. Token-budgeted assembly
-        label = CATEGORY_LABELS.get(category, "Alla dokument") if not is_global else "Alla dokument"
+        label = CATEGORY_LABELS.get(resolved_category, "Alla dokument") if not is_global else "Alla dokument"
         system_header = (
             f"{self.system_prompt}\n\n"
             f"{'ALLA KATEGORIER' if is_global else f'KATEGORI: {label}'}\n"
@@ -216,11 +231,105 @@ class WorkspaceChatPipeline:
             request_id=request_id,
         )
 
+    async def _prepare_workspace_context(
+        self,
+        *,
+        workspace_id: str,
+        message: str,
+        history: list[dict[str, str]],
+        request_id: str,
+    ) -> WorkspaceContext:
+        budget = compute_token_budget(self.num_ctx)
+        all_records = self.document_registry.list_documents_by_workspace(
+            workspace_id=workspace_id,
+            limit=MAX_CONTEXT_DOCUMENTS,
+        )
+        source_count = len(all_records)
+        allowed_doc_ids = {getattr(record, "id", "") for record in all_records if getattr(record, "id", "")}
+
+        enriched_records: list[Any] = []
+        rag_snippets: list[str] = []
+        try:
+            search_result = await self.search_pipeline.search(
+                message,
+                limit=RAG_SEARCH_LIMIT,
+                mode="fast",
+                allowed_doc_ids=allowed_doc_ids,
+            )
+            if search_result.results:
+                rag_snippets = [
+                    f"[{r.title}]: {r.snippet}" for r in search_result.results
+                ]
+                seen_ids: set[str] = set()
+                for result in search_result.results:
+                    if result.doc_id in seen_ids:
+                        continue
+                    seen_ids.add(result.doc_id)
+                    record = self.document_registry.get_document(record_id=result.doc_id)
+                    if record is not None:
+                        enriched_records.append(record)
+        except Exception:
+            logger.warning(
+                "workspace_chat.workspace_rag_search_failed workspace_id=%s request_id=%s",
+                workspace_id,
+                request_id,
+                exc_info=True,
+            )
+
+        if not enriched_records:
+            enriched_records = all_records[:FALLBACK_DOCUMENT_LIMIT]
+
+        aggregate = self._build_aggregate_summary(all_records, None)
+        fields_table = self._build_fields_table(enriched_records, None)
+        rag_context = "\n".join(rag_snippets)
+
+        if estimate_tokens(fields_table) > budget["fields"]:
+            rows = fields_table.split("\n")
+            while len(rows) > 3 and estimate_tokens("\n".join(rows)) > budget["fields"]:
+                rows.pop(-1)
+            fields_table = "\n".join(rows)
+
+        system_msg = (
+            f"{self.system_prompt}\n\n"
+            f"WORKSPACE_ID: {workspace_id}\n"
+            f"ANTAL DOKUMENT: {source_count}\n"
+            f"Referera alltid till filer med deras titel inom hakparenteser när du använder dem som källa.\n\n"
+            f"{aggregate}\n\n"
+            f"EXTRAHERADE FÄLT:\n{fields_table}"
+        )
+
+        if rag_context and estimate_tokens(rag_context) > budget["rag"]:
+            lines = rag_context.split("\n")
+            while len(lines) > 1 and estimate_tokens("\n".join(lines)) > budget["rag"]:
+                lines.pop(-1)
+            rag_context = "\n".join(lines)
+
+        if rag_context:
+            system_msg += f"\n\nRELEVANTA TEXTUTDRAG:\n{rag_context}"
+
+        messages: list[dict[str, str]] = [{"role": "system", "content": system_msg}]
+        history_turns = history[-MAX_HISTORY_TURNS * 2:]
+        history_budget_chars = budget["history"] * 4
+        while history_turns and sum(len(t["content"]) for t in history_turns) > history_budget_chars:
+            history_turns.pop(0)
+        if history_turns and history_turns[0]["role"] == "assistant":
+            history_turns.pop(0)
+        for turn in history_turns:
+            messages.append({"role": turn["role"], "content": turn["content"]})
+        messages.append({"role": "user", "content": message})
+
+        return WorkspaceContext(
+            source_count=source_count,
+            messages=messages,
+            request_id=request_id,
+        )
+
     def _prepare_document_context(
         self,
         *,
         document_id: str,
-        category: str,
+        category: str | None,
+        workspace_id: str | None,
         message: str,
         history: list[dict[str, str]],
         request_id: str,
@@ -228,6 +337,8 @@ class WorkspaceChatPipeline:
         record = self.document_registry.get_document(record_id=document_id)
         if record is None:
             raise ValueError(f"Document {document_id} not found")
+        if workspace_id is not None and getattr(record, "workspace_id", None) != workspace_id:
+            raise ValueError(f"Document {document_id} is not in workspace {workspace_id}")
 
         # Build rich context from the single document
         title = getattr(record, "title", "Okänt dokument")
@@ -251,7 +362,8 @@ class WorkspaceChatPipeline:
 
         doc_context = "\n\n".join(parts)
 
-        label = CATEGORY_LABELS.get(category, category)
+        resolved_category = category or getattr(record, "kind", "dokument")
+        label = CATEGORY_LABELS.get(resolved_category, resolved_category)
         system_msg = (
             f"{self.system_prompt}\n\n"
             f"Du svarar på frågor om ett specifikt dokument av typen {label}.\n\n"
@@ -301,10 +413,10 @@ class WorkspaceChatPipeline:
             return None
 
     @staticmethod
-    def _build_aggregate_summary(records: list[Any], category: str) -> str:
+    def _build_aggregate_summary(records: list[Any], category: str | None) -> str:
         """Build a compact one-line summary with aggregate statistics."""
         count = len(records)
-        label = CATEGORY_LABELS.get(category, "dokument")
+        label = CATEGORY_LABELS.get(category, "dokument") if category else "dokument"
         if count == 0:
             return f"STATISTIK: Inga {label.lower()} i kategorin."
 
@@ -336,9 +448,9 @@ class WorkspaceChatPipeline:
         return " | ".join(parts)
 
     @staticmethod
-    def _build_fields_table(records: list[Any], category: str) -> str:
+    def _build_fields_table(records: list[Any], category: str | None) -> str:
         if not records:
-            return "Inga dokument i denna kategori."
+            return "Inga dokument i denna vy."
 
         # Collect all unique field keys across records
         all_keys: list[str] = []

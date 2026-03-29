@@ -12,6 +12,7 @@ from server.config import AppConfig
 from server.document_registry import DocumentRegistry
 from server.main import create_app
 from server.migrations.jsonl_to_sqlite import create_schema, create_inbox_workspace
+from server.workspace_registry import WorkspaceRegistry
 
 
 def _make_registry(tmp_path: Path) -> DocumentRegistry:
@@ -120,7 +121,25 @@ class FakeUnreadyProbe:
 
 
 class FakeSearchService:
-    async def search(self, query: str, limit: int = 5, *, mode: str = "full") -> SearchResponse:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def search(
+        self,
+        query: str,
+        limit: int = 5,
+        *,
+        mode: str = "full",
+        allowed_doc_ids: set[str] | None = None,
+    ) -> SearchResponse:
+        self.calls.append(
+            {
+                "query": query,
+                "limit": limit,
+                "mode": mode,
+                "allowed_doc_ids": allowed_doc_ids,
+            }
+        )
         return SearchResponse(
             query=query,
             rewritten_query=f"{query} rewritten",
@@ -138,6 +157,52 @@ class FakeSearchService:
                 )
             ],
         )
+
+
+def _make_record(*, record_id: str, title: str) -> UiDocumentRecord:
+    timestamp = "2026-03-28T10:00:00Z"
+    return UiDocumentRecord(
+        id=record_id,
+        request_id=f"req-{record_id}",
+        title=title,
+        summary=f"{title} summary",
+        mime_type="text/plain",
+        source_modality="text",
+        kind="invoice",
+        document_type="invoice",
+        template="invoice",
+        source_path=f"/tmp/{record_id}.txt",
+        created_at=timestamp,
+        updated_at=timestamp,
+        classification=DocumentClassification(
+            document_type="invoice",
+            template="invoice",
+            title=title,
+            summary=f"{title} summary",
+            tags=["invoice"],
+            language="sv",
+            confidence=0.93,
+            ocr_text=None,
+            suggested_actions=[],
+        ),
+        extraction=ExtractionResult(
+            fields={"invoice_number": record_id},
+            field_confidence={"invoice_number": 0.95},
+            missing_fields=[],
+        ),
+        transcription=None,
+        move_plan=None,
+        move_result=None,
+        tags=["invoice"],
+        status="completed",
+        undo_token=None,
+        move_status="not_requested",
+        retryable=False,
+        error_code=None,
+        warnings=[],
+        diagnostics=None,
+        thumbnail_data=None,
+    )
 
 
 class FakeWhisperService:
@@ -235,6 +300,30 @@ def test_readyz_returns_503_when_probe_is_not_ready() -> None:
 
     assert response.status_code == 503
     assert response.json()["ready"] is False
+
+
+def test_search_filters_to_documents_in_requested_workspace(tmp_path: Path) -> None:
+    registry = _make_registry(tmp_path)
+    workspace_registry = WorkspaceRegistry(conn=registry.conn)
+    legal = workspace_registry.create_workspace(name="Legal")
+    registry.upsert_document(_make_record(record_id="doc-legal", title="Legal invoice"), workspace_id=legal.id)
+    registry.upsert_document(_make_record(record_id="doc-inbox", title="Inbox invoice"))
+    search_service = FakeSearchService()
+
+    app = create_app(
+        pipeline=FakePipeline(),
+        search_service=search_service,
+        document_registry=registry,
+        workspace_registry=workspace_registry,
+        readiness_probe=FakeReadinessProbe(),
+        validation_report_loader=lambda: {"status": "missing"},
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/search", params={"query": "invoice", "workspace_id": legal.id})
+
+    assert response.status_code == 200
+    assert search_service.calls[-1]["allowed_doc_ids"] == {"doc-legal"}
 
 
 def test_process_returns_structured_process_response() -> None:

@@ -165,7 +165,15 @@ class SearchPipeline:
                 elapsed_ms,
             )
 
-    async def search(self, query: str, limit: int | None = None, *, mode: str = "full", document_type: str | None = None) -> SearchResponse:
+    async def search(
+        self,
+        query: str,
+        limit: int | None = None,
+        *,
+        mode: str = "full",
+        document_type: str | None = None,
+        allowed_doc_ids: set[str] | None = None,
+    ) -> SearchResponse:
         await self._ensure_bootstrapped()
 
         rows_by_chunk_id = self._rows_by_chunk_id
@@ -181,18 +189,21 @@ class SearchPipeline:
         top_limit = limit or self.default_limit
         query_vector = self.embedder.encode_query(query)
         vector_rows = table.search(query_vector).limit(max(top_limit, self.candidate_limit)).to_list()
-        if document_type is not None:
-            vector_rows = [
-                row for row in vector_rows
-                if isinstance(row.get("metadata"), dict)
-                and row["metadata"].get("document_type") == document_type
-            ]
+        vector_rows = [
+            row for row in vector_rows
+            if self._row_matches_filters(
+                row,
+                document_type=document_type,
+                allowed_doc_ids=allowed_doc_ids,
+            )
+        ]
         vector_rank = {row["chunk_id"]: index + 1 for index, row in enumerate(vector_rows)}
 
         keyword_ranked = self._rank_keyword_candidates(
             query,
             top_limit=top_limit,
             document_type=document_type,
+            allowed_doc_ids=allowed_doc_ids,
         )
         keyword_rank = {
             chunk_id: index + 1
@@ -323,6 +334,7 @@ class SearchPipeline:
         *,
         top_limit: int,
         document_type: str | None = None,
+        allowed_doc_ids: set[str] | None = None,
     ) -> list[tuple[str, float, dict[str, Any]]]:
         query_tokens = set(tokenize(query))
         if not query_tokens:
@@ -345,6 +357,13 @@ class SearchPipeline:
                 and self._rows_by_chunk_id[chunk_id]["metadata"].get("document_type") == document_type
             }
 
+        if allowed_doc_ids is not None:
+            raw_hits_by_chunk_id = {
+                chunk_id: hits
+                for chunk_id, hits in raw_hits_by_chunk_id.items()
+                if self._rows_by_chunk_id.get(chunk_id, {}).get("doc_id") in allowed_doc_ids
+            }
+
         ranked_candidates = sorted(
             raw_hits_by_chunk_id.items(),
             key=lambda item: (-item[1], item[0]),
@@ -361,6 +380,21 @@ class SearchPipeline:
 
         scored_candidates.sort(key=lambda item: (-item[1], item[0]))
         return scored_candidates
+
+    @staticmethod
+    def _row_matches_filters(
+        row: dict[str, Any],
+        *,
+        document_type: str | None,
+        allowed_doc_ids: set[str] | None,
+    ) -> bool:
+        if allowed_doc_ids is not None and row.get("doc_id") not in allowed_doc_ids:
+            return False
+        if document_type is not None:
+            metadata = row.get("metadata")
+            if not isinstance(metadata, dict) or metadata.get("document_type") != document_type:
+                return False
+        return True
 
     def _chunk_text(self, text: str) -> list[str]:
         stripped = text.strip()

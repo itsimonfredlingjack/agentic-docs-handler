@@ -2,6 +2,7 @@ import { startTransition, useDeferredValue, useEffect, useState } from "react";
 
 import { searchDocuments } from "../lib/api";
 import { useDocumentStore } from "../store/documentStore";
+import { useWorkspaceStore } from "../store/workspaceStore";
 
 export function useSearch() {
   const searchState = useDocumentStore((state) => state.search);
@@ -9,6 +10,7 @@ export function useSearch() {
   const setSearchError = useDocumentStore((state) => state.setSearchError);
   const applySearchResponse = useDocumentStore((state) => state.applySearchResponse);
   const clearSearch = useDocumentStore((state) => state.clearSearch);
+  const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
   const [query, setQuery] = useState(searchState.query);
   const deferredQuery = useDeferredValue(query);
 
@@ -21,7 +23,7 @@ export function useSearch() {
     const handle = window.setTimeout(async () => {
       setSearchLoading(deferredQuery);
       try {
-        const response = await searchDocuments(deferredQuery);
+        const response = await searchDocuments(deferredQuery, 8, "fast", activeWorkspaceId);
         startTransition(() => {
           applySearchResponse(response);
         });
@@ -34,7 +36,7 @@ export function useSearch() {
     return () => {
       window.clearTimeout(handle);
     };
-  }, [applySearchResponse, clearSearch, deferredQuery, setSearchError, setSearchLoading]);
+  }, [activeWorkspaceId, applySearchResponse, clearSearch, deferredQuery, setSearchError, setSearchLoading]);
 
   return {
     query,

@@ -117,7 +117,11 @@ export function DropZone() {
 
   return (
     <div
-      className={`upload-bar ${isHovered ? "upload-bar--active" : ""}`}
+      className={`flex items-center gap-3 px-4 py-2 border border-dashed rounded-lg transition-colors ${
+        isHovered
+          ? "border-[var(--accent-primary)] bg-[rgba(88,86,214,0.05)]"
+          : "border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.01)] hover:border-[rgba(255,255,255,0.15)] hover:bg-[rgba(255,255,255,0.02)]"
+      }`}
       onDragOver={(event) => {
         event.preventDefault();
         setHovered(true);
@@ -132,17 +136,17 @@ export function DropZone() {
         void submitFiles(Array.from(event.dataTransfer.files));
       }}
     >
-      <span className="text-lg text-[var(--accent-primary)]">↑</span>
-      <span className="flex-1 text-sm text-[var(--text-secondary)]">
-        {isHovered ? "Släpp filer här" : "Dra in filer eller"}
+      <span className="text-[14px] text-[var(--accent-primary)] font-bold">↑</span>
+      <span className="flex-1 text-[13px] text-[rgba(255,255,255,0.6)]">
+        {isHovered ? "Drop files to process" : "Drop files to ingest..."}
       </span>
       {!isHovered && (
         <button
           type="button"
-          className="focus-ring action-primary px-3 py-1.5 text-xs"
+          className="text-[11px] font-medium text-[rgba(255,255,255,0.7)] hover:text-white transition-colors bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.1)] px-3 py-1 rounded"
           onClick={() => fileInputRef.current?.click()}
         >
-          Välj filer
+          Browse...
         </button>
       )}
       <input

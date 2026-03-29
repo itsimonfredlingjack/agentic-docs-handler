@@ -6,6 +6,7 @@ from collections.abc import Callable
 import logging
 import time
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
@@ -20,6 +21,7 @@ from server.pipelines.whisper_proxy import WhisperProxyError
 from server.schemas import (
     ActivityResponse,
     CreateWorkspaceRequest,
+    WorkspaceDiscoveryResponse,
     DocumentCountsResponse,
     DocumentListResponse,
     CompleteUndoMoveRequest,
@@ -105,6 +107,7 @@ def create_router(
     engagement_tracker: object | None = None,
     workspace_registry: object | None = None,
     workspace_brief_service: object | None = None,
+    discovery_service: object | None = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -183,18 +186,81 @@ def create_router(
         entities = document_registry.get_entities_for_document(record_id=record_id)
         return {"record_id": record_id, "entities": entities}
 
+    @router.get("/documents/{record_id}")
+    async def document_detail(record_id: str):
+        if document_registry is None:
+            raise HTTPException(503, "document registry unavailable")
+        document = document_registry.get_document(record_id=record_id)
+        if document is None:
+            raise HTTPException(404, "document not found")
+        return document
+
     @router.get("/search", response_model=SearchResponse)
     async def search(
         query: str = Query(min_length=1),
         limit: int = Query(default=5, ge=1, le=20),
+        mode: Literal["fast", "full"] = Query(default="fast"),
+        workspace_id: str | None = Query(default=None),
     ) -> SearchResponse:
         if search_service is None:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="search_unavailable",
             )
+        allowed_doc_ids: set[str] | None = None
+        if workspace_id is not None:
+            if workspace_registry is None:
+                raise HTTPException(503, "workspace registry unavailable")
+            if document_registry is None:
+                raise HTTPException(503, "document registry unavailable")
+            workspace = workspace_registry.get_workspace(workspace_id=workspace_id)
+            if workspace is None:
+                raise HTTPException(404, "workspace not found")
+            rows = document_registry.conn.execute(
+                "SELECT id FROM document WHERE workspace_id = ?",
+                (workspace_id,),
+            ).fetchall()
+            allowed_doc_ids = {row["id"] for row in rows}
         try:
-            return await search_service.search(query, limit=limit)
+            response = await search_service.search(
+                query,
+                limit=limit,
+                mode=mode,
+                allowed_doc_ids=allowed_doc_ids,
+            )
+            if document_registry is not None and response.results:
+                doc_ids = [result.doc_id for result in response.results]
+                placeholders = ", ".join("?" for _ in doc_ids)
+                doc_rows = document_registry.conn.execute(
+                    f"SELECT id, workspace_id FROM document WHERE id IN ({placeholders})",
+                    doc_ids,
+                ).fetchall()
+                workspace_ids = sorted({
+                    row["workspace_id"] for row in doc_rows if row["workspace_id"] is not None
+                })
+                workspace_names: dict[str, str] = {}
+                if workspace_registry is not None and workspace_ids:
+                    workspace_placeholders = ", ".join("?" for _ in workspace_ids)
+                    workspace_rows = document_registry.conn.execute(
+                        f"SELECT id, name FROM workspace WHERE id IN ({workspace_placeholders})",
+                        workspace_ids,
+                    ).fetchall()
+                    workspace_names = {
+                        row["id"]: row["name"]
+                        for row in workspace_rows
+                    }
+                workspace_by_doc_id = {
+                    row["id"]: row["workspace_id"]
+                    for row in doc_rows
+                }
+                for result in response.results:
+                    metadata = dict(result.metadata)
+                    workspace_id_value = workspace_by_doc_id.get(result.doc_id)
+                    if workspace_id_value is not None:
+                        metadata["workspace_id"] = workspace_id_value
+                        metadata["workspace_name"] = workspace_names.get(workspace_id_value, "")
+                    result.metadata = metadata
+            return response
         except SearchPipelineError as error:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -532,6 +598,7 @@ def create_router(
         async def event_stream():
             try:
                 context = await workspace_chat_service.prepare_context(
+                    workspace_id=request.workspace_id,
                     category=request.category,
                     message=request.message,
                     history=[turn.model_dump() for turn in request.history],
@@ -661,5 +728,29 @@ def create_router(
         except KeyError:
             raise HTTPException(404, "workspace not found")
         return {"moved": moved}
+
+    @router.get("/workspaces/{workspace_id}/discovery", response_model=WorkspaceDiscoveryResponse)
+    async def workspace_discovery(workspace_id: str) -> WorkspaceDiscoveryResponse:
+        if discovery_service is None:
+            raise HTTPException(503, "discovery unavailable")
+        if workspace_registry is None:
+            raise HTTPException(503, "workspace registry unavailable")
+        workspace = workspace_registry.get_workspace(workspace_id=workspace_id)
+        if workspace is None:
+            raise HTTPException(404, "workspace not found")
+        cards = discovery_service.generate(workspace_id=workspace_id)
+        return WorkspaceDiscoveryResponse(workspace_id=workspace_id, cards=cards)
+
+    @router.post("/workspaces/{workspace_id}/discovery/{relation_id}/dismiss")
+    async def dismiss_workspace_discovery(workspace_id: str, relation_id: str) -> dict[str, bool]:
+        if discovery_service is None:
+            raise HTTPException(503, "discovery unavailable")
+        if workspace_registry is None:
+            raise HTTPException(503, "workspace registry unavailable")
+        workspace = workspace_registry.get_workspace(workspace_id=workspace_id)
+        if workspace is None:
+            raise HTTPException(404, "workspace not found")
+        discovery_service.dismiss_relation(relation_id=relation_id)
+        return {"success": True}
 
     return router

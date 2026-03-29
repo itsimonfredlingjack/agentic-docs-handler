@@ -73,6 +73,16 @@ describe("WorkspaceView", () => {
     useDocumentStore.setState({
       documents: {},
       documentOrder: [],
+      search: {
+        query: "",
+        rewrittenQuery: "",
+        answer: "",
+        status: "idle",
+        error: null,
+        resultIds: [],
+        orphanResults: [],
+        snippetsByDocId: {},
+      },
     });
   });
 
@@ -85,6 +95,12 @@ describe("WorkspaceView", () => {
     render(<WorkspaceView />);
     expect(screen.getByText(/Inga filer ännu/)).toBeInTheDocument();
     expect(screen.getByText("⌘K")).toBeInTheDocument();
+  });
+
+  it("renders the workspace search bar", () => {
+    render(<WorkspaceView />);
+    expect(screen.getByPlaceholderText("Sök i dokument...")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Öppna filter" })).not.toBeInTheDocument();
   });
 
   it("returns null when no active workspace", () => {
@@ -100,5 +116,36 @@ describe("WorkspaceView", () => {
     });
     render(<WorkspaceView />);
     expect(screen.getByText("kontrakt.pdf")).toBeInTheDocument();
+  });
+
+  it("shows only matched rows with snippets when search results are active", () => {
+    const secondDoc: UiDocument = {
+      ...baseDoc,
+      id: "doc-2",
+      requestId: "req-2",
+      title: "annat.pdf",
+      summary: "Annan fil",
+      sourcePath: "/tmp/annat.pdf",
+    };
+    useDocumentStore.setState({
+      documents: { "doc-1": baseDoc, "doc-2": secondDoc },
+      documentOrder: ["doc-1", "doc-2"],
+      search: {
+        query: "köpekontrakt",
+        rewrittenQuery: "köpekontrakt",
+        answer: "",
+        status: "ready",
+        error: null,
+        resultIds: ["doc-1"],
+        orphanResults: [],
+        snippetsByDocId: { "doc-1": "Detta köpekontrakt gäller bostaden." },
+      },
+    });
+
+    render(<WorkspaceView />);
+
+    expect(screen.getByText("kontrakt.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("annat.pdf")).not.toBeInTheDocument();
+    expect(screen.getByTestId("document-row")).toHaveTextContent("Detta köpekontrakt gäller bostaden.");
   });
 });

@@ -44,10 +44,12 @@ def build_test_record(
     title: str,
     kind: str = "receipt",
     fields: dict[str, Any] | None = None,
+    workspace_id: str | None = None,
 ) -> UiDocumentRecord:
     return UiDocumentRecord(
         id=record_id,
         request_id=f"req-{record_id}",
+        workspace_id=workspace_id,
         title=title,
         summary=f"Summary for {title}",
         mime_type="application/pdf",
@@ -102,6 +104,10 @@ class FakeDocumentRegistry:
             if r.id == record_id:
                 return r
         return None
+
+    def list_documents_by_workspace(self, *, workspace_id: str, limit: int = 200):
+        filtered = [r for r in self._records if r.workspace_id == workspace_id]
+        return filtered[:limit]
 
     def counts(self):
         c = Counter(r.kind for r in self._records)
@@ -249,6 +255,66 @@ async def test_workspace_chat_builds_fields_table(tmp_path) -> None:
     assert "500" in system_msg
     assert "300" in system_msg
     assert "ANTAL DOKUMENT: 2" in system_msg
+
+
+@pytest.mark.asyncio
+async def test_workspace_chat_scopes_context_to_workspace_id(tmp_path) -> None:
+    ollama = FakeOllamaClient()
+    search = SearchPipeline(
+        db_path=tmp_path / "lancedb",
+        embedder=FakeEmbedder(),
+    )
+    search.index_documents([
+        IndexedDocument(
+            doc_id="r1",
+            title="Kvitto ICA",
+            source_path="/docs/r1.pdf",
+            text="ICA Maxi kvitto moms 100",
+            metadata={"document_type": "receipt"},
+        ),
+        IndexedDocument(
+            doc_id="r2",
+            title="Kvitto Coop",
+            source_path="/docs/r2.pdf",
+            text="Coop kvitto moms 50",
+            metadata={"document_type": "receipt"},
+        ),
+    ])
+    registry = FakeDocumentRegistry([
+        build_test_record(
+            record_id="r1",
+            title="Kvitto ICA",
+            kind="receipt",
+            workspace_id="ws-a",
+            fields={"vendor": "ICA Maxi", "vat_amount": "100"},
+        ),
+        build_test_record(
+            record_id="r2",
+            title="Kvitto Coop",
+            kind="receipt",
+            workspace_id="ws-b",
+            fields={"vendor": "Coop", "vat_amount": "50"},
+        ),
+    ])
+
+    pipeline = WorkspaceChatPipeline(
+        ollama_client=ollama,
+        search_pipeline=search,
+        document_registry=registry,
+        system_prompt="Du analyserar dokument.",
+    )
+
+    context = await pipeline.prepare_context(
+        workspace_id="ws-a",
+        message="Vad är momsen?",
+        history=[],
+    )
+
+    system_msg = context.messages[0]["content"]
+    assert context.source_count == 1
+    assert "ICA Maxi" in system_msg
+    assert "Coop" not in system_msg
+    assert "WORKSPACE_ID: ws-a" in system_msg
 
 
 def test_parse_numeric_plain_integer() -> None:

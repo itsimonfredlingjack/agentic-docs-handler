@@ -19,6 +19,7 @@ from server.engagement_tracker import EngagementTracker
 from server.logging_config import LLMLogWriter, configure_logging
 from server.migrations.jsonl_to_sqlite import create_schema, create_inbox_workspace, is_migrated, run_migration
 from server.pipelines.entity_extractor import EntityExtractor
+from server.pipelines.discovery import WorkspaceDiscoveryPipeline
 from server.pipelines.workspace_brief import WorkspaceBriefPipeline
 from server.pipelines.workspace_suggester import WorkspaceSuggester
 from server.pipelines.noop_organizer import NoOpOrganizer
@@ -143,6 +144,7 @@ def create_app(
     validation_report_loader: Callable[[], dict[str, object]] | None = None,
     workspace_chat_service: object | None = None,
     workspace_registry: object | None = None,
+    discovery_service: object | None = None,
 ) -> FastAPI:
     configure_logging()
     config = config or get_config()
@@ -264,6 +266,12 @@ def create_app(
     if search_service is not None and hasattr(pipeline, "search_pipeline"):
         setattr(pipeline, "search_pipeline", search_service)
 
+    if discovery_service is None and search_service is not None:
+        discovery_service = WorkspaceDiscoveryPipeline(
+            document_registry=document_registry,
+            search_pipeline=search_service,
+        )
+
     workspace_brief_service: WorkspaceBriefPipeline | None = None
     if workspace_chat_service is None and search_service is not None and classifier_llm is not None:
         log_writer = classifier_llm.log_writer
@@ -326,6 +334,7 @@ def create_app(
             engagement_tracker=engagement_tracker,
             workspace_registry=workspace_registry,
             workspace_brief_service=workspace_brief_service,
+            discovery_service=discovery_service,
         )
     )
     app.include_router(create_ws_router(realtime_manager=services.realtime_manager))

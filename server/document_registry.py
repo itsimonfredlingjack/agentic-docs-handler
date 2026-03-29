@@ -102,6 +102,7 @@ def _row_to_record(row: sqlite3.Row) -> UiDocumentRecord:
     return UiDocumentRecord(
         id=row["id"],
         request_id=row["request_id"],
+        workspace_id=row["workspace_id"],
         title=row["title"],
         summary=row["summary"],
         mime_type=row["mime_type"],

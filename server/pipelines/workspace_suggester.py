@@ -6,6 +6,7 @@ entities, and the available workspaces.
 from __future__ import annotations
 
 import json
+import inspect
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -96,7 +97,7 @@ class WorkspaceSuggester:
                 messages=messages,
             )
             suggestion = _parse_suggestion(raw)
-            self._record_log(meta, raw, json_parse_ok=True, schema_validation_ok=True)
+            await self._record_log(meta, raw, json_parse_ok=True, schema_validation_ok=True)
         except (json.JSONDecodeError, ValidationError, _SuggestionParseError):
             logger.warning("Workspace suggestion parse failed for %s", request_id)
             return SuggestionResult(
@@ -164,7 +165,7 @@ class WorkspaceSuggester:
         )
         return raw, None
 
-    def _record_log(
+    async def _record_log(
         self,
         meta: dict[str, Any] | None,
         raw: str,
@@ -174,7 +175,7 @@ class WorkspaceSuggester:
     ) -> None:
         if not meta or not hasattr(self.ollama_client, "log_writer"):
             return
-        self.ollama_client.log_writer.write_call(
+        result = self.ollama_client.log_writer.write_call(
             request_id=meta["request_id"],
             prompt_name=meta["prompt_name"],
             model=self.ollama_client.model,
@@ -185,6 +186,8 @@ class WorkspaceSuggester:
             json_parse_ok=json_parse_ok,
             schema_validation_ok=schema_validation_ok,
         )
+        if inspect.isawaitable(result):
+            await result
 
 
 class _SuggestionParseError(RuntimeError):

@@ -43,6 +43,7 @@ export function mapProcessResponseToUiDocument(payload: ProcessResponse): UiDocu
   return {
     id: payload.record_id ?? payload.request_id,
     requestId: payload.request_id,
+    workspaceId: null,
     title: payload.classification.title,
     summary: payload.classification.summary,
     mimeType: payload.mime_type,
@@ -78,6 +79,7 @@ export function mapProcessResponseToUiDocument(payload: ProcessResponse): UiDocu
 export function mapRegistryRecordToUiDocument(payload: {
   id: string;
   request_id: string;
+  workspace_id?: string | null;
   title: string;
   summary: string;
   mime_type: string;
@@ -106,6 +108,7 @@ export function mapRegistryRecordToUiDocument(payload: {
   return {
     id: payload.id,
     requestId: payload.request_id,
+    workspaceId: payload.workspace_id ?? null,
     title: payload.title,
     summary: payload.summary,
     mimeType: payload.mime_type,
@@ -184,6 +187,7 @@ export function mapSearchResultToGenericDocument(result: SearchResult): UiDocume
   return {
     id: `search:${result.doc_id}`,
     requestId: `search:${result.doc_id}`,
+    workspaceId: typeof result.metadata.workspace_id === "string" ? result.metadata.workspace_id : null,
     title: result.title,
     summary: result.snippet,
     mimeType: "text/plain",

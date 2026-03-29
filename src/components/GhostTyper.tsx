@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type GhostTyperProps = {
   text: string;
@@ -9,6 +9,7 @@ type GhostTyperProps = {
 
 export function GhostTyper({ text, speed = 25, className, onDone }: GhostTyperProps) {
   const [charIndex, setCharIndex] = useState(0);
+  const previousTextRef = useRef(text);
   const isDone = charIndex >= text.length;
 
   useEffect(() => {
@@ -28,6 +29,10 @@ export function GhostTyper({ text, speed = 25, className, onDone }: GhostTyperPr
 
   // Reset when text changes
   useEffect(() => {
+    if (previousTextRef.current === text) {
+      return;
+    }
+    previousTextRef.current = text;
     setCharIndex(0);
   }, [text]);
 

@@ -66,6 +66,43 @@ async def test_search_pipeline_returns_ranked_results(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_search_pipeline_filters_results_to_allowed_doc_ids(tmp_path) -> None:
+    pipeline = SearchPipeline(
+        db_path=tmp_path / "lancedb",
+        embedder=FakeEmbedder(),
+    )
+    pipeline.index_documents(
+        [
+            IndexedDocument(
+                doc_id="invoice-1",
+                title="Invoice March",
+                source_path="docs/invoice.txt",
+                text="Invoice for March 2026. Amount 900 SEK.",
+                metadata={"document_type": "invoice"},
+            ),
+            IndexedDocument(
+                doc_id="invoice-2",
+                title="Invoice April",
+                source_path="docs/invoice-april.txt",
+                text="Invoice for April 2026. Amount 1200 SEK.",
+                metadata={"document_type": "invoice"},
+            ),
+            IndexedDocument(
+                doc_id="contract-1",
+                title="Rental Contract",
+                source_path="docs/contract.txt",
+                text="Contract for office rental until 2029.",
+                metadata={"document_type": "contract"},
+            ),
+        ]
+    )
+
+    result = await pipeline.search("invoice amount", allowed_doc_ids={"invoice-2"})
+
+    assert [entry.doc_id for entry in result.results] == ["invoice-2"]
+
+
+@pytest.mark.asyncio
 async def test_search_pipeline_upsert_replaces_stale_chunks_and_token_indexes(tmp_path) -> None:
     pipeline = SearchPipeline(
         db_path=tmp_path / "lancedb",

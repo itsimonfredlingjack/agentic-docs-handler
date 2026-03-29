@@ -12,6 +12,7 @@ import type {
     ShareBriefSource,
     UiDocument,
     UndoMoveResponse,
+    WorkspaceDiscoveryResponse,
     WorkspaceChatEvent,
 } from "../types/documents";
 import type { WorkspaceListResponse, WorkspaceResponse } from "../types/workspace";
@@ -45,6 +46,11 @@ export async function fetchDocuments(limit = 50): Promise<DocumentListResponse> 
   };
 }
 
+export async function fetchDocument(recordId: string): Promise<UiDocument> {
+  const payload = await fetchJson<Parameters<typeof mapRegistryRecordToUiDocument>[0]>(`/documents/${recordId}`);
+  return mapRegistryRecordToUiDocument(payload) as UiDocument;
+}
+
 export async function fetchCounts(): Promise<DocumentCounts> {
   return fetchJson<DocumentCounts>("/documents/counts");
 }
@@ -53,8 +59,16 @@ export async function fetchActivity(limit = 10): Promise<ActivityResponse> {
   return fetchJson<ActivityResponse>(`/activity?limit=${limit}`);
 }
 
-export async function searchDocuments(query: string, limit = 8, mode: "fast" | "full" = "fast"): Promise<SearchResponse> {
+export async function searchDocuments(
+  query: string,
+  limit = 8,
+  mode: "fast" | "full" = "fast",
+  workspaceId?: string | null,
+): Promise<SearchResponse> {
   const params = new URLSearchParams({ query, limit: String(limit), mode });
+  if (workspaceId) {
+    params.set("workspace_id", workspaceId);
+  }
   return fetchJson<SearchResponse>(`/search?${params.toString()}`);
 }
 
@@ -225,6 +239,21 @@ export async function fetchWorkspaceFiles(
   };
 }
 
+export async function fetchWorkspaceDiscovery(
+  workspaceId: string,
+): Promise<WorkspaceDiscoveryResponse> {
+  return fetchJson<WorkspaceDiscoveryResponse>(`/workspaces/${workspaceId}/discovery`);
+}
+
+export async function dismissWorkspaceDiscovery(
+  workspaceId: string,
+  relationId: string,
+): Promise<{ success: boolean }> {
+  return fetchJson<{ success: boolean }>(`/workspaces/${workspaceId}/discovery/${relationId}/dismiss`, {
+    method: "POST",
+  });
+}
+
 export async function moveFilesToWorkspace(
   workspaceId: string,
   fileIds: string[],
@@ -237,14 +266,16 @@ export async function moveFilesToWorkspace(
 }
 
 export async function* streamWorkspaceChat(
-  category: string,
+  category: string | undefined,
   message: string,
   history: Array<{ role: string; content: string }>,
-  options?: { signal?: AbortSignal; document_id?: string },
+  options?: { signal?: AbortSignal; document_id?: string; workspace_id?: string },
 ): AsyncGenerator<WorkspaceChatEvent> {
   const baseUrl = await resolveBaseUrl();
-  const body: Record<string, unknown> = { category, message, history };
+  const body: Record<string, unknown> = { message, history };
+  if (category) body.category = category;
   if (options?.document_id) body.document_id = options.document_id;
+  if (options?.workspace_id) body.workspace_id = options.workspace_id;
   const response = await fetch(`${baseUrl}/workspace/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

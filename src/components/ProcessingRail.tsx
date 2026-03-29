@@ -143,7 +143,7 @@ function useEvaporationProgress(status: string): number {
   useEffect(() => {
     // Snap to done for post-extraction stages
     if (EVAP_DONE_STAGES.has(status)) {
-      setProgress(100);
+      setProgress((prev) => (prev === 100 ? prev : 100));
       return;
     }
 
@@ -166,7 +166,7 @@ function useEvaporationProgress(status: string): number {
     }
 
     // Reset for pre-extraction stages
-    setProgress(0);
+    setProgress((prev) => (prev === 0 ? prev : 0));
   }, [status]);
 
   return progress;
