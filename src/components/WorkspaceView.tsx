@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useMemo } from "react";
 import { useDocumentStore } from "../store/documentStore";
 import { useWorkspaceStore } from "../store/workspaceStore";
 import { DocumentRow } from "./DocumentRow";
@@ -6,6 +6,7 @@ import { DiscoveryCards } from "./DiscoveryCards";
 import { WorkspaceHeader } from "./WorkspaceHeader";
 import { moveLocalFile } from "../lib/tauri-events";
 import { finalizeClientMove } from "../lib/api";
+import { groupByTime } from "../lib/feed-utils";
 
 export function WorkspaceView() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
@@ -26,6 +27,10 @@ export function WorkspaceView() {
   const hasActiveSearch = searchState.query.trim().length > 0 && searchState.status === "ready";
   const visibleIds = hasActiveSearch ? searchState.resultIds : documentOrder;
   const docs = visibleIds.map((id) => documents[id]).filter(Boolean);
+  const groups = useMemo(
+    () => groupByTime(docs, (d) => d.updatedAt ?? d.createdAt),
+    [docs],
+  );
 
   useEffect(() => {
     if (docs.length > 0 && !selectedDocumentId) {
@@ -82,47 +87,48 @@ export function WorkspaceView() {
       </div>
       <div className="flex-1 overflow-y-auto pt-2 pb-4">
         {docs.length === 0 ? (
-          <div className="flex flex-col h-full bg-[rgba(255,255,255,0.01)]">
-            {/* Ghost skeleton rows - hint at populated structure */}
-            <div className="flex flex-col opacity-[0.4]">
-              {[1, 2, 3, 4, 5, 6, 7].map((i) => (
-                <div key={i} className="flex items-center gap-3 px-6 py-[10px] border-b border-[rgba(255,255,255,0.03)]">
-                  <div className="h-2 w-2 rounded-full bg-[rgba(255,255,255,0.12)] shrink-0" />
-                  <div className="h-[8px] rounded-full bg-[rgba(255,255,255,0.08)]" style={{ width: `${80 + (i * 37) % 120}px` }} />
-                  <div className="flex flex-1 items-center gap-2 justify-end">
-                    <div className="h-[14px] w-12 rounded bg-[rgba(255,255,255,0.04)]" />
-                    <div className="h-[14px] w-16 rounded bg-[rgba(255,255,255,0.06)]" />
-                  </div>
-                  <div className="h-[8px] w-8 rounded-full bg-[rgba(255,255,255,0.05)] ml-4" />
-                </div>
-              ))}
-            </div>
-
-            {/* Centered message over ghost rows */}
-            <div className="flex flex-1 flex-col items-center justify-center text-center -mt-32 relative z-10 pointer-events-none">
-              <div className="bg-[#111118]/80 backdrop-blur-sm p-8 rounded-2xl border border-[rgba(255,255,255,0.04)]">
-                <h3 className="text-[14px] font-semibold text-[rgba(255,255,255,0.9)] mb-2">Inbox is clean</h3>
-                <p className="text-[12px] text-[rgba(255,255,255,0.4)] leading-relaxed max-w-[280px]">
-                  Drag documents anywhere to process with AI. <br/>
-                  <div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-[rgba(255,255,255,0.2)]">
-                    <kbd className="mac-kbd">⌘K</kbd> <span>to search existing files</span>
-                  </div>
-                </p>
-              </div>
-            </div>
+          <div className="flex flex-1 flex-col items-center justify-center text-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-[rgba(255,255,255,0.15)] mb-4">
+              <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.3" />
+              <path d="M3 9h18" stroke="currentColor" strokeWidth="1.3" />
+            </svg>
+            <h3 className="text-[13px] font-medium text-[rgba(255,255,255,0.45)] mb-1">
+              {isInbox ? "Inbox is empty" : "No documents yet"}
+            </h3>
+            <p className="text-[12px] text-[rgba(255,255,255,0.22)] leading-relaxed">
+              Drop files anywhere to process with AI
+            </p>
           </div>
         ) : (
           <div className="flex flex-col">
-            {docs.map((doc) => (
-              <DocumentRow
-                key={doc.id}
-                document={doc}
-                focused={doc.id === selectedDocumentId}
-                isInbox={Boolean(isInbox)}
-                snippet={searchState.snippetsByDocId[doc.id]}
-                searchQuery={hasActiveSearch ? searchState.query : undefined}
-                onSelect={() => setSelectedDocument(doc.id)}
-              />
+            {/* Column headers */}
+            <div className="flex items-center gap-3 px-4 py-1.5 border-b border-[rgba(255,255,255,0.04)]">
+              <span className="h-2 w-2 shrink-0" />
+              <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[rgba(255,255,255,0.18)] flex-[2]">Name</span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[rgba(255,255,255,0.18)] flex-[3]">Details</span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[rgba(255,255,255,0.18)] w-16 text-right">Status</span>
+            </div>
+
+            {groups.map((group) => (
+              <div key={group.label}>
+                <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-1.5 bg-[rgba(10,10,16,0.92)] backdrop-blur-sm">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[rgba(255,255,255,0.28)]">
+                    {group.label}
+                  </span>
+                  <span className="flex-1 h-px bg-[rgba(255,255,255,0.04)]" />
+                </div>
+                {group.items.map((doc) => (
+                  <DocumentRow
+                    key={doc.id}
+                    document={doc}
+                    focused={doc.id === selectedDocumentId}
+                    isInbox={Boolean(isInbox)}
+                    snippet={searchState.snippetsByDocId[doc.id]}
+                    searchQuery={hasActiveSearch ? searchState.query : undefined}
+                    onSelect={() => setSelectedDocument(doc.id)}
+                  />
+                ))}
+              </div>
             ))}
           </div>
         )}

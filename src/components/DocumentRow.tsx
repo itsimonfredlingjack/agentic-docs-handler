@@ -1,5 +1,4 @@
-import { mapToUserStatus, userStatusColor } from "../lib/status";
-import { getTimeGroup } from "../lib/feed-utils";
+import { mapToUserStatus, userStatusColor, userStatusLabel } from "../lib/status";
 import { kindRgbVar, kindColor } from "../lib/document-colors";
 import { highlightSnippet } from "../lib/highlight-snippet";
 import type { UiDocument } from "../types/documents";
@@ -19,10 +18,10 @@ type Props = {
 export function DocumentRow({ document, focused, snippet, searchQuery, onSelect, onRetry, onUndo, isInbox }: Props) {
   const userStatus = mapToUserStatus(document);
   const statusColor = userStatusColor(userStatus);
-  const timeLabel = getTimeGroup(document.updatedAt ?? document.createdAt);
-  
+
   const isFailed = userStatus === "misslyckades";
   const isReview = userStatus === "behöver_granskas";
+  const isProcessing = userStatus === "uppladdad" || userStatus === "bearbetas";
   const isClickable = userStatus === "klar" || isReview;
 
   const displayTitle = document.classification?.title || document.title;
@@ -42,8 +41,8 @@ export function DocumentRow({ document, focused, snippet, searchQuery, onSelect,
 
   return (
     <div
-      className={`document-row animate-fade-in-up flex flex-col justify-center px-4 py-[6px] transition-colors border-b border-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.02)] ${modifierClass} ${focused ? "bg-[rgba(255,255,255,0.04)]" : ""}`}
-      style={{ "--type-color-rgb": `var(${kindRgbVar(document.kind)})` } as React.CSSProperties}
+      className={`document-row animate-fade-in-up flex flex-col justify-center px-4 py-2.5 transition-colors border-b border-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.03)] ${modifierClass} ${focused ? "bg-[rgba(255,255,255,0.06)] border-l-2 border-l-[var(--type-accent)]" : "border-l-2 border-l-transparent"}`}
+      style={{ "--type-color-rgb": `var(${kindRgbVar(document.kind)})`, "--type-accent": kindColor(document.kind) } as React.CSSProperties}
       onClick={isClickable ? onSelect : undefined}
       role={isClickable ? "button" : undefined}
       tabIndex={isClickable ? 0 : undefined}
@@ -52,12 +51,12 @@ export function DocumentRow({ document, focused, snippet, searchQuery, onSelect,
       <div className="flex items-center gap-3">
         {/* Type Icon Dot */}
         <span
-          className="inline-block h-2 w-2 shrink-0 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]"
+          className="inline-block h-2 w-2 shrink-0 rounded-full"
           style={{ backgroundColor: kindColor(document.kind) }}
         />
-        
+
         {/* Title */}
-        <span className={`min-w-0 flex-[2] truncate text-[13px] tracking-tight ${isAiTitle ? "font-semibold text-[rgba(255,255,255,0.9)]" : "font-medium text-[rgba(255,255,255,0.6)]"}`}>
+        <span className={`min-w-0 flex-[2] truncate text-[13px] tracking-tight ${isAiTitle ? "font-semibold text-[rgba(255,255,255,0.9)]" : "font-medium text-[rgba(255,255,255,0.55)]"}`}>
           {displayTitle}
         </span>
 
@@ -66,13 +65,13 @@ export function DocumentRow({ document, focused, snippet, searchQuery, onSelect,
           {isFailed ? (
             <span className="text-[var(--invoice-color)]">{document.summary || "Processing failed"}</span>
           ) : isInbox && document.movePlan ? (
-            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.05)] text-[11px] font-medium text-[rgba(255,255,255,0.8)]">
-              <span className="opacity-50">→</span> {document.movePlan.destination || "okänd"}
-              <span className="h-1.5 w-1.5 rounded-full ml-1" style={{ backgroundColor: (document.classification?.confidence ?? 0) > 0.8 ? '#34C759' : '#FF9F0A' }} />
+            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[11px] font-medium text-[rgba(255,255,255,0.75)]">
+              <span className="opacity-40">→</span> {document.movePlan.destination || "unknown"}
+              {focused && <kbd className="ml-1.5 text-[9px] font-mono text-[rgba(255,255,255,0.3)] bg-[rgba(255,255,255,0.06)] px-1 rounded">↵</kbd>}
             </span>
           ) : hasExtractions ? (
             <>
-              {vendor && <span className="truncate max-w-[120px] mix-blend-plus-lighter">{vendor}</span>}
+              {vendor && <span className="truncate max-w-[120px]">{vendor}</span>}
               {amount && <span className="font-mono opacity-80">{amount}</span>}
               {date && <span className="font-mono opacity-60 text-[11px]">{date}</span>}
             </>
@@ -81,9 +80,26 @@ export function DocumentRow({ document, focused, snippet, searchQuery, onSelect,
           )}
         </div>
 
-        {/* Time */}
-        <span className="shrink-0 font-mono text-[10px] text-[rgba(255,255,255,0.3)] w-12 text-right">
-          {timeLabel}
+        {/* Status */}
+        <span className="shrink-0 flex items-center gap-1.5 w-16 justify-end">
+          {isProcessing ? (
+            <>
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-40" style={{ backgroundColor: statusColor }} />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5" style={{ backgroundColor: statusColor }} />
+              </span>
+              <span className="text-[10px] font-mono" style={{ color: statusColor }}>{userStatusLabel(userStatus)}</span>
+            </>
+          ) : isFailed ? (
+            <span className="text-[10px] font-semibold font-mono" style={{ color: statusColor }}>{userStatusLabel(userStatus)}</span>
+          ) : isReview ? (
+            <span className="text-[10px] font-semibold font-mono" style={{ color: statusColor }}>{userStatusLabel(userStatus)}</span>
+          ) : (
+            <span className="flex items-center gap-1.5">
+              <span className="h-1 w-1 rounded-full" style={{ backgroundColor: statusColor }} />
+              <span className="text-[10px] font-mono text-[rgba(255,255,255,0.3)]">{userStatusLabel(userStatus)}</span>
+            </span>
+          )}
         </span>
       </div>
 

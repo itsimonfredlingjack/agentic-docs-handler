@@ -93,7 +93,7 @@ describe("WorkspaceView", () => {
 
   it("shows empty state when no files", () => {
     render(<WorkspaceView />);
-    expect(screen.getByText(/Inbox is clean/)).toBeInTheDocument();
+    expect(screen.getByText(/No documents yet/)).toBeInTheDocument();
   });
 
   it("returns null when no active workspace", () => {

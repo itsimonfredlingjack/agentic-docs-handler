@@ -29,4 +29,10 @@ describe("WorkspaceHeader", () => {
     render(<WorkspaceHeader workspace={wsWithBrief} />);
     expect(screen.getByText("Dokument om lägenhetsköpet.")).toBeInTheDocument();
   });
+
+  it("renders Import button and notebook toggle", () => {
+    render(<WorkspaceHeader workspace={baseWorkspace} />);
+    expect(screen.getByText("Import")).toBeInTheDocument();
+    expect(screen.getByLabelText("Toggle notebook")).toBeInTheDocument();
+  });
 });

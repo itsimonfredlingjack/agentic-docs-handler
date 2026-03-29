@@ -31,13 +31,10 @@ export function WorkspaceSidebar() {
     <nav className="workspace-sidebar">
       {/* Titlebar drag region */}
       <div className="h-[52px] shrink-0 flex items-end px-4 pb-2" style={{ WebkitAppRegion: "drag" } as React.CSSProperties}>
-        <div className="flex items-center justify-between w-full" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
+        <div className="flex items-center w-full" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
           <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-[rgba(255,255,255,0.3)]">
             Brainfileing
           </h2>
-          <div className="workspace-sidebar__kbd-hint" aria-hidden="true">
-            <kbd className="mac-kbd">⌘K</kbd>
-          </div>
         </div>
       </div>
 
@@ -123,6 +120,14 @@ export function WorkspaceSidebar() {
               </button>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Command hint */}
+      <div className="shrink-0 px-4 py-2 border-t border-[rgba(255,255,255,0.04)]">
+        <div className="flex items-center gap-2 text-[10px] text-[rgba(255,255,255,0.18)]">
+          <kbd className="mac-kbd">⌘K</kbd>
+          <span>Search</span>
         </div>
       </div>
 
