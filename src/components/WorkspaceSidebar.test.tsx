@@ -74,6 +74,6 @@ describe("WorkspaceSidebar", () => {
   it("shows the create workspace button", () => {
     render(<WorkspaceSidebar />);
 
-    expect(screen.getByRole("button", { name: /Ny workspace/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /\+ New collection/i })).toBeInTheDocument();
   });
 });

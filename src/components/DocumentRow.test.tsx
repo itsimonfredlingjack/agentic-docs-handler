@@ -42,11 +42,13 @@ const baseDoc: UiDocument = {
 };
 
 describe("DocumentRow", () => {
-  it("renders completed document with key line and status pill", () => {
+  it("renders AI title and inline extractions", () => {
     render(<DocumentRow document={baseDoc} />);
-    expect(screen.getByText("faktura-mars.pdf")).toBeInTheDocument();
-    expect(screen.getByText("Klar")).toBeInTheDocument();
-    expect(screen.getByText("Telia · 1 250 kr · 2026-04-01")).toBeInTheDocument();
+    // AI title is displayed (classification.title)
+    expect(screen.getByText("Faktura mars")).toBeInTheDocument();
+    // Inline extractions are rendered as separate spans
+    expect(screen.getByText("Telia")).toBeInTheDocument();
+    expect(screen.getByText("1 250 kr")).toBeInTheDocument();
   });
 
   it("shows failed state with retry button", () => {
@@ -57,8 +59,8 @@ describe("DocumentRow", () => {
         onRetry={onRetry}
       />,
     );
-    expect(screen.getByText("Misslyckades")).toBeInTheDocument();
-    expect(screen.getByText("LLM timeout")).toBeInTheDocument();
+    // Failed row shows error in both inline extraction area and detail section
+    expect(screen.getAllByText("LLM timeout").length).toBeGreaterThanOrEqual(1);
     expect(container.querySelector(".document-row--failed")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Försök igen"));
     expect(onRetry).toHaveBeenCalledOnce();
@@ -68,21 +70,7 @@ describe("DocumentRow", () => {
     const { container } = render(
       <DocumentRow document={{ ...baseDoc, status: "awaiting_confirmation" }} />,
     );
-    expect(screen.getByText("Granska")).toBeInTheDocument();
     expect(container.querySelector(".document-row--review")).toBeInTheDocument();
-  });
-
-  it("renders destination path for moved documents", () => {
-    render(
-      <DocumentRow
-        document={{
-          ...baseDoc,
-          moveResult: { attempted: true, success: true, from_path: "/a", to_path: "/dst/fakturor/faktura.pdf", error: null },
-          moveStatus: "moved",
-        }}
-      />,
-    );
-    expect(screen.getByText(/fakturor\/faktura\.pdf/)).toBeInTheDocument();
   });
 
   it("shows undo button for moved document with undoToken", () => {
@@ -125,4 +113,30 @@ describe("DocumentRow", () => {
     expect(onSelect).toHaveBeenCalledOnce();
   });
 
+  it("shows inbox suggestion badge when isInbox and movePlan exists", () => {
+    render(
+      <DocumentRow
+        document={{
+          ...baseDoc,
+          movePlan: { rule_name: "invoices", destination: "/docs/invoices", auto_move_allowed: true, reason: "matched" },
+        }}
+        isInbox
+      />,
+    );
+    expect(screen.getByText("/docs/invoices")).toBeInTheDocument();
+  });
+
+  it("falls back to raw filename when no AI classification", () => {
+    render(
+      <DocumentRow
+        document={{
+          ...baseDoc,
+          classification: null as any,
+          extraction: null,
+        }}
+      />,
+    );
+    // Raw filename used as title (also appears as extraction fallback)
+    expect(screen.getAllByText("faktura-mars.pdf").length).toBeGreaterThanOrEqual(1);
+  });
 });

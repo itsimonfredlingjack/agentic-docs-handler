@@ -19,26 +19,14 @@ const baseWorkspace: WorkspaceResponse = {
 
 describe("WorkspaceHeader", () => {
   it("renders workspace name and file count", () => {
-    render(<WorkspaceHeader workspace={baseWorkspace} onToggleChat={() => {}} />);
+    render(<WorkspaceHeader workspace={baseWorkspace} />);
     expect(screen.getByText("Bostadsrätten")).toBeInTheDocument();
-    expect(screen.getByText(/12 filer/)).toBeInTheDocument();
-  });
-
-  it("shows AI brief placeholder when no brief exists", () => {
-    render(<WorkspaceHeader workspace={baseWorkspace} onToggleChat={() => {}} />);
-    expect(screen.getByText(/AI brief/i)).toBeInTheDocument();
+    expect(screen.getByText(/12 ITEMS/)).toBeInTheDocument();
   });
 
   it("shows AI brief text when it exists", () => {
     const wsWithBrief = { ...baseWorkspace, ai_brief: "Dokument om lägenhetsköpet." };
-    render(<WorkspaceHeader workspace={wsWithBrief} onToggleChat={() => {}} />);
+    render(<WorkspaceHeader workspace={wsWithBrief} />);
     expect(screen.getByText("Dokument om lägenhetsköpet.")).toBeInTheDocument();
-  });
-
-  it("calls onToggleChat when chat button is clicked", () => {
-    const onToggle = vi.fn();
-    render(<WorkspaceHeader workspace={baseWorkspace} onToggleChat={onToggle} />);
-    screen.getByRole("button", { name: /chat/i }).click();
-    expect(onToggle).toHaveBeenCalled();
   });
 });

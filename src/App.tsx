@@ -1,8 +1,9 @@
 import { useEffect, useState, startTransition } from "react";
 
 import { CommandPalette } from "./components/CommandPalette";
-import { DetailPanel } from "./components/DetailPanel";
+import { InspectorPane } from "./components/InspectorPane";
 import { FileMoveToast } from "./components/FileMoveToast";
+import { WindowDropZone } from "./components/WindowDropZone";
 import { WorkspaceSidebar } from "./components/WorkspaceSidebar";
 import { WorkspaceView } from "./components/WorkspaceView";
 import { WorkspaceNotebook } from "./components/WorkspaceNotebook";
@@ -88,11 +89,12 @@ export default function App() {
             <WorkspaceNotebook />
           </aside>
         )}
+        <InspectorPane />
       </div>
 
       <CommandPalette open={cmdkOpen} onOpenChange={setCmdkOpen} />
       <FileMoveToast />
-      <DetailPanel />
+      <WindowDropZone />
     </div>
   );
 }

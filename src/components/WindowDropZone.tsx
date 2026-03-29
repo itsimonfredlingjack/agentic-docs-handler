@@ -7,7 +7,7 @@ import { cleanupStagedUploads, listenToWindowFileDrops, moveLocalFile, stageLoca
 import { useDocumentStore } from "../store/documentStore";
 import type { ProcessResponse } from "../types/documents";
 
-export function DropZone() {
+export function WindowDropZone() {
   const clientId = useDocumentStore((state) => state.clientId);
   const queueUploads = useDocumentStore((state) => state.queueUploads);
   const rememberUpload = useDocumentStore((state) => state.rememberUpload);
@@ -116,51 +116,39 @@ export function DropZone() {
   };
 
   return (
-    <div
-      className={`flex items-center gap-3 px-4 py-2 border border-dashed rounded-lg transition-colors ${
-        isHovered
-          ? "border-[var(--accent-primary)] bg-[rgba(88,86,214,0.05)]"
-          : "border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.01)] hover:border-[rgba(255,255,255,0.15)] hover:bg-[rgba(255,255,255,0.02)]"
-      }`}
-      onDragOver={(event) => {
-        event.preventDefault();
-        setHovered(true);
-      }}
-      onDragLeave={(event) => {
-        event.preventDefault();
-        setHovered(false);
-      }}
-      onDrop={(event) => {
-        event.preventDefault();
-        setHovered(false);
-        void submitFiles(Array.from(event.dataTransfer.files));
-      }}
-    >
-      <span className="text-[14px] text-[var(--accent-primary)] font-bold">↑</span>
-      <span className="flex-1 text-[13px] text-[rgba(255,255,255,0.6)]">
-        {isHovered ? "Drop files to process" : "Drop files to ingest..."}
-      </span>
-      {!isHovered && (
-        <button
-          type="button"
-          className="text-[11px] font-medium text-[rgba(255,255,255,0.7)] hover:text-white transition-colors bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.1)] px-3 py-1 rounded"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          Browse...
-        </button>
-      )}
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="hidden"
-        multiple
-        onChange={(event) => {
-          const fileList = event.target.files ? Array.from(event.target.files) : [];
-          void submitFiles(fileList);
-          event.currentTarget.value = "";
+    <>
+      <div
+        className="fixed inset-0 z-50 pointer-events-none"
+        onDragOver={(event) => {
+          event.preventDefault();
+          setHovered(true);
         }}
+        onDragLeave={(event) => {
+          event.preventDefault();
+          // only set false if we leave the actual window
+          if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+            setHovered(false);
+          }
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          setHovered(false);
+          void submitFiles(Array.from(event.dataTransfer.files));
+        }}
+        style={{ pointerEvents: isHovered ? "auto" : "none" }}
       />
-    </div>
+      {isHovered && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.6)] backdrop-blur-sm pointer-events-none transition-all">
+          <div className="border-2 border-[var(--accent-primary)] bg-[rgba(88,86,214,0.15)] rounded-2xl py-12 px-16 text-center max-w-lg shadow-2xl flex flex-col items-center">
+            <span className="text-[32px] text-[var(--accent-primary)] font-bold mb-4 drop-shadow-md">↑</span>
+            <h2 className="text-xl font-semibold text-white mb-2">Drop to ingest into Inbox</h2>
+            <p className="text-[13px] text-[rgba(255,255,255,0.7)]">
+              Files will be locally processed immediately.
+            </p>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

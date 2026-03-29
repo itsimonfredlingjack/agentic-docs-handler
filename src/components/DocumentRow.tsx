@@ -1,4 +1,4 @@
-import { mapToUserStatus, userStatusLabel, userStatusColor, getKeyLine } from "../lib/status";
+import { mapToUserStatus, userStatusColor } from "../lib/status";
 import { getTimeGroup } from "../lib/feed-utils";
 import { kindRgbVar, kindColor } from "../lib/document-colors";
 import { highlightSnippet } from "../lib/highlight-snippet";
@@ -12,20 +12,21 @@ type Props = {
   onSelect?: () => void;
   onRetry?: () => void;
   onUndo?: () => void;
+  isInbox?: boolean;
 };
 
 
-export function DocumentRow({ document, focused, snippet, searchQuery, onSelect, onRetry, onUndo }: Props) {
+export function DocumentRow({ document, focused, snippet, searchQuery, onSelect, onRetry, onUndo, isInbox }: Props) {
   const userStatus = mapToUserStatus(document);
-  const statusLabel = userStatusLabel(userStatus);
   const statusColor = userStatusColor(userStatus);
-  const keyLine = getKeyLine(document);
   const timeLabel = getTimeGroup(document.updatedAt ?? document.createdAt);
-  const dest = document.moveResult?.to_path;
-
+  
   const isFailed = userStatus === "misslyckades";
   const isReview = userStatus === "behöver_granskas";
   const isClickable = userStatus === "klar" || isReview;
+
+  const displayTitle = document.classification?.title || document.title;
+  const isAiTitle = !!document.classification?.title;
 
   const modifierClass = isFailed
     ? "document-row--failed"
@@ -33,54 +34,60 @@ export function DocumentRow({ document, focused, snippet, searchQuery, onSelect,
       ? "document-row--review"
       : "";
 
+  const extractions = document.extraction?.fields;
+  const vendor = (extractions?.vendor || extractions?.store_name || extractions?.company) as string | undefined;
+  const amount = (extractions?.total_amount || extractions?.amount) as string | undefined;
+  const date = (extractions?.date || extractions?.receipt_date || extractions?.invoice_date) as string | undefined;
+  const hasExtractions = vendor || amount || date;
+
   return (
     <div
-      className={`document-row animate-fade-in-up ${modifierClass} ${focused ? "document-row--focused" : ""}`}
+      className={`document-row animate-fade-in-up flex flex-col justify-center px-4 py-[6px] transition-colors border-b border-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.02)] ${modifierClass} ${focused ? "bg-[rgba(255,255,255,0.04)]" : ""}`}
       style={{ "--type-color-rgb": `var(${kindRgbVar(document.kind)})` } as React.CSSProperties}
       onClick={isClickable ? onSelect : undefined}
       role={isClickable ? "button" : undefined}
       tabIndex={isClickable ? 0 : undefined}
       data-testid="document-row"
     >
-      {/* Row 1: dot + title + status pill + time */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
+        {/* Type Icon Dot */}
         <span
-          className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+          className="inline-block h-2 w-2 shrink-0 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]"
           style={{ backgroundColor: kindColor(document.kind) }}
         />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--text-primary)]">
-          {document.title}
+        
+        {/* Title */}
+        <span className={`min-w-0 flex-[2] truncate text-[13px] tracking-tight ${isAiTitle ? "font-semibold text-[rgba(255,255,255,0.9)]" : "font-medium text-[rgba(255,255,255,0.6)]"}`}>
+          {displayTitle}
         </span>
-        {!["klar", "färdig"].includes(statusLabel.toLowerCase()) && (
-          <span
-            className="status-pill shrink-0"
-            style={{
-              color: statusColor,
-              backgroundColor: `color-mix(in srgb, ${statusColor} 12%, transparent)`,
-            }}
-          >
-            {statusLabel}
-          </span>
-        )}
-        <span className="shrink-0 font-[var(--font-mono)] text-[10px] text-[var(--text-muted)]">{timeLabel}</span>
-      </div>
 
-      {/* Row 2: key line + destination */}
-      {(keyLine || dest) && (
-        <div className="mt-1 flex items-center justify-between gap-4 pl-[14px]">
-          {keyLine && (
-            <span className="data-pill min-w-0 truncate text-[13px]">{keyLine}</span>
-          )}
-          {dest && (
-            <span
-              className="shrink-0 truncate font-[var(--font-mono)] text-[11px] text-[var(--text-muted)]"
-              title={dest}
-            >
-              → {dest.split("/").slice(-3).join("/")}
+        {/* Semantic Extractions inline */}
+        <div className="flex-[3] flex items-center gap-4 text-[12px] text-[rgba(255,255,255,0.5)] truncate">
+          {isFailed ? (
+            <span className="text-[var(--invoice-color)]">{document.summary || "Processing failed"}</span>
+          ) : isInbox && document.movePlan ? (
+            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.05)] text-[11px] font-medium text-[rgba(255,255,255,0.8)]">
+              <span className="opacity-50">→</span> {document.movePlan.destination || "okänd"}
+              <span className="h-1.5 w-1.5 rounded-full ml-1" style={{ backgroundColor: (document.classification?.confidence ?? 0) > 0.8 ? '#34C759' : '#FF9F0A' }} />
             </span>
+          ) : hasExtractions ? (
+            <>
+              {vendor && <span className="truncate max-w-[120px] mix-blend-plus-lighter">{vendor}</span>}
+              {amount && <span className="font-mono opacity-80">{amount}</span>}
+              {date && <span className="font-mono opacity-60 text-[11px]">{date}</span>}
+            </>
+          ) : (
+             <span className="truncate opacity-40">{document.title}</span>
           )}
         </div>
-      )}
+
+        {/* Time */}
+        <span className="shrink-0 font-mono text-[10px] text-[rgba(255,255,255,0.3)] w-12 text-right">
+          {timeLabel}
+        </span>
+      </div>
+
+
 
       {/* Row 3: search snippet */}
       {snippet && searchQuery && (

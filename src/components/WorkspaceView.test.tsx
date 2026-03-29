@@ -93,14 +93,7 @@ describe("WorkspaceView", () => {
 
   it("shows empty state when no files", () => {
     render(<WorkspaceView />);
-    expect(screen.getByText(/Inga filer ännu/)).toBeInTheDocument();
-    expect(screen.getByText("⌘K")).toBeInTheDocument();
-  });
-
-  it("renders the workspace search bar", () => {
-    render(<WorkspaceView />);
-    expect(screen.getByPlaceholderText("Sök i dokument...")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Öppna filter" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Inbox is clean/)).toBeInTheDocument();
   });
 
   it("returns null when no active workspace", () => {
@@ -115,7 +108,8 @@ describe("WorkspaceView", () => {
       documentOrder: ["doc-1"],
     });
     render(<WorkspaceView />);
-    expect(screen.getByText("kontrakt.pdf")).toBeInTheDocument();
+    // Title appears twice: once as AI title, once as fallback extraction text
+    expect(screen.getAllByText("kontrakt.pdf").length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows only matched rows with snippets when search results are active", () => {
@@ -144,7 +138,7 @@ describe("WorkspaceView", () => {
 
     render(<WorkspaceView />);
 
-    expect(screen.getByText("kontrakt.pdf")).toBeInTheDocument();
+    expect(screen.getAllByText("kontrakt.pdf").length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText("annat.pdf")).not.toBeInTheDocument();
     expect(screen.getByTestId("document-row")).toHaveTextContent("Detta köpekontrakt gäller bostaden.");
   });

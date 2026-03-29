@@ -66,7 +66,7 @@ function InlineEditField({ documentId, fieldKey, value }: { documentId: string; 
 
 const EMPTY_HISTORY: import("../store/documentStore").StageEntry[] = [];
 
-export function DetailPanel() {
+export function InspectorPane() {
   const selectedDocumentId = useDocumentStore((state) => state.selectedDocumentId);
   const document = useDocumentStore((state) =>
     state.selectedDocumentId ? state.documents[state.selectedDocumentId] : null,
@@ -99,20 +99,51 @@ export function DetailPanel() {
   }, [selectedDocumentId, document, setSelectedDocument]);
 
   return (
-    <>
-      <div
-        className={`detail-backdrop ${isOpen ? "detail-backdrop--open" : ""}`}
-        onClick={close}
-      />
-      <aside
-        className={`detail-panel ${isOpen ? "detail-panel--open" : ""}`}
-        role="dialog"
-        aria-label="Dokumentdetaljer"
-        style={{ "--type-color": document ? kindColor(document.kind) : "var(--accent-primary)" } as React.CSSProperties}
-      >
-        {document ? <ModalContent document={document} history={stageHistory} onClose={close} /> : null}
-      </aside>
-    </>
+    <aside
+      className="inspector-pane"
+      role="region"
+      aria-label="Dokumentdetaljer"
+      style={{ "--type-color": document ? kindColor(document.kind) : "var(--accent-primary)" } as React.CSSProperties}
+    >
+      {document ? (
+        <ModalContent document={document} history={stageHistory} onClose={close} />
+      ) : (
+        <InspectorEmptyState />
+      )}
+    </aside>
+  );
+}
+
+function InspectorEmptyState() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center px-6 text-center bg-[rgba(255,255,255,0.01)]">
+      {/* Ghost preview placeholder */}
+      <div className="w-full max-w-[180px] aspect-[3/4] rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] mb-8 flex items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[rgba(255,255,255,0.02)] to-transparent animate-pulse" />
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-[rgba(255,255,255,0.06)] relative z-10">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke="currentColor" strokeWidth="1.2" />
+        </svg>
+      </div>
+
+      <div className="w-full max-w-[200px] space-y-6">
+        <div className="space-y-2">
+          <div className="h-[10px] w-24 rounded bg-[rgba(255,255,255,0.05)] mx-auto" />
+          <div className="h-[6px] w-32 rounded bg-[rgba(255,255,255,0.03)] mx-auto" />
+        </div>
+
+        {/* Ghost summary block */}
+        <div className="space-y-2 p-3 rounded-lg border border-[rgba(255,255,255,0.03)] bg-[rgba(255,255,255,0.01)]">
+          <div className="h-[5px] w-full rounded bg-[rgba(255,255,255,0.03)]" />
+          <div className="h-[5px] w-full rounded bg-[rgba(255,255,255,0.03)]" />
+          <div className="h-[5px] w-3/4 rounded bg-[rgba(255,255,255,0.02)]" />
+        </div>
+
+        {/* Action hint */}
+        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[rgba(255,255,255,0.2)] mt-4">
+          Select record to inspect
+        </p>
+      </div>
+    </div>
   );
 }
 

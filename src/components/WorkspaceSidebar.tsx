@@ -29,20 +29,22 @@ export function WorkspaceSidebar() {
 
   return (
     <nav className="workspace-sidebar">
-      {/* App Header Zone */}
-      <div className="flex items-center justify-between px-3 pt-4 pb-2">
-        <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-          Local Library
-        </h2>
-        <div className="workspace-sidebar__kbd-hint" aria-hidden="true">
-          <kbd className="mac-kbd">⌘K</kbd>
+      {/* Titlebar drag region */}
+      <div className="h-[52px] shrink-0 flex items-end px-4 pb-2" style={{ WebkitAppRegion: "drag" } as React.CSSProperties}>
+        <div className="flex items-center justify-between w-full" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
+          <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-[rgba(255,255,255,0.3)]">
+            Brainfileing
+          </h2>
+          <div className="workspace-sidebar__kbd-hint" aria-hidden="true">
+            <kbd className="mac-kbd">⌘K</kbd>
+          </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 space-y-4 mt-2">
+      <div className="flex-1 overflow-y-auto px-2 space-y-1 mt-1">
         {/* Inbox Section */}
         {inbox && (
-          <div className="space-y-0.5">
+          <div className="mb-3">
             <button
               type="button"
               className="workspace-item"
@@ -50,18 +52,23 @@ export function WorkspaceSidebar() {
               onClick={() => setActiveWorkspace(inbox.id)}
             >
               <div className="flex flex-1 items-center gap-2.5 min-w-0">
-                <span className="workspace-item__dot" style={{ background: INBOX_COLOR }} />
-                <span className="workspace-item__name truncate">{inbox.name}</span>
+                <span className="workspace-item__dot" style={{ background: INBOX_COLOR, boxShadow: `0 0 6px ${INBOX_COLOR}40` }} />
+                <span className="workspace-item__name truncate font-semibold">Inbox</span>
               </div>
-              <span className="workspace-item__count shrink-0">{inbox.file_count}</span>
+              {inbox.file_count > 0 && (
+                <span className="workspace-item__count shrink-0 bg-[rgba(255,159,10,0.15)] text-[#ff9f0a] px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">{inbox.file_count}</span>
+              )}
             </button>
           </div>
         )}
 
+        {/* Separator */}
+        <div className="h-px bg-[rgba(255,255,255,0.04)] mx-2 mb-2" />
+
         {/* Workspaces Section */}
-        <div className="space-y-1">
-          <div className="px-2 pb-1">
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-[rgba(255,255,255,0.25)]">
+        <div className="space-y-0.5">
+          <div className="px-2 pb-1.5">
+            <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[rgba(255,255,255,0.2)]">
               Collections
             </h3>
           </div>
@@ -81,7 +88,7 @@ export function WorkspaceSidebar() {
                   />
                   <span className="workspace-item__name truncate">{ws.name}</span>
                 </div>
-                <span className="workspace-item__count shrink-0">{ws.file_count}</span>
+                <span className="workspace-item__count shrink-0 bg-[rgba(255,255,255,0.04)] px-1.5 py-0.5 rounded text-[10px] font-mono">{ws.file_count}</span>
               </button>
             ))}
           </div>
@@ -109,7 +116,7 @@ export function WorkspaceSidebar() {
             ) : (
               <button
                 type="button"
-                className="flex items-center gap-2 text-[11px] font-medium text-[rgba(255,255,255,0.4)] hover:text-[rgba(255,255,255,0.8)] transition-colors py-1.5 px-2 rounded-md hover:bg-[rgba(255,255,255,0.04)] w-full text-left"
+                className="flex items-center gap-2 text-[11px] font-medium text-[rgba(255,255,255,0.3)] hover:text-[rgba(255,255,255,0.7)] transition-colors py-1.5 px-2 rounded-md hover:bg-[rgba(255,255,255,0.04)] w-full text-left"
                 onClick={() => setShowForm(true)}
               >
                 <span className="text-[14px] leading-none -mt-px">+</span> New collection
@@ -118,6 +125,28 @@ export function WorkspaceSidebar() {
           </div>
         </div>
       </div>
+
+      {/* Telemetry Footer */}
+      <div className="telemetry-footer shrink-0 border-t border-[rgba(255,255,255,0.04)] px-4 py-3 space-y-1.5">
+        <div className="flex items-center gap-2 text-[10px] font-mono text-[rgba(255,255,255,0.25)] tracking-wide">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-20"></span>
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
+          </span>
+          <span>Ollama</span>
+          <span className="text-[rgba(255,255,255,0.12)]">·</span>
+          <span className="text-green-500/60">Idle</span>
+        </div>
+        <div className="flex items-center gap-2 text-[10px] font-mono text-[rgba(255,255,255,0.25)] tracking-wide">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[rgba(255,255,255,0.15)]"></span>
+          </span>
+          <span>Whisper</span>
+          <span className="text-[rgba(255,255,255,0.12)]">·</span>
+          <span>Ready</span>
+        </div>
+      </div>
     </nav>
   );
 }
+
