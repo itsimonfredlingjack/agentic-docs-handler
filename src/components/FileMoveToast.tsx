@@ -28,7 +28,7 @@ export function FileMoveToast() {
   }
 
   return (
-    <div className="pointer-events-none fixed bottom-5 right-5 z-50 flex w-[min(380px,92vw)] flex-col gap-3">
+    <div className="pointer-events-none fixed bottom-5 right-5 z-50 flex w-[min(380px,92vw)] flex-col gap-3" role="status" aria-live="polite">
       {toasts.map((toast) => (
         <div key={toast.id} className="toast-panel pointer-events-auto flex items-start justify-between gap-4">
           <div className="min-w-0">

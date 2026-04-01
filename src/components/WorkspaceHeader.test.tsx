@@ -17,6 +17,10 @@ const baseWorkspace: WorkspaceResponse = {
   updated_at: "",
 };
 
+function makeWorkspace(overrides: Partial<WorkspaceResponse> = {}): WorkspaceResponse {
+  return { ...baseWorkspace, ...overrides };
+}
+
 describe("WorkspaceHeader", () => {
   it("renders workspace name and file count", () => {
     render(<WorkspaceHeader workspace={baseWorkspace} />);
@@ -34,5 +38,30 @@ describe("WorkspaceHeader", () => {
     render(<WorkspaceHeader workspace={baseWorkspace} />);
     expect(screen.getByText("Import")).toBeInTheDocument();
     expect(screen.getByLabelText("Toggle notebook")).toBeInTheDocument();
+  });
+
+  it("renders entity badges when workspace has ai_entities", () => {
+    const ws = makeWorkspace({
+      ai_entities: [
+        { name: "Telia", entity_type: "company" },
+        { name: "2026-03-15", entity_type: "date" },
+      ],
+    });
+    render(<WorkspaceHeader workspace={ws} />);
+    expect(screen.getByText("Telia")).toBeInTheDocument();
+    expect(screen.getByText("2026-03-15")).toBeInTheDocument();
+  });
+
+  it("renders topic tags when workspace has ai_topics", () => {
+    const ws = makeWorkspace({ ai_topics: ["accounting", "tax"] });
+    render(<WorkspaceHeader workspace={ws} />);
+    expect(screen.getByText("#accounting")).toBeInTheDocument();
+    expect(screen.getByText("#tax")).toBeInTheDocument();
+  });
+
+  it("renders no badges when entities and topics are empty", () => {
+    const ws = makeWorkspace({ ai_entities: [], ai_topics: [] });
+    const { container } = render(<WorkspaceHeader workspace={ws} />);
+    expect(container.querySelector(".glass-badge")).not.toBeInTheDocument();
   });
 });

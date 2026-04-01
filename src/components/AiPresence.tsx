@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { memo, type CSSProperties } from "react";
 
 import { kindColor, kindRgbVar } from "../lib/document-colors";
 import type { ConnectionState, UiDocument, UiDocumentKind } from "../types/documents";
@@ -69,7 +69,7 @@ function processingStepCount(stage: UiDocument["status"] | null): number {
   return 5;
 }
 
-export function AiPresence({ mode, accentKind, processingStage, connectionState }: Props) {
+export const AiPresence = memo(function AiPresence({ mode, accentKind, processingStage, connectionState }: Props) {
   const accent = accentKind ? kindColor(accentKind) : "var(--accent-primary)";
   const accentRgb = accentKind ? `var(${kindRgbVar(accentKind)})` : "88, 86, 214";
   const activeSteps = processingStepCount(processingStage);
@@ -151,4 +151,4 @@ export function AiPresence({ mode, accentKind, processingStage, connectionState 
       </svg>
     </div>
   );
-}
+});

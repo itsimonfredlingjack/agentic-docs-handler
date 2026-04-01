@@ -35,6 +35,18 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+export async function checkHealth(): Promise<boolean> {
+  try {
+    const baseUrl = await resolveBaseUrl();
+    const response = await fetch(`${baseUrl}/healthz`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchDocuments(limit = 50): Promise<DocumentListResponse> {
   const payload = await fetchJson<{
     documents: Array<Parameters<typeof mapRegistryRecordToUiDocument>[0]>;

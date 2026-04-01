@@ -469,7 +469,7 @@ src/
 
 ### Don't
 
-- ❌ Import from `server/api/` or `server/mcp/` in `server/pipelines/`
+- ❌ Import from `server/api/` in `server/pipelines/`
 - ❌ Use `enum` keyword in Python or TypeScript (use `Literal` unions)
 - ❌ Use default exports except for `App.tsx`
 - ❌ Hardcode URLs or configuration values

@@ -57,17 +57,17 @@ export function WorkspaceNotebook() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between pb-2 mb-2 border-b border-[rgba(255,255,255,0.04)]">
+      <div className="flex items-center justify-between pb-2 mb-2 border-b border-[var(--surface-4)]">
         <div className="flex items-center gap-2 min-w-0 pr-2">
           <span
             className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
             style={{ background: color }}
           />
-          <h2 className="truncate text-[10px] uppercase font-bold tracking-[0.08em] text-[var(--text-primary)]">
+          <h2 className="truncate text-xs-ui uppercase font-bold tracking-[0.08em] text-[var(--text-primary)]">
             {label}
           </h2>
           {count !== null && (
-            <span className="text-[10px] text-[var(--text-muted)] font-[var(--font-mono)]">
+            <span className="text-xs-ui text-[var(--text-muted)] font-[var(--font-mono)]">
               {count}
             </span>
           )}
@@ -101,11 +101,11 @@ export function WorkspaceNotebook() {
         })}
 
         {(!conversation || conversation.entries.length === 0) && (
-          <div className="flex min-h-[120px] flex-col justify-center px-2 py-4 border border-dashed border-[rgba(255,255,255,0.06)] rounded-sm mt-2">
-            <p className="text-[10px] uppercase tracking-[0.08em] font-bold text-[var(--text-muted)] mb-1">
+          <div className="flex min-h-[120px] flex-col justify-center px-2 py-4 border border-dashed border-[var(--surface-6)] rounded-sm mt-2">
+            <p className="text-xs-ui uppercase tracking-[0.08em] font-bold text-[var(--text-muted)] mb-1">
               Contextual Chat
             </p>
-            <p className="text-xs leading-relaxed text-[var(--text-disabled)] max-w-xs">
+            <p className="text-sm-ui leading-relaxed text-[var(--text-disabled)] max-w-xs">
               {emptyPrompt}
             </p>
           </div>

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { mapToUserStatus, userStatusColor, userStatusLabel } from "../lib/status";
 import { kindRgbVar, kindColor } from "../lib/document-colors";
 import { highlightSnippet } from "../lib/highlight-snippet";
@@ -8,14 +9,15 @@ type Props = {
   focused?: boolean;
   snippet?: string;
   searchQuery?: string;
-  onSelect?: () => void;
+  onSelectId?: (id: string) => void;
   onRetry?: () => void;
   onUndo?: () => void;
+  onMoveToWorkspace?: (documentId: string) => void;
   isInbox?: boolean;
 };
 
 
-export function DocumentRow({ document, focused, snippet, searchQuery, onSelect, onRetry, onUndo, isInbox }: Props) {
+export const DocumentRow = memo(function DocumentRow({ document, focused, snippet, searchQuery, onSelectId, onRetry, onUndo, onMoveToWorkspace, isInbox }: Props) {
   const userStatus = mapToUserStatus(document);
   const statusColor = userStatusColor(userStatus);
 
@@ -41,9 +43,9 @@ export function DocumentRow({ document, focused, snippet, searchQuery, onSelect,
 
   return (
     <div
-      className={`document-row animate-fade-in-up flex flex-col justify-center px-4 py-2.5 transition-colors border-b border-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.03)] ${modifierClass} ${focused ? "bg-[rgba(255,255,255,0.06)] border-l-2 border-l-[var(--type-accent)]" : "border-l-2 border-l-transparent"}`}
+      className={`document-row animate-fade-in-up flex flex-col justify-center px-4 py-2.5 transition-colors border-b border-[var(--surface-4)] hover:bg-[var(--surface-4)] ${modifierClass} ${focused ? "bg-[var(--surface-6)] border-l-2 border-l-[var(--type-accent)]" : "border-l-2 border-l-transparent"}`}
       style={{ "--type-color-rgb": `var(${kindRgbVar(document.kind)})`, "--type-accent": kindColor(document.kind) } as React.CSSProperties}
-      onClick={isClickable ? onSelect : undefined}
+      onClick={isClickable && onSelectId ? () => onSelectId(document.id) : undefined}
       role={isClickable ? "button" : undefined}
       tabIndex={isClickable ? 0 : undefined}
       data-testid="document-row"
@@ -56,24 +58,38 @@ export function DocumentRow({ document, focused, snippet, searchQuery, onSelect,
         />
 
         {/* Title */}
-        <span className={`min-w-0 flex-[2] truncate text-[13px] tracking-tight ${isAiTitle ? "font-semibold text-[rgba(255,255,255,0.9)]" : "font-medium text-[rgba(255,255,255,0.55)]"}`}>
+        <span className={`min-w-0 flex-[2] truncate text-base-ui tracking-tight ${isAiTitle ? "font-semibold text-[var(--text-primary)]" : "font-medium text-[var(--text-secondary)]"}`}>
           {displayTitle}
         </span>
 
         {/* Semantic Extractions inline */}
-        <div className="flex-[3] flex items-center gap-4 text-[12px] text-[rgba(255,255,255,0.5)] truncate">
+        <div className="flex-[3] flex items-center gap-4 text-sm-ui text-[var(--text-secondary)] truncate">
           {isFailed ? (
             <span className="text-[var(--invoice-color)]">{document.summary || "Processing failed"}</span>
           ) : isInbox && document.movePlan ? (
-            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[11px] font-medium text-[rgba(255,255,255,0.75)]">
-              <span className="opacity-40">→</span> {document.movePlan.destination || "unknown"}
-              {focused && <kbd className="ml-1.5 text-[9px] font-mono text-[rgba(255,255,255,0.3)] bg-[rgba(255,255,255,0.06)] px-1 rounded">↵</kbd>}
+            <span className="flex items-center gap-1.5">
+              <span className="truncate max-w-[160px] text-xs-ui text-[var(--text-muted)]">
+                {document.movePlan.destination?.split("/").pop() || "unknown"}
+              </span>
+              {onMoveToWorkspace && (
+                <button
+                  type="button"
+                  className="action-secondary px-2 py-0.5 text-xs-ui shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMoveToWorkspace(document.id);
+                  }}
+                >
+                  Move
+                </button>
+              )}
+              {focused && <kbd className="ml-1 text-xs-ui font-mono text-[var(--text-disabled)] bg-[var(--surface-6)] px-1 rounded">↵</kbd>}
             </span>
           ) : hasExtractions ? (
             <>
               {vendor && <span className="truncate max-w-[120px]">{vendor}</span>}
               {amount && <span className="font-mono opacity-80">{amount}</span>}
-              {date && <span className="font-mono opacity-60 text-[11px]">{date}</span>}
+              {date && <span className="font-mono opacity-60 text-sm-ui">{date}</span>}
             </>
           ) : (
              <span className="truncate opacity-40">{document.title}</span>
@@ -88,16 +104,16 @@ export function DocumentRow({ document, focused, snippet, searchQuery, onSelect,
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-40" style={{ backgroundColor: statusColor }} />
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5" style={{ backgroundColor: statusColor }} />
               </span>
-              <span className="text-[10px] font-mono" style={{ color: statusColor }}>{userStatusLabel(userStatus)}</span>
+              <span className="text-xs-ui font-mono" style={{ color: statusColor }}>{userStatusLabel(userStatus)}</span>
             </>
           ) : isFailed ? (
-            <span className="text-[10px] font-semibold font-mono" style={{ color: statusColor }}>{userStatusLabel(userStatus)}</span>
+            <span className="text-xs-ui font-semibold font-mono" style={{ color: statusColor }}>{userStatusLabel(userStatus)}</span>
           ) : isReview ? (
-            <span className="text-[10px] font-semibold font-mono" style={{ color: statusColor }}>{userStatusLabel(userStatus)}</span>
+            <span className="text-xs-ui font-semibold font-mono" style={{ color: statusColor }}>{userStatusLabel(userStatus)}</span>
           ) : (
             <span className="flex items-center gap-1.5">
               <span className="h-1 w-1 rounded-full" style={{ backgroundColor: statusColor }} />
-              <span className="text-[10px] font-mono text-[rgba(255,255,255,0.3)]">{userStatusLabel(userStatus)}</span>
+              <span className="text-xs-ui font-mono text-[var(--text-disabled)]">{userStatusLabel(userStatus)}</span>
             </span>
           )}
         </span>
@@ -107,7 +123,7 @@ export function DocumentRow({ document, focused, snippet, searchQuery, onSelect,
 
       {/* Row 3: search snippet */}
       {snippet && searchQuery && (
-        <p className="mt-1.5 line-clamp-2 pl-[14px] text-sm italic leading-relaxed text-white/50">
+        <p className="mt-1.5 line-clamp-2 pl-[14px] text-base-ui italic leading-relaxed text-[var(--text-secondary)]">
           {highlightSnippet(snippet, searchQuery)}
         </p>
       )}
@@ -155,4 +171,4 @@ export function DocumentRow({ document, focused, snippet, searchQuery, onSelect,
       )}
     </div>
   );
-}
+});

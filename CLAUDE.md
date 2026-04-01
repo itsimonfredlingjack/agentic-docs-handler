@@ -2,22 +2,23 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Keep this file aligned with `AGENTS.md` when commands or workflows change.
+Product vision and transformation guide: `claude-code-transformation-guide.md`.
 
 ## What This Is
 
-Local-first AI-powered workspace file manager (working name: Brainfileing). Everything runs on the Mac: a Tauri desktop app ingests files into AI-powered workspaces, a local FastAPI backend classifies and extracts with Qwen via Ollama, documents are organized into workspaces and indexed for hybrid search. Only Whisper transcription is proxied to ai-server2.
+"Linear for Files" (working name: Brainfileing). Workspace-centric AI file management — users dump files in, the app organizes them into workspaces, generates AI briefs, extracts entities, and lets you search/chat across everything. The full product vision and transformation roadmap is in `claude-code-transformation-guide.md`.
+
+Everything runs locally on the Mac: Tauri desktop app → FastAPI backend (localhost:9000) → Ollama (Qwen 3.5) → SQLite + LanceDB. **Workspaces are the organizing unit, not files.** Files land in an Inbox and get suggested into workspaces by AI.
 
 ## Architecture
 
 ```text
 Mac (Tauri 2 + React 19)
   ├── FastAPI backend (localhost:9000)
-  │     ├── Ollama (localhost:11434)
+  │     ├── Ollama (localhost:11434) — Qwen 3.5
   │     ├── SQLite (brainfileing.db) + FTS5
   │     ├── sentence-transformers + LanceDB
-  │     ├── WorkspaceRegistry (workspace CRUD)
-  │     └── Whisper proxy → ai-server2:8090
+  │     └── WorkspaceRegistry (workspace CRUD)
   └── Tauri UI → localhost:9000
 ```
 
@@ -34,12 +35,6 @@ Pipeline flow:
 - Audio: whisper transcribe → classify transcription → organize → index
 - HTTP responses return after classification and extraction; indexing continues in the background.
 - `POST /process` is the only ingest endpoint. The backend determines text, image, or audio flow.
-
-Move execution model:
-
-- `move_executor="client"` yields client-pending states (`auto_pending_client` / `awaiting_confirmation`); the desktop app finalizes through move endpoints.
-- `move_executor="none"` skips the move step entirely.
-- `job.completed` is emitted after indexing finishes, except when waiting on client move confirmation.
 
 ## Commands
 
@@ -86,9 +81,6 @@ npm run tauri dev
 # Start backend
 uvicorn server.main:app --host 0.0.0.0 --port 9000
 
-# Deploy Whisper to ai-server2
-bash scripts/deploy_whisper_server.sh
-
 # Full verification before shipping
 PYTHONPATH=. pytest server/tests -q && npm test && npm run build && cargo check --manifest-path src-tauri/Cargo.toml
 ```
@@ -99,7 +91,6 @@ PYTHONPATH=. pytest server/tests -q && npm test && npm run build && cargo check 
 - Backend-only development: start `uvicorn`, then use `/healthz`, `/readyz`, `/validation/report`, `/search`, `/documents`, `/documents/counts`, `/activity`, `/workspace/categories`, and `POST /process` for spot checks. `POST /workspace/chat` streams SSE with `context`, `token`, `done`, and `error` events.
 - Frontend and Tauri: `npm run dev` for the renderer, `npm run tauri dev` for the desktop shell, `cargo check --manifest-path src-tauri/Cargo.toml` for Rust-side validation.
 - Verification before shipping: run the full verification chain.
-- Deploy: `scripts/deploy_whisper_server.sh` deploys to `ai-server2` in tmux session `adh-whisper` on port 8090.
 
 ## WebSocket Events
 
@@ -113,25 +104,81 @@ Tauri commands exposed to the renderer: `get_client_id`, `get_backend_base_url`,
 
 ## Key Files
 
+Backend core:
+
 - `server/main.py` - app factory, SQLite setup, migration, service wiring
-- `server/document_registry.py` - SQLite-backed document persistence (replaces JSONL)
+- `server/services.py` - `AppServices` container for dependency injection across the app
+- `server/config.py` - `pydantic_settings.BaseSettings` config with `ADH_` prefix
+- `server/schemas.py` - all Pydantic models including workspace types
+- `server/document_registry.py` - SQLite-backed document persistence
 - `server/workspace_registry.py` - workspace CRUD operations
+- `server/realtime.py` - per-client WebSocket routing
+- `server/clients/ollama_client.py` - Ollama API client wrapper
 - `server/migrations/schema.sql` - SQLite DDL (all tables, indexes, FTS5)
-- `server/migrations/jsonl_to_sqlite.py` - one-time JSONL → SQLite migration
+
+Pipelines (core logic layer):
+
 - `server/pipelines/process_pipeline.py` - main processing orchestration
+- `server/pipelines/classifier.py` - document and image classification
+- `server/pipelines/extractor.py` - structured field extraction
+- `server/pipelines/entity_extractor.py` - entity extraction from documents
 - `server/pipelines/search.py` - hybrid search (LanceDB vectors + keywords)
 - `server/pipelines/workspace_chat.py` - workspace retrieval + streamed answers
-- `server/pipelines/noop_organizer.py` - stub organizer (workspaces replace YAML rules)
-- `server/pipelines/classifier.py` - document classification
-- `server/pipelines/extractor.py` - field extraction
+- `server/pipelines/workspace_brief.py` - auto-generated workspace briefs
+- `server/pipelines/workspace_suggester.py` - auto-suggest workspace assignment
+- `server/pipelines/discovery.py` - document discovery pipeline
+- `server/pipelines/thumbnails.py` - thumbnail generation for UI records
+
+LLM prompts (text files that drive classification, extraction, and chat behavior):
+
+- `server/prompts/classifier_system.txt` - text classification system prompt
+- `server/prompts/image_classifier_system.txt` - vision classification system prompt
+- `server/prompts/extractors/*.txt` - per-document-type extraction prompts
+- `server/prompts/workspace_*.txt` - workspace chat, brief, and suggestion prompts
+- `server/prompts/search_*.txt` - search rewrite and answer prompts
+
+API layer:
+
 - `server/api/routes.py` - ingest, search, moves, workspace CRUD HTTP routes
 - `server/api/ws.py` - WebSocket endpoint
-- `server/realtime.py` - per-client WebSocket routing
-- `server/schemas.py` - all Pydantic models including workspace types
-- `src/store/documentStore.ts` - UI state source of truth (Zustand)
-- `src/hooks/useWebSocket.ts` - renderer WebSocket integration
+
+Frontend:
+
+- `src/store/documentStore.ts` - document state (Zustand)
+- `src/store/workspaceStore.ts` - workspace state (Zustand)
+- `src/hooks/useWebSocket.ts` - backend event handling in the renderer
+- `src/hooks/useWorkspaceChat.ts` - workspace chat SSE hook
+- `src/hooks/useSearch.ts` - search state and execution
+- `src/lib/api.ts` - backend HTTP client
+- `src/types/documents.ts` - shared document type definitions
+- `src/types/workspace.ts` - shared workspace type definitions
+
+Tauri shell:
+
 - `src-tauri/src/main.rs` - Tauri commands and bootstrap
 - `src-tauri/src/ws_client.rs` - Rust WebSocket bridge
+
+## LLM Prompt Architecture
+
+All LLM behavior is driven by text prompt files in `server/prompts/`. Classification, extraction, chat, and workspace features each have a system prompt file. Per-document-type extractors live under `server/prompts/extractors/`. Changing LLM behavior usually means editing these text files, not Python code.
+
+The Ollama client (`server/clients/ollama_client.py`) wraps all LLM calls. Qwen 3.5 hangs with Ollama's `json_object` response format — extract structured data from raw text output instead.
+
+## Design Token System
+
+CSS custom properties in `src/index.css` `:root`. Always use tokens — never raw `rgba(255,255,255,X)` values.
+
+Text colors: `--text-primary` (0.92), `--text-secondary` (0.65), `--text-muted` (0.42), `--text-disabled` (0.35).
+
+Surface backgrounds: `--surface-4`, `--surface-6`, `--surface-8`, `--surface-10` (white at 4%/6%/8%/10% opacity).
+
+Font sizes (Tailwind): `text-xs-ui` (10px), `text-sm-ui` (12px), `text-base-ui` (13px), `text-lg-ui` (16px), `text-xl-ui` (22px). Defined in `tailwind.config.js`.
+
+Letter-spacing: `tracking-[0.04em]` (mono badges), `tracking-[0.08em]` (uppercase labels), `tracking-tight` (headings).
+
+## UI Design Rule
+
+One app, one design. Never create separate layouts or visual states for online/offline, loading/loaded, or any other status. The layout (sidebar + workspace header + content area) is always the same. Status changes only affect content *inside* the layout. Empty workspace content shows the AiPresence avatar with a short message — same layout as when documents exist.
 
 ## Code Style Rules
 
@@ -153,4 +200,4 @@ See `CODE_STYLE.md` for full conventions. Key rules that affect correctness:
 - PDFs without extractable text fall back to the image pipeline.
 - Local uploads stage under `/tmp/agentic-docs/server-staging` before processing.
 - Env vars are prefixed `ADH_`; check `.env.example` before adding config.
-- Key env vars: `ADH_OLLAMA_BASE_URL`, `ADH_OLLAMA_MODEL`, `ADH_OLLAMA_MODEL_CLASSIFIER`, `ADH_OLLAMA_MODEL_EXTRACTOR`, `ADH_OLLAMA_MODEL_WORKSPACE_CHAT`, `ADH_OLLAMA_NUM_CTX_WORKSPACE_CHAT`, `ADH_WHISPER_BASE_URL`, `ADH_LANCEDB_PATH`, `ADH_UI_DOCUMENTS_PATH`, `ADH_CORS_ALLOWED_ORIGINS`.
+- Key env vars: `ADH_OLLAMA_BASE_URL`, `ADH_OLLAMA_MODEL`, `ADH_OLLAMA_MODEL_CLASSIFIER`, `ADH_OLLAMA_MODEL_EXTRACTOR`, `ADH_OLLAMA_MODEL_WORKSPACE_CHAT`, `ADH_OLLAMA_NUM_CTX_WORKSPACE_CHAT`, `ADH_SQLITE_DB_PATH`, `ADH_LANCEDB_PATH`, `ADH_PROMPTS_DIR`, `ADH_CORS_ALLOWED_ORIGINS`.

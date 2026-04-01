@@ -38,6 +38,7 @@ beforeEach(() => {
     loading: false,
     error: null,
     chatPanelOpen: false,
+    backendStatus: "online",
   });
 });
 
@@ -76,4 +77,5 @@ describe("WorkspaceSidebar", () => {
 
     expect(screen.getByRole("button", { name: /\+ New collection/i })).toBeInTheDocument();
   });
+
 });

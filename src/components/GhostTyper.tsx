@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 type GhostTyperProps = {
   text: string;
@@ -7,7 +7,7 @@ type GhostTyperProps = {
   onDone?: () => void;
 };
 
-export function GhostTyper({ text, speed = 25, className, onDone }: GhostTyperProps) {
+export const GhostTyper = memo(function GhostTyper({ text, speed = 25, className, onDone }: GhostTyperProps) {
   const [charIndex, setCharIndex] = useState(0);
   const previousTextRef = useRef(text);
   const isDone = charIndex >= text.length;
@@ -44,4 +44,4 @@ export function GhostTyper({ text, speed = 25, className, onDone }: GhostTyperPr
       )}
     </span>
   );
-}
+});

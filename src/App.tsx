@@ -16,9 +16,10 @@ import { useWebSocket } from "./hooks/useWebSocket";
 export default function App() {
   const bootstrap = useDocumentStore((s) => s.bootstrap);
   const setClientId = useDocumentStore((s) => s.setClientId);
+  const selectedDocumentId = useDocumentStore((s) => s.selectedDocumentId);
   const chatPanelOpen = useWorkspaceStore((s) => s.chatPanelOpen);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
-  const fetchWorkspaces = useWorkspaceStore((s) => s.fetchWorkspaces);
+  const checkBackend = useWorkspaceStore((s) => s.checkBackend);
   const [cmdkOpen, setCmdkOpen] = useState(false);
 
   useWebSocket();
@@ -31,14 +32,14 @@ export default function App() {
         const clientId = await getClientId();
         if (cancelled) return;
         setClientId(clientId);
-        await fetchWorkspaces();
+        await checkBackend();
       } catch (error) {
         if (!cancelled) console.error("app.bootstrap.failed", error);
       }
     }
     void load();
     return () => { cancelled = true; };
-  }, [setClientId, fetchWorkspaces]);
+  }, [setClientId, checkBackend]);
 
   // When active workspace changes, fetch its files
   useEffect(() => {
@@ -89,7 +90,7 @@ export default function App() {
             <WorkspaceNotebook />
           </aside>
         )}
-        <InspectorPane />
+        {selectedDocumentId && <InspectorPane />}
       </div>
 
       <CommandPalette open={cmdkOpen} onOpenChange={setCmdkOpen} />

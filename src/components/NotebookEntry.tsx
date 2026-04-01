@@ -1,3 +1,4 @@
+import { memo } from "react";
 import Markdown from "react-markdown";
 
 type Props = {
@@ -9,7 +10,7 @@ type Props = {
   streamingText?: string;
 };
 
-export function NotebookEntry({ query, response, sourceCount, errorMessage, isStreaming, streamingText }: Props) {
+export const NotebookEntry = memo(function NotebookEntry({ query, response, sourceCount, errorMessage, isStreaming, streamingText }: Props) {
   const displayText = isStreaming ? streamingText ?? "" : response;
   const hasError = !isStreaming && Boolean(errorMessage);
 
@@ -58,4 +59,4 @@ export function NotebookEntry({ query, response, sourceCount, errorMessage, isSt
       )}
     </div>
   );
-}
+});

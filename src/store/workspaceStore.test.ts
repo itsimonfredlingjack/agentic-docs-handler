@@ -5,6 +5,7 @@ import type { WorkspaceResponse } from "../types/workspace";
 
 // Mock the API module — functions will be added in the parallel task.
 vi.mock("../lib/api", () => ({
+  checkHealth: vi.fn(),
   fetchWorkspaces: vi.fn(),
   createWorkspace: vi.fn(),
   updateWorkspace: vi.fn(),
@@ -39,6 +40,7 @@ beforeEach(() => {
     loading: false,
     error: null,
     chatPanelOpen: false,
+    backendStatus: "checking",
   });
 });
 
@@ -133,5 +135,29 @@ describe("createWorkspace", () => {
     // fetchWorkspaces is called internally; activeWorkspaceId then overridden to created id
     expect(state.activeWorkspaceId).toBe("ws-new");
     expect(state.workspaces).toHaveLength(3);
+  });
+});
+
+describe("checkBackend", () => {
+  it("sets backendStatus to online when healthz succeeds", async () => {
+    vi.mocked(api.checkHealth).mockResolvedValue(true);
+    vi.mocked(api.fetchWorkspaces).mockResolvedValue({
+      workspaces: [inboxWorkspace, regularWorkspace],
+    });
+
+    await useWorkspaceStore.getState().checkBackend();
+
+    const state = useWorkspaceStore.getState();
+    expect(state.backendStatus).toBe("online");
+    expect(state.activeWorkspaceId).toBe("inbox-1");
+    expect(state.workspaces).toHaveLength(2);
+  });
+
+  it("sets backendStatus to offline when healthz fails", async () => {
+    vi.mocked(api.checkHealth).mockResolvedValue(false);
+
+    await useWorkspaceStore.getState().checkBackend();
+
+    expect(useWorkspaceStore.getState().backendStatus).toBe("offline");
   });
 });

@@ -97,9 +97,9 @@ describe("WorkspaceView", () => {
   });
 
   it("returns null when no active workspace", () => {
-    useWorkspaceStore.setState({ activeWorkspaceId: null });
+    useWorkspaceStore.setState({ workspaces: [], activeWorkspaceId: null });
     const { container } = render(<WorkspaceView />);
-    expect(container.firstChild).toBeNull();
+    expect(container.innerHTML).toBe("");
   });
 
   it("renders document rows when documents exist", () => {
@@ -142,4 +142,5 @@ describe("WorkspaceView", () => {
     expect(screen.queryByText("annat.pdf")).not.toBeInTheDocument();
     expect(screen.getByTestId("document-row")).toHaveTextContent("Detta köpekontrakt gäller bostaden.");
   });
+
 });

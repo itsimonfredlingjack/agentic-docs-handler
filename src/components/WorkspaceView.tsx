@@ -4,6 +4,7 @@ import { useWorkspaceStore } from "../store/workspaceStore";
 import { DocumentRow } from "./DocumentRow";
 import { DiscoveryCards } from "./DiscoveryCards";
 import { WorkspaceHeader } from "./WorkspaceHeader";
+import { AiPresence } from "./AiPresence";
 import { moveLocalFile } from "../lib/tauri-events";
 import { finalizeClientMove } from "../lib/api";
 import { groupByTime } from "../lib/feed-utils";
@@ -37,6 +38,10 @@ export function WorkspaceView() {
       setSelectedDocument(docs[0].id);
     }
   }, [docs, selectedDocumentId, setSelectedDocument]);
+
+  const handleMoveToWorkspace = useCallback((documentId: string) => {
+    setSelectedDocument(documentId);
+  }, [setSelectedDocument]);
 
   const handleKeyDown = useCallback(async (e: KeyboardEvent) => {
     if (docs.length === 0) return;
@@ -82,40 +87,37 @@ export function WorkspaceView() {
 
   return (
     <main className="flex min-h-0 flex-1 flex-col items-stretch overflow-hidden bg-[rgba(0,0,0,0.1)] outline-none" tabIndex={-1}>
-      <div className="border-b border-[rgba(255,255,255,0.04)] pb-4">
+      <div className="border-b border-[var(--surface-4)] pb-4">
         <WorkspaceHeader workspace={workspace} />
       </div>
       <div className="flex-1 overflow-y-auto pt-2 pb-4">
         {docs.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center text-center">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-[rgba(255,255,255,0.15)] mb-4">
-              <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.3" />
-              <path d="M3 9h18" stroke="currentColor" strokeWidth="1.3" />
-            </svg>
-            <h3 className="text-[13px] font-medium text-[rgba(255,255,255,0.45)] mb-1">
+          <div className="flex flex-1 flex-col items-center justify-center text-center px-6">
+            <AiPresence mode="idle" accentKind={null} processingStage={null} connectionState="connected" />
+            <h3 className="text-base-ui font-medium text-[var(--text-muted)] mt-4 mb-1">
               {isInbox ? "Inbox is empty" : "No documents yet"}
             </h3>
-            <p className="text-[12px] text-[rgba(255,255,255,0.22)] leading-relaxed">
+            <p className="text-sm-ui text-[var(--text-disabled)] leading-relaxed">
               Drop files anywhere to process with AI
             </p>
           </div>
         ) : (
           <div className="flex flex-col">
             {/* Column headers */}
-            <div className="flex items-center gap-3 px-4 py-1.5 border-b border-[rgba(255,255,255,0.04)]">
+            <div className="flex items-center gap-3 px-4 py-1.5 border-b border-[var(--surface-4)]">
               <span className="h-2 w-2 shrink-0" />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[rgba(255,255,255,0.18)] flex-[2]">Name</span>
-              <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[rgba(255,255,255,0.18)] flex-[3]">Details</span>
-              <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[rgba(255,255,255,0.18)] w-16 text-right">Status</span>
+              <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[2]">Name</span>
+              <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[3]">Details</span>
+              <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] w-16 text-right">Status</span>
             </div>
 
             {groups.map((group) => (
               <div key={group.label}>
                 <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-1.5 bg-[rgba(10,10,16,0.92)] backdrop-blur-sm">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[rgba(255,255,255,0.28)]">
+                  <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
                     {group.label}
                   </span>
-                  <span className="flex-1 h-px bg-[rgba(255,255,255,0.04)]" />
+                  <span className="flex-1 h-px bg-[var(--surface-4)]" />
                 </div>
                 {group.items.map((doc) => (
                   <DocumentRow
@@ -123,9 +125,10 @@ export function WorkspaceView() {
                     document={doc}
                     focused={doc.id === selectedDocumentId}
                     isInbox={Boolean(isInbox)}
+                    onSelectId={setSelectedDocument}
+                    onMoveToWorkspace={isInbox ? handleMoveToWorkspace : undefined}
                     snippet={searchState.snippetsByDocId[doc.id]}
                     searchQuery={hasActiveSearch ? searchState.query : undefined}
-                    onSelect={() => setSelectedDocument(doc.id)}
                   />
                 ))}
               </div>
@@ -139,4 +142,3 @@ export function WorkspaceView() {
     </main>
   );
 }
-

@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import type { WorkspaceResponse } from "../types/workspace";
 import {
+  checkHealth,
   fetchWorkspaces as apiFetchWorkspaces,
   createWorkspace as apiCreateWorkspace,
   updateWorkspace as apiUpdateWorkspace,
@@ -14,7 +15,9 @@ type WorkspaceStoreState = {
   loading: boolean;
   error: string | null;
   chatPanelOpen: boolean;
+  backendStatus: "checking" | "online" | "offline";
 
+  checkBackend: () => Promise<void>;
   fetchWorkspaces: () => Promise<void>;
   setActiveWorkspace: (id: string) => void;
   createWorkspace: (name: string) => Promise<WorkspaceResponse>;
@@ -30,6 +33,31 @@ export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
   loading: false,
   error: null,
   chatPanelOpen: false,
+  backendStatus: "checking",
+
+  checkBackend: async () => {
+    set({ backendStatus: "checking" });
+    const healthy = await checkHealth();
+    if (healthy) {
+      set({ backendStatus: "online" });
+      await get().fetchWorkspaces();
+      return;
+    }
+    set({ backendStatus: "offline" });
+    let delay = 1000;
+    const maxDelay = 8000;
+    const retry = async () => {
+      const ok = await checkHealth();
+      if (ok) {
+        set({ backendStatus: "online" });
+        await get().fetchWorkspaces();
+        return;
+      }
+      delay = Math.min(delay * 2, maxDelay);
+      setTimeout(() => void retry(), delay);
+    };
+    setTimeout(() => void retry(), delay);
+  },
 
   fetchWorkspaces: async () => {
     set({ loading: true, error: null });
@@ -44,7 +72,11 @@ export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
         return { workspaces, activeWorkspaceId: nextActive, loading: false };
       });
     } catch (err) {
-      set({ loading: false, error: err instanceof Error ? err.message : String(err) });
+      set({
+        loading: false,
+        error: err instanceof Error ? err.message : String(err),
+        backendStatus: "offline",
+      });
     }
   },
 

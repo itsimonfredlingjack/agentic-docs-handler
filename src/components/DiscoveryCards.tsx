@@ -47,8 +47,8 @@ export function DiscoveryCards({ workspaceId }: DiscoveryCardsProps) {
   if (loading && cards.length === 0) {
     return (
       <section className="pt-4">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.24em] text-white/45">Insikter</h2>
-        <p className="mt-2 text-sm text-[var(--text-muted)]">Söker samband mellan filer...</p>
+        <h2 className="text-sm-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Insikter</h2>
+        <p className="mt-2 text-base-ui text-[var(--text-muted)]">Söker samband mellan filer...</p>
       </section>
     );
   }
@@ -56,8 +56,8 @@ export function DiscoveryCards({ workspaceId }: DiscoveryCardsProps) {
   if (error) {
     return (
       <section className="pt-4">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.24em] text-white/45">Insikter</h2>
-        <p className="mt-2 text-sm text-[var(--text-muted)]">{error}</p>
+        <h2 className="text-sm-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Insikter</h2>
+        <p className="mt-2 text-base-ui text-[var(--text-muted)]">{error}</p>
       </section>
     );
   }
@@ -69,22 +69,22 @@ export function DiscoveryCards({ workspaceId }: DiscoveryCardsProps) {
   return (
     <section className="pt-4">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.24em] text-white/45">Insikter</h2>
-        <span className="text-xs text-[var(--text-muted)]">{cards.length} fynd</span>
+        <h2 className="text-sm-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Insikter</h2>
+        <span className="text-sm-ui text-[var(--text-muted)]">{cards.length} fynd</span>
       </div>
       <div className="space-y-3">
         {cards.map((card) => (
           <article
             key={card.id}
-            className="rounded-2xl border border-white/8 bg-white/[0.035] px-4 py-3"
+            className="rounded-2xl border border-[var(--surface-8)] bg-white/[0.035] px-4 py-3"
           >
             <div className="flex items-start justify-between gap-3">
-              <span className="rounded-full bg-white/8 px-2.5 py-1 text-[11px] font-medium text-white/72">
+              <span className="rounded-full bg-[var(--surface-8)] px-2.5 py-1 text-sm-ui font-medium text-[var(--text-secondary)]">
                 {RELATION_LABELS[card.relation_type] ?? card.relation_type}
               </span>
               <button
                 type="button"
-                className="text-xs text-[var(--text-muted)] transition hover:text-white/80"
+                className="text-sm-ui text-[var(--text-muted)] transition hover:text-white/80"
                 aria-label="Dölj insikt"
                 onClick={async () => {
                   await dismissWorkspaceDiscovery(workspaceId, card.id);
@@ -94,7 +94,7 @@ export function DiscoveryCards({ workspaceId }: DiscoveryCardsProps) {
                 Dölj
               </button>
             </div>
-            <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
+            <p className="mt-2 text-base-ui leading-relaxed text-[var(--text-secondary)]">
               {card.explanation}
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -102,7 +102,7 @@ export function DiscoveryCards({ workspaceId }: DiscoveryCardsProps) {
                 <button
                   key={file.id}
                   type="button"
-                  className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-white/82 transition hover:bg-white/[0.08]"
+                  className="rounded-full border border-[var(--surface-10)] bg-[var(--surface-4)] px-3 py-1.5 text-base-ui text-[var(--text-secondary)] transition hover:bg-[var(--surface-8)]"
                   onClick={() => setSelectedDocument(file.id)}
                 >
                   {file.title}

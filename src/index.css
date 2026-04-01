@@ -20,7 +20,7 @@
   --text-primary: rgba(255, 255, 255, 0.92);
   --text-secondary: rgba(255, 255, 255, 0.65);
   --text-muted: rgba(255, 255, 255, 0.42);
-  --text-disabled: rgba(255, 255, 255, 0.25);
+  --text-disabled: rgba(255, 255, 255, 0.35);
   --accent-gradient: none;
   --accent-primary: #5856d6;
   --accent-secondary: #4846c6;
@@ -40,6 +40,10 @@
   --success-surface: rgba(52, 199, 89, 0.1);
   --warning-surface: rgba(255, 159, 10, 0.1);
   --danger-surface: rgba(255, 55, 95, 0.1);
+  --surface-4: rgba(255, 255, 255, 0.04);
+  --surface-6: rgba(255, 255, 255, 0.06);
+  --surface-8: rgba(255, 255, 255, 0.08);
+  --surface-10: rgba(255, 255, 255, 0.10);
   --transition-fast: 60ms ease-out;
   --transition-normal: 120ms ease-out;
   --transition-smooth: 180ms ease-out;
@@ -72,7 +76,7 @@ body::before {
   opacity: 0.03;
   mix-blend-mode: overlay;
   pointer-events: none;
-  z-index: 9999;
+  z-index: 1;
 }
 
 button,
@@ -331,15 +335,15 @@ input {
     transform: translateY(6px);
     animation: hud-node-on 350ms ease-out both;
   }
-  .inspector-pane .hud-section:nth-child(1) { animation-delay: 40ms; }
-  .inspector-pane .hud-section:nth-child(2) { animation-delay: 100ms; }
-  .inspector-pane .hud-section:nth-child(3) { animation-delay: 160ms; }
-  .inspector-pane .hud-section:nth-child(4) { animation-delay: 220ms; }
-  .inspector-pane .hud-section:nth-child(5) { animation-delay: 280ms; }
-  .inspector-pane .hud-section:nth-child(6) { animation-delay: 340ms; }
-  .inspector-pane .hud-section:nth-child(7) { animation-delay: 400ms; }
-  .inspector-pane .hud-section:nth-child(8) { animation-delay: 460ms; }
-  .inspector-pane .hud-section:nth-child(9) { animation-delay: 520ms; }
+  .inspector-pane .hud-section:nth-child(1) { animation-delay: 25ms; }
+  .inspector-pane .hud-section:nth-child(2) { animation-delay: 50ms; }
+  .inspector-pane .hud-section:nth-child(3) { animation-delay: 75ms; }
+  .inspector-pane .hud-section:nth-child(4) { animation-delay: 100ms; }
+  .inspector-pane .hud-section:nth-child(5) { animation-delay: 125ms; }
+  .inspector-pane .hud-section:nth-child(6) { animation-delay: 150ms; }
+  .inspector-pane .hud-section:nth-child(7) { animation-delay: 175ms; }
+  .inspector-pane .hud-section:nth-child(8) { animation-delay: 200ms; }
+  .inspector-pane .hud-section:nth-child(9) { animation-delay: 225ms; }
 
   .toast-panel {
     background: rgba(20, 20, 30, 0.88);
@@ -1484,6 +1488,14 @@ input {
   border-radius: var(--button-radius);
 }
 
+button:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-primary) 90%, white);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 18%, transparent);
+  border-radius: var(--button-radius);
+}
+
 @media (max-width: 1000px) {
   :root {
     --detail-panel-width: min(calc(100vw - 48px), 560px);
@@ -1788,9 +1800,10 @@ input {
     opacity: 1;
     transform: none;
   }
+}
 
-  /* ── Workspace Sidebar ── */
-  .workspace-sidebar {
+/* ── Workspace Sidebar ── */
+.workspace-sidebar {
     width: var(--sidebar-width);
     background: rgba(14, 14, 20, 0.95);
     border-right: 1px solid rgba(255, 255, 255, 0.06);
@@ -1904,9 +1917,8 @@ input {
     line-height: 1.2;
     box-shadow: 0 1px 0 rgba(0,0,0,0.2);
   }
-  }
 
-  /* ── Workspace Header ── */
+/* ── Workspace Header ── */
   .workspace-header { padding: 20px 24px 0; }
   .workspace-header__top {
     display: flex;
@@ -2033,7 +2045,7 @@ input {
   [cmdk-group-heading] {
     font-size: 10px;
     letter-spacing: 0.5px;
-    color: rgba(255, 255, 255, 0.25);
+    color: var(--text-disabled);
     text-transform: uppercase;
     padding: 8px 10px 4px;
   }

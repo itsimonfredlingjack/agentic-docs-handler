@@ -107,10 +107,11 @@ describe("DocumentRow", () => {
   });
 
   it("is clickable when completed", () => {
-    const onSelect = vi.fn();
-    render(<DocumentRow document={baseDoc} onSelect={onSelect} />);
+    const onSelectId = vi.fn();
+    render(<DocumentRow document={baseDoc} onSelectId={onSelectId} />);
     fireEvent.click(screen.getByTestId("document-row"));
-    expect(onSelect).toHaveBeenCalledOnce();
+    expect(onSelectId).toHaveBeenCalledOnce();
+    expect(onSelectId).toHaveBeenCalledWith(baseDoc.id);
   });
 
   it("shows inbox suggestion badge when isInbox and movePlan exists", () => {
@@ -123,7 +124,20 @@ describe("DocumentRow", () => {
         isInbox
       />,
     );
-    expect(screen.getByText("/docs/invoices")).toBeInTheDocument();
+    expect(screen.getByText("invoices")).toBeInTheDocument();
+  });
+
+  it("shows move button in inbox when movePlan exists", () => {
+    const onMove = vi.fn();
+    const inboxDoc = {
+      ...baseDoc,
+      movePlan: { destination: "/docs/Receipts/2026/file.pdf", rule_name: "receipt", auto_move_allowed: true, reason: "matched" },
+    };
+    render(<DocumentRow document={inboxDoc} isInbox onMoveToWorkspace={onMove} />);
+    const moveBtn = screen.getByText("Move", { selector: "button" });
+    expect(moveBtn).toBeInTheDocument();
+    fireEvent.click(moveBtn);
+    expect(onMove).toHaveBeenCalledWith(inboxDoc.id);
   });
 
   it("falls back to raw filename when no AI classification", () => {

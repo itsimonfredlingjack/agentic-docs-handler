@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from "react";
+import { memo, useMemo, useRef, useState, useEffect } from "react";
 import { useDocumentStore } from "../store/documentStore";
 import { isProcessingStatus } from "../lib/status";
 import { kindRgbVar } from "../lib/document-colors";
@@ -195,7 +195,7 @@ function EvaporationOverlay({ doc }: { doc: UiDocument }) {
   );
 }
 
-function RailCard({ doc }: { doc: UiDocument }) {
+const RailCard = memo(function RailCard({ doc }: { doc: UiDocument }) {
   const prevStatusRef = useRef(doc.status);
   const [classifyLock, setClassifyLock] = useState(false);
 
@@ -246,9 +246,9 @@ function RailCard({ doc }: { doc: UiDocument }) {
       </div>
     </div>
   );
-}
+});
 
-function CompletionReceipt({ doc }: { doc: UiDocument }) {
+const CompletionReceipt = memo(function CompletionReceipt({ doc }: { doc: UiDocument }) {
   const isFailed = doc.status === "failed";
   const kindLabel = KIND_LABELS[doc.kind] ?? "Dokument";
   const keyLine = extractKeyLine(doc);
@@ -273,7 +273,7 @@ function CompletionReceipt({ doc }: { doc: UiDocument }) {
       )}
     </div>
   );
-}
+});
 
 export function ProcessingRail() {
   const documents = useDocumentStore((s) => s.documents);
@@ -334,7 +334,7 @@ export function ProcessingRail() {
   }
 
   return (
-    <div className="processing-rail" role="region" aria-label="Aktiva jobb">
+    <div className="processing-rail" role="region" aria-label="Aktiva jobb" aria-live="polite">
       {processingDocs.map((doc) => (
         <RailCard key={doc.id} doc={doc} />
       ))}
