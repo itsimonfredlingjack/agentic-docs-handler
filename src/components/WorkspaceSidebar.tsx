@@ -129,6 +129,12 @@ export function WorkspaceSidebar() {
           <kbd className="mac-kbd">⌘K</kbd>
           <span>Search</span>
         </div>
+        <div className="mt-1 flex items-center gap-2 text-xs-ui text-[var(--text-disabled)]">
+          <kbd className="mac-kbd">↑/↓</kbd>
+          <span>Navigera</span>
+          <kbd className="mac-kbd">Esc</kbd>
+          <span>Avmarkera</span>
+        </div>
       </div>
 
       {/* Telemetry Footer */}
@@ -146,4 +152,3 @@ export function WorkspaceSidebar() {
     </nav>
   );
 }
-

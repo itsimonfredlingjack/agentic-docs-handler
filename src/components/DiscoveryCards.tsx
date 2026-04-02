@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import type { DiscoveryCard } from "../types/documents";
 import { dismissWorkspaceDiscovery, fetchWorkspaceDiscovery } from "../lib/api";
 import { useDocumentStore } from "../store/documentStore";
+import { Card } from "./ui/Card";
+import { EmptyState } from "./ui/EmptyState";
+import { SkeletonLoader } from "./ui/SkeletonLoader";
 
 type DiscoveryCardsProps = {
   workspaceId: string;
@@ -48,7 +51,10 @@ export function DiscoveryCards({ workspaceId }: DiscoveryCardsProps) {
     return (
       <section className="pt-4">
         <h2 className="text-sm-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Insikter</h2>
-        <p className="mt-2 text-base-ui text-[var(--text-muted)]">Söker samband mellan filer...</p>
+        <div className="mt-2">
+          <SkeletonLoader count={2} />
+          <p className="mt-2 text-base-ui text-[var(--text-muted)]">Söker samband mellan filer...</p>
+        </div>
       </section>
     );
   }
@@ -57,7 +63,9 @@ export function DiscoveryCards({ workspaceId }: DiscoveryCardsProps) {
     return (
       <section className="pt-4">
         <h2 className="text-sm-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Insikter</h2>
-        <p className="mt-2 text-base-ui text-[var(--text-muted)]">{error}</p>
+        <div className="mt-2">
+          <EmptyState title="Kunde inte läsa insikter" description={error} />
+        </div>
       </section>
     );
   }
@@ -74,10 +82,7 @@ export function DiscoveryCards({ workspaceId }: DiscoveryCardsProps) {
       </div>
       <div className="space-y-3">
         {cards.map((card) => (
-          <article
-            key={card.id}
-            className="rounded-2xl border border-[var(--surface-8)] bg-white/[0.035] px-4 py-3"
-          >
+          <Card key={card.id} className="rounded-2xl bg-white/[0.035] px-4 py-3">
             <div className="flex items-start justify-between gap-3">
               <span className="rounded-full bg-[var(--surface-8)] px-2.5 py-1 text-sm-ui font-medium text-[var(--text-secondary)]">
                 {RELATION_LABELS[card.relation_type] ?? card.relation_type}
@@ -109,9 +114,13 @@ export function DiscoveryCards({ workspaceId }: DiscoveryCardsProps) {
                 </button>
               ))}
             </div>
-          </article>
+          </Card>
         ))}
       </div>
+
+      {loading && cards.length > 0 ? (
+        <p className="mt-2 text-sm-ui text-[var(--text-muted)]">Uppdaterar insikter...</p>
+      ) : null}
     </section>
   );
 }

@@ -3,6 +3,7 @@ import { mapToUserStatus, userStatusColor, userStatusLabel } from "../lib/status
 import { kindRgbVar, kindColor } from "../lib/document-colors";
 import { highlightSnippet } from "../lib/highlight-snippet";
 import type { UiDocument } from "../types/documents";
+import { Button } from "./ui/Button";
 
 type Props = {
   document: UiDocument;
@@ -72,16 +73,18 @@ export const DocumentRow = memo(function DocumentRow({ document, focused, snippe
                 {document.movePlan.destination?.split("/").pop() || "unknown"}
               </span>
               {onMoveToWorkspace && (
-                <button
+                <Button
                   type="button"
-                  className="action-secondary px-2 py-0.5 text-xs-ui shrink-0"
+                  variant="secondary"
+                  size="sm"
+                  className="shrink-0 px-2 py-0.5 text-xs-ui"
                   onClick={(e) => {
                     e.stopPropagation();
                     onMoveToWorkspace(document.id);
                   }}
                 >
                   Move
-                </button>
+                </Button>
               )}
               {focused && <kbd className="ml-1 text-xs-ui font-mono text-[var(--text-disabled)] bg-[var(--surface-6)] px-1 rounded">↵</kbd>}
             </span>

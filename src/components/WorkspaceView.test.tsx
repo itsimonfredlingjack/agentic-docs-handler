@@ -143,4 +143,25 @@ describe("WorkspaceView", () => {
     expect(screen.getByTestId("document-row")).toHaveTextContent("Detta köpekontrakt gäller bostaden.");
   });
 
+  it("shows explicit no-match state for empty search results", () => {
+    useDocumentStore.setState({
+      documents: { "doc-1": baseDoc },
+      documentOrder: ["doc-1"],
+      search: {
+        query: "finns inte",
+        rewrittenQuery: "finns inte",
+        answer: "",
+        status: "empty",
+        error: null,
+        resultIds: [],
+        orphanResults: [],
+        snippetsByDocId: {},
+      },
+    });
+
+    render(<WorkspaceView />);
+
+    expect(screen.getByText("Inga träffar")).toBeInTheDocument();
+  });
+
 });

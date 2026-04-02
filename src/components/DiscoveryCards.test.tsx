@@ -79,6 +79,8 @@ describe("DiscoveryCards", () => {
   it("loads and renders discovery cards for the workspace", async () => {
     render(<DiscoveryCards workspaceId="ws-1" />);
 
+    expect(screen.getByLabelText("Laddar innehåll")).toBeInTheDocument();
+
     await waitFor(() => {
       expect(screen.getByText("Insikter")).toBeInTheDocument();
     });

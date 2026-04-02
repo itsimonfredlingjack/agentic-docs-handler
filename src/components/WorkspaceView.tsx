@@ -5,6 +5,8 @@ import { DocumentRow } from "./DocumentRow";
 import { DiscoveryCards } from "./DiscoveryCards";
 import { WorkspaceHeader } from "./WorkspaceHeader";
 import { AiPresence } from "./AiPresence";
+import { EmptyState } from "./ui/EmptyState";
+import { ErrorBanner } from "./ui/ErrorBanner";
 import { moveLocalFile } from "../lib/tauri-events";
 import { finalizeClientMove } from "../lib/api";
 import { groupByTime } from "../lib/feed-utils";
@@ -25,7 +27,11 @@ export function WorkspaceView() {
   const workspace = workspaces.find((w) => w.id === activeWorkspaceId);
   const isInbox = activeWorkspaceId === "inbox" || workspace?.is_inbox;
 
-  const hasActiveSearch = searchState.query.trim().length > 0 && searchState.status === "ready";
+  const hasActiveSearch =
+    searchState.query.trim().length > 0 &&
+    (searchState.status === "ready" || searchState.status === "empty");
+  const showSearchEmptyState =
+    hasActiveSearch && searchState.resultIds.length === 0 && searchState.orphanResults.length === 0;
   const visibleIds = hasActiveSearch ? searchState.resultIds : documentOrder;
   const docs = visibleIds.map((id) => documents[id]).filter(Boolean);
   const groups = useMemo(
@@ -44,6 +50,18 @@ export function WorkspaceView() {
   }, [setSelectedDocument]);
 
   const handleKeyDown = useCallback(async (e: KeyboardEvent) => {
+    const target = e.target as HTMLElement | null;
+    const isTypingTarget =
+      target?.tagName === "INPUT" ||
+      target?.tagName === "TEXTAREA" ||
+      target?.isContentEditable;
+    if (isTypingTarget) return;
+
+    if (e.key === "Escape") {
+      setSelectedDocument(null);
+      return;
+    }
+
     if (docs.length === 0) return;
     const currentIndex = docs.findIndex(d => d.id === selectedDocumentId);
     let targetIndex = currentIndex === -1 ? 0 : currentIndex;
@@ -91,16 +109,27 @@ export function WorkspaceView() {
         <WorkspaceHeader workspace={workspace} />
       </div>
       <div className="flex-1 overflow-y-auto pt-2 pb-4">
-        {docs.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center text-center px-6">
-            <AiPresence mode="idle" accentKind={null} processingStage={null} connectionState="connected" />
-            <h3 className="text-base-ui font-medium text-[var(--text-muted)] mt-4 mb-1">
-              {isInbox ? "Inbox is empty" : "No documents yet"}
-            </h3>
-            <p className="text-sm-ui text-[var(--text-disabled)] leading-relaxed">
-              Drop files anywhere to process with AI
-            </p>
+        {searchState.status === "error" ? (
+          <div className="px-6 pt-2">
+            <ErrorBanner
+              title="Sökning misslyckades"
+              message={searchState.error ?? "Kunde inte slutföra sökningen."}
+            />
           </div>
+        ) : null}
+
+        {showSearchEmptyState ? (
+          <EmptyState
+            title="Inga träffar"
+            description={`Ingen match för \"${searchState.query}\". Prova ett bredare sökord.`}
+            icon={<AiPresence mode="idle" accentKind={null} processingStage={null} connectionState="connected" />}
+          />
+        ) : docs.length === 0 ? (
+          <EmptyState
+            title={isInbox ? "Inbox is empty" : "No documents yet"}
+            description="Drop files anywhere to process with AI"
+            icon={<AiPresence mode="idle" accentKind={null} processingStage={null} connectionState="connected" />}
+          />
         ) : (
           <div className="flex flex-col">
             {/* Column headers */}
