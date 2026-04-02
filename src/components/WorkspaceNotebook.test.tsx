@@ -49,6 +49,7 @@ describe("WorkspaceNotebook", () => {
 
     expect(screen.getByPlaceholderText("Fråga Bostadsrätten...")).toBeInTheDocument();
     expect(screen.getByText("Fråga Bostadsrätten vad som helst")).toBeInTheDocument();
+    expect(screen.getByText("Workspace-läge")).toBeInTheDocument();
   });
 
   it("closes panel when close button is clicked", async () => {

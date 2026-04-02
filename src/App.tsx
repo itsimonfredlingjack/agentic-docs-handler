@@ -7,6 +7,7 @@ import { WindowDropZone } from "./components/WindowDropZone";
 import { WorkspaceSidebar } from "./components/WorkspaceSidebar";
 import { WorkspaceView } from "./components/WorkspaceView";
 import { WorkspaceNotebook } from "./components/WorkspaceNotebook";
+import { ConnectionBanner } from "./components/ConnectionBanner";
 import { fetchWorkspaceFiles } from "./lib/api";
 import { getClientId } from "./lib/tauri-events";
 import { useDocumentStore } from "./store/documentStore";
@@ -78,6 +79,7 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden text-[var(--text-primary)]" style={{ background: "#111118" }}>
+      <ConnectionBanner />
       <div className="flex min-h-0 flex-1 gap-0 overflow-hidden">
         <div className="hidden shrink-0 lg:block">
           <WorkspaceSidebar />

@@ -78,4 +78,11 @@ describe("WorkspaceSidebar", () => {
     expect(screen.getByRole("button", { name: /\+ New collection/i })).toBeInTheDocument();
   });
 
+  it("shows keyboard shortcut guidance", () => {
+    render(<WorkspaceSidebar />);
+
+    expect(screen.getByText("Navigera")).toBeInTheDocument();
+    expect(screen.getByText("Avmarkera")).toBeInTheDocument();
+  });
+
 });

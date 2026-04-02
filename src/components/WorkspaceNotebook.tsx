@@ -34,6 +34,7 @@ export function WorkspaceNotebook() {
   let color: string;
   let placeholder: string;
   let emptyPrompt: string;
+  let modeLabel: string;
 
   if (isDocumentMode && chatDocument) {
     label = chatDocument.title || "Dokument";
@@ -41,12 +42,14 @@ export function WorkspaceNotebook() {
     color = kindColor(chatDocument.kind);
     placeholder = "Fråga om detta dokument...";
     emptyPrompt = "Fråga om detta dokument";
+    modeLabel = "Dokument-läge";
   } else {
     label = workspace?.name ?? "Workspace";
     count = workspace?.file_count ?? 0;
     color = workspace?.cover_color || "var(--accent-primary)";
     placeholder = `Fråga ${label}...`;
     emptyPrompt = `Fråga ${label} vad som helst`;
+    modeLabel = "Workspace-läge";
   }
 
   const handleClose = () => {
@@ -66,6 +69,15 @@ export function WorkspaceNotebook() {
           <h2 className="truncate text-xs-ui uppercase font-bold tracking-[0.08em] text-[var(--text-primary)]">
             {label}
           </h2>
+          <span
+            className={`shrink-0 rounded-full border px-2 py-[2px] text-[10px] font-semibold uppercase tracking-[0.06em] ${
+              isDocumentMode
+                ? "border-[var(--surface-10)] bg-[var(--surface-8)] text-[var(--text-secondary)]"
+                : "border-[var(--surface-8)] bg-[var(--surface-6)] text-[var(--text-muted)]"
+            }`}
+          >
+            {modeLabel}
+          </span>
           {count !== null && (
             <span className="text-xs-ui text-[var(--text-muted)] font-[var(--font-mono)]">
               {count}
