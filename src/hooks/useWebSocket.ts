@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { fetchActivity, fetchCounts, fetchDocuments } from "../lib/api";
 import { listenToBackendConnection, listenToBackendEvent } from "../lib/tauri-events";
 import { useDocumentStore } from "../store/documentStore";
+import { useToastStore } from "../store/toastStore";
 import type { BackendServerEvent, FileMoveToastItem, UndoMoveResponse } from "../types/documents";
 
 const debugWebSocket = import.meta.env.DEV;
@@ -18,6 +19,7 @@ export function useWebSocket(): void {
   const applyMoveDismissed = useDocumentStore((state) => state.applyMoveDismissed);
   const resyncFromBackend = useDocumentStore((state) => state.resyncFromBackend);
   const setDocumentThumbnail = useDocumentStore((state) => state.setDocumentThumbnail);
+  const showToast = useToastStore((s) => s.show);
 
   useEffect(() => {
     let unlistenConnection: (() => void | Promise<void>) | undefined;
@@ -55,6 +57,7 @@ export function useWebSocket(): void {
         applyUndoSuccess,
         applyMoveDismissed,
         setDocumentThumbnail,
+        showToast,
       });
     }).then((unlisten) => {
       unlistenEvents = unlisten;
@@ -64,7 +67,7 @@ export function useWebSocket(): void {
       void unlistenConnection?.();
       void unlistenEvents?.();
     };
-  }, [applyMoveDismissed, applyUndoSuccess, markJobFailed, markJobStage, pushMoveToast, resyncFromBackend, setConnectionState, setDocumentThumbnail, updateConnectionFromPayload]);
+  }, [applyMoveDismissed, applyUndoSuccess, markJobFailed, markJobStage, pushMoveToast, resyncFromBackend, setConnectionState, setDocumentThumbnail, showToast, updateConnectionFromPayload]);
 }
 
 function handleServerEvent(
@@ -76,6 +79,7 @@ function handleServerEvent(
     applyUndoSuccess: (payload: UndoMoveResponse) => void;
     applyMoveDismissed: (payload: { success: true; record_id: string; request_id: string; move_status: "not_requested" }) => void;
     setDocumentThumbnail: (requestId: string, thumbnailData: string) => void;
+    showToast: (message: string, type?: "success" | "info" | "error", opts?: { duration?: number; action?: { label: string; onClick: () => void } }) => void;
   },
 ): void {
   if (payload.type === "job.started") {
@@ -97,6 +101,7 @@ function handleServerEvent(
       console.debug("backend:event:completed", payload.request_id);
     }
     handlers.markJobStage(payload.request_id, "completed");
+    handlers.showToast("Dokument bearbetat", "success");
     return;
   }
   if (payload.type === "job.failed") {
@@ -104,6 +109,7 @@ function handleServerEvent(
       console.debug("backend:event:failed", payload.request_id, payload.message);
     }
     handlers.markJobFailed(payload.request_id, payload.message);
+    handlers.showToast("Bearbetning misslyckades", "error");
     return;
   }
   if (payload.type === "file.moved") {
