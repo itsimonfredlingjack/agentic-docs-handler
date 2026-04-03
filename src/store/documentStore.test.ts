@@ -432,7 +432,7 @@ describe("workspace state", () => {
     const store = useDocumentStore.getState();
     store.startWorkspaceQuery("receipt", "Vad är momsen?");
     store.appendStreamingToken("receipt", "Delvis svar");
-    store.finalizeStreamingEntry("receipt", 3, "workspace/chat: 503");
+    store.finalizeStreamingEntry("receipt", 3, [], "workspace/chat: 503");
     const conv = useDocumentStore.getState().conversations.receipt;
     expect(conv.isStreaming).toBe(false);
     expect(conv.entries[0].response).toBe("Delvis svar");

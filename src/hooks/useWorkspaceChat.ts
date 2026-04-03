@@ -57,6 +57,7 @@ export function useWorkspaceChat() {
       }
 
       let sourceCount = 0;
+      let sources: Array<{ id: string; title: string }> = [];
       let errorMessage: string | null = null;
       let tokenCount = 0;
       try {
@@ -68,6 +69,7 @@ export function useWorkspaceChat() {
         })) {
           if (event.type === "context") {
             sourceCount = event.data.source_count;
+            sources = event.data.sources ?? [];
           } else if (event.type === "token") {
             appendToken(conversationKey, event.data.text);
             tokenCount++;
@@ -84,12 +86,12 @@ export function useWorkspaceChat() {
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
           // Stream was intentionally cancelled — finalize silently
-          finalize(conversationKey, sourceCount, null);
+          finalize(conversationKey, sourceCount, sources, null);
           return;
         }
         errorMessage = error instanceof Error ? error.message : "Anslutningsfel";
       }
-      finalize(conversationKey, sourceCount, errorMessage);
+      finalize(conversationKey, sourceCount, sources, errorMessage);
     },
     [conversationKey, category, workspaceId, startQuery, appendToken, finalize],
   );

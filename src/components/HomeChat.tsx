@@ -163,6 +163,7 @@ export function HomeChat() {
                 query={entry.query}
                 response={entry.response}
                 sourceCount={entry.sourceCount}
+                sources={entry.sources}
                 errorMessage={entry.errorMessage}
                 isStreaming={isLast && isStreaming}
                 streamingText={isLast && isStreaming ? conversation.streamingText : undefined}

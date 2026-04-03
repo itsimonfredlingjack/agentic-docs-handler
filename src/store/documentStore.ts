@@ -85,7 +85,7 @@ type DocumentStoreState = {
   setActiveDocumentChat: (documentId: string | null) => void;
   startWorkspaceQuery: (category: string, query: string) => void;
   appendStreamingToken: (category: string, token: string) => void;
-  finalizeStreamingEntry: (category: string, sourceCount: number, errorMessage?: string | null) => void;
+  finalizeStreamingEntry: (category: string, sourceCount: number, sources?: Array<{ id: string; title: string }>, errorMessage?: string | null) => void;
 };
 
 const emptyCounts: DocumentCounts = {
@@ -489,6 +489,7 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
                   response: "",
                   timestamp: new Date().toISOString(),
                   sourceCount: 0,
+                  sources: [],
                   errorMessage: null,
                 },
               ],
@@ -509,12 +510,12 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
         },
       };
     }),
-  finalizeStreamingEntry: (category, sourceCount, errorMessage = null) =>
+  finalizeStreamingEntry: (category, sourceCount, sources = [], errorMessage = null) =>
     set((state) => {
       const conv = state.conversations[category];
       if (!conv || conv.entries.length === 0) return state;
       const entries = [...conv.entries];
-      const last = { ...entries[entries.length - 1], response: conv.streamingText, sourceCount, errorMessage };
+      const last = { ...entries[entries.length - 1], response: conv.streamingText, sourceCount, sources, errorMessage };
       entries[entries.length - 1] = last;
       return {
         conversations: {
