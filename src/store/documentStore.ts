@@ -48,7 +48,9 @@ type DocumentStoreState = {
   activeWorkspace: string | null;
   activeDocumentChat: string | null;
   conversations: Record<string, WorkspaceConversation>;
+  filesLoading: boolean;
   setSelectedDocument: (id: string | null) => void;
+  setFilesLoading: (loading: boolean) => void;
   bootstrap: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
   resyncFromBackend: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
   setClientId: (clientId: string) => void;
@@ -128,7 +130,9 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
   activeWorkspace: "all",
   activeDocumentChat: null,
   conversations: {},
+  filesLoading: false,
   setSelectedDocument: (id) => set({ selectedDocumentId: id }),
+  setFilesLoading: (loading) => set({ filesLoading: loading }),
   bootstrap: (documents, counts, activity) =>
     set({
       documents: Object.fromEntries(documents.map((document) => [document.id, document])),
@@ -164,6 +168,7 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
         documents,
         documentOrder,
         stageHistory,
+        selectedDocumentId: localJobs.length > 0 ? localJobs[0].id : state.selectedDocumentId,
         counts: {
           ...state.counts,
           all: state.counts.all + localJobs.length,
