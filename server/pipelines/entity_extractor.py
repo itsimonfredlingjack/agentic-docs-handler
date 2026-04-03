@@ -85,6 +85,7 @@ class EntityExtractor:
                 input_modality="text",
                 messages=messages,
                 temperature=self.temperature,
+                max_tokens=4096,
             )
             return result["content"], result
 
@@ -94,6 +95,7 @@ class EntityExtractor:
             input_modality="text",
             messages=messages,
             temperature=self.temperature,
+            max_tokens=4096,
         )
         return raw, None
 

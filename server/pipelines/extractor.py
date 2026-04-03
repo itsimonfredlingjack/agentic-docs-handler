@@ -31,6 +31,8 @@ class DocumentExtractor:
         classification: DocumentClassification,
         request_id: str,
     ) -> ExtractionResult:
+        if not text.strip():
+            return ExtractionResult()
         document_type = classification.document_type
         system_prompt = self.prompts.get(document_type, self.prompts["generic"])
         prompt_name = f"extract_{document_type}"
@@ -66,6 +68,7 @@ class DocumentExtractor:
                 input_modality="text",
                 messages=messages,
                 temperature=self.temperature,
+                max_tokens=4096,
             )
             return result["content"], result
 
@@ -75,6 +78,7 @@ class DocumentExtractor:
             input_modality="text",
             messages=messages,
             temperature=self.temperature,
+            max_tokens=4096,
         )
         return raw, None
 

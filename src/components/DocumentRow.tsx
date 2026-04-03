@@ -25,7 +25,7 @@ export const DocumentRow = memo(function DocumentRow({ document, focused, snippe
   const isFailed = userStatus === "misslyckades";
   const isReview = userStatus === "behöver_granskas";
   const isProcessing = userStatus === "uppladdad" || userStatus === "bearbetas";
-  const isClickable = userStatus === "klar" || isReview;
+  const isClickable = userStatus !== "uppladdad";
 
   const displayTitle = document.classification?.title || document.title;
   const isAiTitle = !!document.classification?.title;

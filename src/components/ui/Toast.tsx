@@ -27,7 +27,7 @@ const TYPE_STYLES: Record<ToastType, string> = {
 };
 
 export function Toast({ toast, onDismiss }: Props) {
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     if (toast.duration > 0) {

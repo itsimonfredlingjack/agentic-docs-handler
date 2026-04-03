@@ -20,10 +20,9 @@ class FakeOllamaClient:
 
 
 @pytest.mark.asyncio
-async def test_classifier_repairs_invalid_json_once_before_succeeding() -> None:
+async def test_classifier_returns_valid_classification_on_first_attempt() -> None:
     client = FakeOllamaClient(
         [
-            '{"document_type":"receipt"',
             (
                 '{"document_type":"receipt","template":"receipt","title":"ICA Maxi",'
                 '"summary":"Matvarukvitto","tags":["receipt"],"language":"sv",'
@@ -42,13 +41,12 @@ async def test_classifier_repairs_invalid_json_once_before_succeeding() -> None:
     result = await classifier.classify_text("ICA Maxi 342 kr")
 
     assert result.document_type == "receipt"
-    assert len(client.calls) == 2
-    assert client.calls[1]["prompt_name"] == "classifier_repair"
+    assert len(client.calls) == 1
 
 
 @pytest.mark.asyncio
-async def test_classifier_fails_after_second_invalid_response() -> None:
-    client = FakeOllamaClient(['{"broken":', '{"still":"broken"'])
+async def test_classifier_raises_on_invalid_json() -> None:
+    client = FakeOllamaClient(['{"broken":'])
     classifier = DocumentClassifier(
         ollama_client=client,
         classifier_prompt="Du klassificerar dokument.",
@@ -57,6 +55,23 @@ async def test_classifier_fails_after_second_invalid_response() -> None:
 
     with pytest.raises(ClassificationValidationError):
         await classifier.classify_text("text")
+
+    assert len(client.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_classifier_raises_on_empty_input() -> None:
+    client = FakeOllamaClient([])
+    classifier = DocumentClassifier(
+        ollama_client=client,
+        classifier_prompt="Du klassificerar dokument.",
+        image_classifier_prompt="Du analyserar dokumentbilder.",
+    )
+
+    with pytest.raises(ClassificationValidationError):
+        await classifier.classify_text("   ")
+
+    assert len(client.calls) == 0
 
 
 @pytest.mark.asyncio
