@@ -254,6 +254,24 @@ class DocumentRegistry:
     # Document CRUD
     # ------------------------------------------------------------------
 
+    def delete_document(self, *, record_id: str) -> str | None:
+        """Delete a document and all related records. Returns source_path if it existed."""
+        row = self.conn.execute(
+            "SELECT source_path FROM document WHERE id = ?", (record_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        source_path = row["source_path"]
+        self.conn.execute("DELETE FROM file_entity WHERE file_id = ?", (record_id,))
+        self.conn.execute("DELETE FROM move_history WHERE record_id = ?", (record_id,))
+        self.conn.execute(
+            "DELETE FROM file_relation WHERE file_a_id = ? OR file_b_id = ?",
+            (record_id, record_id),
+        )
+        self.conn.execute("DELETE FROM document WHERE id = ?", (record_id,))
+        self.conn.commit()
+        return source_path
+
     def get_document(self, *, record_id: str) -> UiDocumentRecord | None:
         row = self._conn.execute(
             "SELECT * FROM document WHERE id = ?", (record_id,)

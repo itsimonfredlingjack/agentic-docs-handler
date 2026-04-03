@@ -6,7 +6,7 @@ from collections.abc import Callable
 import logging
 import time
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
@@ -194,6 +194,30 @@ def create_router(
         if document is None:
             raise HTTPException(404, "document not found")
         return document
+
+    @router.delete("/documents/{record_id}")
+    async def delete_document(record_id: str) -> dict[str, Any]:
+        if document_registry is None:
+            raise HTTPException(503, "document registry unavailable")
+
+        source_path = document_registry.delete_document(record_id=record_id)
+        if source_path is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        # Remove from search index
+        if search_service is not None:
+            search_service.delete_document(record_id)
+
+        # Delete file from disk
+        if source_path:
+            try:
+                import os
+                if os.path.exists(source_path):
+                    os.remove(source_path)
+            except OSError:
+                pass  # File already gone or inaccessible
+
+        return {"success": True, "record_id": record_id}
 
     @router.get("/search", response_model=SearchResponse)
     async def search(

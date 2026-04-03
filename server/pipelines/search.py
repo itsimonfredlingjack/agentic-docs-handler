@@ -291,6 +291,10 @@ class SearchPipeline:
             return
         self._table = self.db.create_table(self.table_name, rows, mode="overwrite")
 
+    def delete_document(self, doc_id: str) -> None:
+        """Remove a document's chunks from the search index."""
+        self._delete_document_rows(doc_id)
+
     def _delete_document_rows(self, doc_id: str) -> None:
         if self._table is None:
             return
