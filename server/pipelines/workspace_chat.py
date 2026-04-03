@@ -83,6 +83,7 @@ class WorkspaceContext:
     source_count: int
     messages: list[dict[str, str]]
     request_id: str
+    sources: list[dict[str, str]]
 
 
 class WorkspaceChatPipeline:
@@ -229,6 +230,7 @@ class WorkspaceChatPipeline:
             source_count=source_count,
             messages=messages,
             request_id=request_id,
+            sources=[{"id": getattr(r, "id", ""), "title": getattr(r, "title", "")} for r in enriched_records],
         )
 
     async def _prepare_workspace_context(
@@ -322,6 +324,7 @@ class WorkspaceChatPipeline:
             source_count=source_count,
             messages=messages,
             request_id=request_id,
+            sources=[{"id": getattr(r, "id", ""), "title": getattr(r, "title", "")} for r in enriched_records],
         )
 
     def _prepare_document_context(
@@ -379,6 +382,7 @@ class WorkspaceChatPipeline:
             source_count=1,
             messages=messages,
             request_id=request_id,
+            sources=[{"id": document_id, "title": title}],
         )
 
     async def stream_response(
