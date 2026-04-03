@@ -81,6 +81,7 @@ type DocumentStoreState = {
   updateConnectionFromPayload: (payload: BackendConnectionPayload) => void;
   updateExtractionField: (documentId: string, fieldKey: string, newValue: string) => void;
   setDocumentThumbnail: (requestId: string, thumbnailData: string) => void;
+  removeDocument: (id: string) => void;
   setActiveWorkspace: (category: string | null) => void;
   setActiveDocumentChat: (documentId: string | null) => void;
   startWorkspaceQuery: (category: string, query: string) => void;
@@ -471,6 +472,17 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
       if (!target) return state;
       docs[target.id] = { ...target, thumbnailData };
       return { documents: docs };
+    }),
+  removeDocument: (id) =>
+    set((state) => {
+      const documents = { ...state.documents };
+      delete documents[id];
+      return {
+        documents,
+        documentOrder: state.documentOrder.filter((docId) => docId !== id),
+        selectedDocumentId: state.selectedDocumentId === id ? null : state.selectedDocumentId,
+        counts: { ...state.counts, all: Math.max(0, state.counts.all - 1) },
+      };
     }),
   setActiveWorkspace: (category) => set({ activeWorkspace: category, activeDocumentChat: null }),
   setActiveDocumentChat: (documentId) => set({ activeDocumentChat: documentId, activeWorkspace: null }),

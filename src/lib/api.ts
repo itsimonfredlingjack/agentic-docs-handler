@@ -238,6 +238,15 @@ export async function updateWorkspace(
   });
 }
 
+export async function deleteDocument(recordId: string): Promise<{ success: boolean; record_id: string }> {
+  const baseUrl = await resolveBaseUrl();
+  const response = await fetch(`${baseUrl}/documents/${recordId}`, { method: "DELETE" });
+  if (!response.ok) {
+    throw new Error(`Delete failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function deleteWorkspace(id: string): Promise<void> {
   const baseUrl = await resolveBaseUrl();
   const response = await fetch(`${baseUrl}/workspaces/${id}`, { method: "DELETE" });

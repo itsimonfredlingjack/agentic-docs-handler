@@ -4,7 +4,7 @@ import { useToastStore } from "../store/toastStore";
 import { InlineEdit } from "./InlineEdit";
 import { PipelineStepper } from "./PipelineStepper";
 import { kindRgbVar, kindColor } from "../lib/document-colors";
-import { fetchWorkspaceDiscovery } from "../lib/api";
+import { deleteDocument, fetchWorkspaceDiscovery } from "../lib/api";
 import type { UiDocument, UiDocumentKind } from "../types/documents";
 
 
@@ -173,6 +173,25 @@ function RelatedFilesSection({ documentId, workspaceId }: { documentId: string; 
 
 function ModalContent({ document, history, onClose }: { document: UiDocument; history: import("../store/documentStore").StageEntry[]; onClose: () => void }) {
   const setActiveDocumentChat = useDocumentStore((state) => state.setActiveDocumentChat);
+  const removeDocument = useDocumentStore((s) => s.removeDocument);
+  const showToast = useToastStore((s) => s.show);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    setConfirmDelete(false);
+  }, [document.id]);
+
+  const handleDelete = async () => {
+    try {
+      await deleteDocument(document.id);
+      removeDocument(document.id);
+      showToast("Dokument raderat", "success");
+    } catch {
+      showToast("Kunde inte radera dokumentet", "error");
+    }
+    setConfirmDelete(false);
+  };
+
   const accent = kindColor(document.kind);
   const fields = document.extraction?.fields ?? {};
   const fieldEntries = Object.entries(fields).filter(
@@ -356,6 +375,35 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
               Öppna i Finder
             </button>
           ) : null}
+          {confirmDelete ? (
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-xs-ui text-[var(--invoice-color)]">
+                Radera permanent?
+              </span>
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="px-2 py-0.5 text-xs-ui rounded-[var(--badge-radius)] bg-[rgba(var(--invoice-color-rgb),0.12)] text-[var(--invoice-color)] hover:bg-[rgba(var(--invoice-color-rgb),0.25)] transition-colors"
+              >
+                Ja, radera
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(false)}
+                className="px-2 py-0.5 text-xs-ui rounded-[var(--badge-radius)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+              >
+                Avbryt
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              className="mt-2 px-3 py-1 text-xs-ui rounded-[var(--badge-radius)] text-[var(--invoice-color)] hover:bg-[rgba(var(--invoice-color-rgb),0.12)] transition-colors"
+            >
+              Radera
+            </button>
+          )}
         </div>
 
         <section className="hud-section control-card p-3">
