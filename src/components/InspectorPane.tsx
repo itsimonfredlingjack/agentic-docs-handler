@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useState, useRef } from "react";
 import { useDocumentStore } from "../store/documentStore";
+import { useToastStore } from "../store/toastStore";
 import { InlineEdit } from "./InlineEdit";
 import { PipelineStepper } from "./PipelineStepper";
 import { kindRgbVar, kindColor } from "../lib/document-colors";
@@ -44,6 +45,7 @@ async function openInFinder(path: string): Promise<void> {
 
 function InlineEditField({ documentId, fieldKey, value }: { documentId: string; fieldKey: string; value: string }) {
   const updateExtractionField = useDocumentStore((state) => state.updateExtractionField);
+  const showToast = useToastStore((s) => s.show);
   const [saved, setSaved] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -53,6 +55,7 @@ function InlineEditField({ documentId, fieldKey, value }: { documentId: string; 
 
   const handleSave = (newValue: string) => {
     updateExtractionField(documentId, fieldKey, newValue);
+    showToast("Fält sparat", "success");
     setSaved(true);
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setSaved(false), 1200);

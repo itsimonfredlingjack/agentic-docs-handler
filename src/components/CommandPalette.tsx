@@ -9,6 +9,7 @@ import {
 } from "../lib/api";
 import { useDocumentStore } from "../store/documentStore";
 import { useWorkspaceStore } from "../store/workspaceStore";
+import { useToastStore } from "../store/toastStore";
 import type { SearchResult } from "../types/documents";
 
 type CommandPaletteProps = {
@@ -43,6 +44,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const setActiveWorkspace = useWorkspaceStore((s) => s.setActiveWorkspace);
   const createWorkspace = useWorkspaceStore((s) => s.createWorkspace);
   const fetchWorkspaces = useWorkspaceStore((s) => s.fetchWorkspaces);
+  const showToast = useToastStore((s) => s.show);
   const documents = useDocumentStore((s) => s.documents);
   const documentOrder = useDocumentStore((s) => s.documentOrder);
   const setSelectedDocument = useDocumentStore((s) => s.setSelectedDocument);
@@ -118,6 +120,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     const name = createName.trim();
     if (!name) return;
     await createWorkspace(name);
+    showToast(`Workspace "${name}" skapad`, "info");
     onOpenChange(false);
   };
 
