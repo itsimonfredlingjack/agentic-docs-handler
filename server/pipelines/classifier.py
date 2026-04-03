@@ -40,11 +40,13 @@ class DocumentClassifier:
         self.max_image_dimension = max_image_dimension
 
     async def classify_text(self, text: str, request_id: str = "local-test") -> DocumentClassification:
+        if not text.strip():
+            raise ClassificationValidationError("empty input")
         messages = [
             {"role": "system", "content": self.classifier_prompt},
             {"role": "user", "content": text},
         ]
-        return await self._run_with_repair(
+        return await self._run(
             request_id=request_id,
             prompt_name="classifier",
             input_modality="text",
@@ -75,14 +77,14 @@ class DocumentClassifier:
                 ],
             },
         ]
-        return await self._run_with_repair(
+        return await self._run(
             request_id=request_id,
             prompt_name="image_classifier",
             input_modality="image",
             messages=messages,
         )
 
-    async def _run_with_repair(
+    async def _run(
         self,
         *,
         request_id: str,
@@ -101,77 +103,20 @@ class DocumentClassifier:
             classification = DocumentClassification.model_validate(parsed)
             self._record_log(meta, raw, json_parse_ok=True, schema_validation_ok=True)
             return classification
-        except (json.JSONDecodeError, ValidationError):
+        except (json.JSONDecodeError, ValidationError) as error:
             logger.warning(
-                "classifier.parse_failed request_id=%s prompt_name=%s modality=%s repair_attempt=1",
+                "classifier.parse_failed request_id=%s prompt_name=%s modality=%s",
                 request_id,
                 prompt_name,
                 input_modality,
             )
-            self._record_log(meta, raw, json_parse_ok=self._is_json(raw), schema_validation_ok=False)
-            repaired_messages = messages + [
-                {
-                    "role": "user",
-                    "content": (
-                        "Din senaste respons var inte giltig JSON för schemat. "
-                        "Svara igen med endast ett JSON-objekt som matchar kontraktet."
-                    ),
-                }
-            ]
-            repair_prompt_name = f"{prompt_name}_repair"
-            logger.info(
-                "classifier.repair.start request_id=%s prompt_name=%s modality=%s",
-                request_id,
-                repair_prompt_name,
-                input_modality,
+            logged_entry = self._record_log(
+                meta, raw, json_parse_ok=self._is_json(raw), schema_validation_ok=False
             )
-            repaired_raw, repaired_meta = await self._invoke_model(
-                request_id=request_id,
-                prompt_name=repair_prompt_name,
-                input_modality=input_modality,
-                messages=repaired_messages,
-            )
-            try:
-                repaired_parsed = json.loads(extract_json_object_text(repaired_raw))
-                classification = DocumentClassification.model_validate(repaired_parsed)
-                self._record_log(
-                    repaired_meta,
-                    repaired_raw,
-                    json_parse_ok=True,
-                    schema_validation_ok=True,
-                )
-                logger.info(
-                    "classifier.repair.done request_id=%s prompt_name=%s modality=%s",
-                    request_id,
-                    repair_prompt_name,
-                    input_modality,
-                )
-                return classification
-            except (json.JSONDecodeError, ValidationError) as error:
-                logger.error(
-                    "classifier.repair.failed request_id=%s prompt_name=%s modality=%s",
-                    request_id,
-                    repair_prompt_name,
-                    input_modality,
-                )
-                logged_entry = self._record_log(
-                    repaired_meta,
-                    repaired_raw,
-                    json_parse_ok=self._is_json(repaired_raw),
-                    schema_validation_ok=False,
-                )
-                logger.error(
-                    "classifier.repair.failed.details request_id=%s prompt_name=%s modality=%s raw_response_path=%s raw_response_preview=%s",
-                    request_id,
-                    repair_prompt_name,
-                    input_modality,
-                    logged_entry.raw_response_path if logged_entry is not None else None,
-                    repaired_raw[:300].replace("\n", " "),
-                )
-                raise ClassificationValidationError(
-                    "classifier produced invalid JSON twice",
-                    raw_response_path=logged_entry.raw_response_path if logged_entry is not None else None,
-                ) from error
+            raise ClassificationValidationError(
+                "classifier produced invalid JSON",
+                raw_response_path=logged_entry.raw_response_path if logged_entry is not None else None,
+            ) from error
 
     async def _invoke_model(
         self,
@@ -188,6 +133,7 @@ class DocumentClassifier:
                 input_modality=input_modality,
                 messages=messages,
                 temperature=self.temperature,
+                max_tokens=2048,
             )
             return result["content"], result
 
@@ -197,6 +143,7 @@ class DocumentClassifier:
             input_modality=input_modality,
             messages=messages,
             temperature=self.temperature,
+            max_tokens=2048,
         )
         return raw, None
 

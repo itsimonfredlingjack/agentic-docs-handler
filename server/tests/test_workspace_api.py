@@ -92,7 +92,7 @@ class FakeWorkspaceChatPipeline:
         document_id: str | None = None,
     ) -> WorkspaceContext:
         self.calls.append({"workspace_id": workspace_id, "category": category, "message": message})
-        return WorkspaceContext(source_count=3, messages=[{"role": "user", "content": message}], request_id="req-1")
+        return WorkspaceContext(source_count=3, messages=[{"role": "user", "content": message}], request_id="req-1", sources=[])
 
     async def stream_response(self, context: WorkspaceContext) -> AsyncIterator[str]:
         for token in ["Svar", " ", "här"]:

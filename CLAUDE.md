@@ -104,6 +104,20 @@ Tauri commands exposed to the renderer: `get_client_id`, `get_backend_base_url`,
 
 ## Key Files
 
+UI primitives (`src/components/ui/`):
+
+- `Button.tsx` — variant (primary/secondary/text), size (sm/md/lg), loading state
+- `Card.tsx` — variant (default/clickable/elevated)
+- `StatusBadge.tsx` — status (success/warning/error/info) with optional icon
+- `EmptyState.tsx` — centered placeholder with title, description, optional action
+- `ErrorBanner.tsx` — alert banner with optional retry button
+- `ProgressBar.tsx` — accessible progress indicator
+- `SkeletonLoader.tsx` — repeating pulse placeholder
+
+State hooks:
+
+- `src/hooks/useUxState.ts` — async action state machine (idle → working → success/error)
+
 Backend core:
 
 - `server/main.py` - app factory, SQLite setup, migration, service wiring
@@ -172,6 +186,14 @@ Text colors: `--text-primary` (0.92), `--text-secondary` (0.65), `--text-muted` 
 
 Surface backgrounds: `--surface-4`, `--surface-6`, `--surface-8`, `--surface-10` (white at 4%/6%/8%/10% opacity).
 
+Semantic document-type colors: `--receipt-color`, `--invoice-color`, `--meeting-color`, `--contract-color`, `--report-color`, `--audio-color`. Each has an `-rgb` variant for `rgba()` usage (e.g., `rgba(var(--receipt-color-rgb), 0.12)`).
+
+Accent: `--accent-primary` (#5856d6), `--accent-secondary`, `--accent-surface`.
+
+Transitions: `--transition-fast` (60ms), `--transition-normal` (120ms), `--transition-smooth` (180ms), `--transition-slide` (220ms).
+
+Layout: `--sidebar-width` (240px), `--detail-panel-width` (320px), `--card-radius` (6px), `--button-radius` (4px).
+
 Font sizes (Tailwind): `text-xs-ui` (10px), `text-sm-ui` (12px), `text-base-ui` (13px), `text-lg-ui` (16px), `text-xl-ui` (22px). Defined in `tailwind.config.js`.
 
 Letter-spacing: `tracking-[0.04em]` (mono badges), `tracking-[0.08em]` (uppercase labels), `tracking-tight` (headings).
@@ -189,6 +211,9 @@ See `CODE_STYLE.md` for full conventions. Key rules that affect correctness:
 - Pydantic `BaseModel` for API contracts; `@dataclass(slots=True)` for internal containers.
 - Optional types use `str | None` (not `Optional[str]`).
 - Named exports only in React (`export function Foo`). Default export only for `App.tsx`.
+- UI primitives use a local `cx()` helper for conditional classes — no external clsx/classnames library.
+- UI primitives use `forwardRef` with explicit generic (e.g., `forwardRef<HTMLButtonElement>`).
+- Variant/size styling defined as `const Record<Type, string>` maps, not inline ternaries.
 - Frontend tests colocate with source (`Component.test.tsx`); backend tests go in `server/tests/`.
 - Configuration is `pydantic_settings.BaseSettings` with `ADH_` env prefix (`server/config.py`).
 

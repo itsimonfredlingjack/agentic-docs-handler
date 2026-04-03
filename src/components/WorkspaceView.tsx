@@ -4,9 +4,11 @@ import { useWorkspaceStore } from "../store/workspaceStore";
 import { DocumentRow } from "./DocumentRow";
 import { DiscoveryCards } from "./DiscoveryCards";
 import { WorkspaceHeader } from "./WorkspaceHeader";
+import { SearchFilterBar } from "./SearchFilterBar";
 import { AiPresence } from "./AiPresence";
 import { EmptyState } from "./ui/EmptyState";
 import { ErrorBanner } from "./ui/ErrorBanner";
+import { DocumentRowSkeleton } from "./ui/DocumentRowSkeleton";
 import { moveLocalFile } from "../lib/tauri-events";
 import { finalizeClientMove } from "../lib/api";
 import { groupByTime } from "../lib/feed-utils";
@@ -23,6 +25,7 @@ export function WorkspaceView() {
   const selectedDocumentId = useDocumentStore((s) => s.selectedDocumentId);
   const applyMoveFinalized = useDocumentStore((s) => s.applyMoveFinalized);
   const applyClientMoveFailure = useDocumentStore((s) => s.applyClientMoveFailure);
+  const filesLoading = useDocumentStore((s) => s.filesLoading);
 
   const workspace = workspaces.find((w) => w.id === activeWorkspaceId);
   const isInbox = activeWorkspaceId === "inbox" || workspace?.is_inbox;
@@ -118,7 +121,19 @@ export function WorkspaceView() {
           </div>
         ) : null}
 
-        {showSearchEmptyState ? (
+        {hasActiveSearch && <SearchFilterBar />}
+
+        {filesLoading ? (
+          <div className="flex flex-col">
+            <div className="flex items-center gap-3 px-4 py-1.5 border-b border-[var(--surface-4)]">
+              <span className="h-2 w-2 shrink-0" />
+              <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[2]">Name</span>
+              <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[3]">Details</span>
+              <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] w-16 text-right">Status</span>
+            </div>
+            <DocumentRowSkeleton />
+          </div>
+        ) : showSearchEmptyState ? (
           <EmptyState
             title="Inga träffar"
             description={`Ingen match för \"${searchState.query}\". Prova ett bredare sökord.`}

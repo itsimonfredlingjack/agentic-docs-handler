@@ -4,6 +4,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { InspectorPane } from "./components/InspectorPane";
 import { FileMoveToast } from "./components/FileMoveToast";
 import { WindowDropZone } from "./components/WindowDropZone";
+import { ToastContainer } from "./components/ui/ToastContainer";
 import { WorkspaceSidebar } from "./components/WorkspaceSidebar";
 import { WorkspaceView } from "./components/WorkspaceView";
 import { WorkspaceNotebook } from "./components/WorkspaceNotebook";
@@ -17,6 +18,7 @@ import { useWebSocket } from "./hooks/useWebSocket";
 export default function App() {
   const bootstrap = useDocumentStore((s) => s.bootstrap);
   const setClientId = useDocumentStore((s) => s.setClientId);
+  const setFilesLoading = useDocumentStore((s) => s.setFilesLoading);
   const selectedDocumentId = useDocumentStore((s) => s.selectedDocumentId);
   const chatPanelOpen = useWorkspaceStore((s) => s.chatPanelOpen);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
@@ -46,6 +48,7 @@ export default function App() {
   useEffect(() => {
     if (!activeWorkspaceId) return;
     let cancelled = false;
+    setFilesLoading(true);
     async function loadFiles() {
       try {
         const payload = await fetchWorkspaceFiles(activeWorkspaceId!, 50);
@@ -59,11 +62,13 @@ export default function App() {
         });
       } catch (error) {
         if (!cancelled) console.error("workspace.files.failed", error);
+      } finally {
+        if (!cancelled) setFilesLoading(false);
       }
     }
     void loadFiles();
     return () => { cancelled = true; };
-  }, [activeWorkspaceId, bootstrap]);
+  }, [activeWorkspaceId, bootstrap, setFilesLoading]);
 
   // Global ⌘K listener
   useEffect(() => {
@@ -98,6 +103,7 @@ export default function App() {
       <CommandPalette open={cmdkOpen} onOpenChange={setCmdkOpen} />
       <FileMoveToast />
       <WindowDropZone />
+      <ToastContainer />
     </div>
   );
 }

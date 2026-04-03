@@ -6,7 +6,7 @@ from collections.abc import Callable
 import logging
 import time
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
@@ -195,12 +195,39 @@ def create_router(
             raise HTTPException(404, "document not found")
         return document
 
+    @router.delete("/documents/{record_id}")
+    async def delete_document(record_id: str) -> dict[str, Any]:
+        if document_registry is None:
+            raise HTTPException(503, "document registry unavailable")
+
+        source_path = document_registry.delete_document(record_id=record_id)
+        if source_path is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        # Remove from search index
+        if search_service is not None:
+            search_service.delete_document(record_id)
+
+        # Delete file from disk
+        if source_path:
+            try:
+                import os
+                if os.path.exists(source_path):
+                    os.remove(source_path)
+            except OSError:
+                pass  # File already gone or inaccessible
+
+        return {"success": True, "record_id": record_id}
+
     @router.get("/search", response_model=SearchResponse)
     async def search(
         query: str = Query(min_length=1),
         limit: int = Query(default=5, ge=1, le=20),
         mode: Literal["fast", "full"] = Query(default="fast"),
         workspace_id: str | None = Query(default=None),
+        document_type: str | None = Query(default=None),
+        date_from: str | None = Query(default=None),
+        date_to: str | None = Query(default=None),
     ) -> SearchResponse:
         if search_service is None:
             raise HTTPException(
@@ -221,12 +248,35 @@ def create_router(
                 (workspace_id,),
             ).fetchall()
             allowed_doc_ids = {row["id"] for row in rows}
+        # Date filtering via SQLite (efficient — uses indexed created_at column)
+        if date_from is not None or date_to is not None:
+            if document_registry is None:
+                raise HTTPException(503, "document registry unavailable")
+            date_conditions = []
+            date_params: list[str] = []
+            if date_from is not None:
+                date_conditions.append("created_at >= ?")
+                date_params.append(date_from)
+            if date_to is not None:
+                date_conditions.append("created_at <= ?")
+                date_params.append(date_to)
+            where_clause = " AND ".join(date_conditions)
+            date_rows = document_registry.conn.execute(
+                f"SELECT id FROM document WHERE {where_clause}",
+                date_params,
+            ).fetchall()
+            date_doc_ids = {row["id"] for row in date_rows}
+            if allowed_doc_ids is not None:
+                allowed_doc_ids = allowed_doc_ids & date_doc_ids
+            else:
+                allowed_doc_ids = date_doc_ids
         try:
             response = await search_service.search(
                 query,
                 limit=limit,
                 mode=mode,
                 allowed_doc_ids=allowed_doc_ids,
+                document_type=document_type,
             )
             if document_registry is not None and response.results:
                 doc_ids = [result.doc_id for result in response.results]
@@ -604,7 +654,7 @@ def create_router(
                     history=[turn.model_dump() for turn in request.history],
                     document_id=request.document_id,
                 )
-                yield f"event: context\ndata: {json_module.dumps({'source_count': context.source_count})}\n\n"
+                yield f"event: context\ndata: {json_module.dumps({'source_count': context.source_count, 'sources': context.sources})}\n\n"
                 async for token in workspace_chat_service.stream_response(context):
                     yield f"event: token\ndata: {json_module.dumps({'text': token})}\n\n"
                 yield f"event: done\ndata: {{}}\n\n"

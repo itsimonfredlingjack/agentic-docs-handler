@@ -130,6 +130,7 @@ class FakeSearchService:
         limit: int = 5,
         *,
         mode: str = "full",
+        document_type: str | None = None,
         allowed_doc_ids: set[str] | None = None,
     ) -> SearchResponse:
         self.calls.append(

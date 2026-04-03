@@ -79,7 +79,7 @@ class AsyncOllamaClient:
         )
 
     def _extra_body(self) -> dict[str, Any]:
-        body: dict[str, Any] = {"think": False}
+        body: dict[str, Any] = {"reasoning_effort": "none"}
         if self.num_ctx is not None:
             body["options"] = {"num_ctx": self.num_ctx}
         return body
@@ -92,12 +92,15 @@ class AsyncOllamaClient:
         input_modality: str,
         messages: Sequence[dict[str, Any]],
         temperature: float,
+        max_tokens: int | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": list(messages),
             "temperature": temperature,
         }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
         payload["extra_body"] = self._extra_body()
 
         attempt = 0
@@ -174,6 +177,7 @@ class AsyncOllamaClient:
         input_modality: str,
         messages: Sequence[dict[str, Any]],
         temperature: float,
+        max_tokens: int | None = None,
     ) -> str:
         result = await self.chat_json_with_meta(
             request_id=request_id,
@@ -181,6 +185,7 @@ class AsyncOllamaClient:
             input_modality=input_modality,
             messages=messages,
             temperature=temperature,
+            max_tokens=max_tokens,
         )
         return result["content"]
 
@@ -192,12 +197,15 @@ class AsyncOllamaClient:
         input_modality: str,
         messages: Sequence[dict[str, Any]],
         temperature: float,
+        max_tokens: int | None = None,
     ) -> str:
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": list(messages),
             "temperature": temperature,
         }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
         payload["extra_body"] = self._extra_body()
         attempt = 0
         while True:

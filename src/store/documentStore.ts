@@ -48,7 +48,11 @@ type DocumentStoreState = {
   activeWorkspace: string | null;
   activeDocumentChat: string | null;
   conversations: Record<string, WorkspaceConversation>;
+  filesLoading: boolean;
+  searchFilters: { documentType: string | null; dateFrom: string | null; dateTo: string | null };
   setSelectedDocument: (id: string | null) => void;
+  setSearchFilters: (filters: Partial<{ documentType: string | null; dateFrom: string | null; dateTo: string | null }>) => void;
+  setFilesLoading: (loading: boolean) => void;
   bootstrap: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
   resyncFromBackend: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
   setClientId: (clientId: string) => void;
@@ -77,11 +81,12 @@ type DocumentStoreState = {
   updateConnectionFromPayload: (payload: BackendConnectionPayload) => void;
   updateExtractionField: (documentId: string, fieldKey: string, newValue: string) => void;
   setDocumentThumbnail: (requestId: string, thumbnailData: string) => void;
+  removeDocument: (id: string) => void;
   setActiveWorkspace: (category: string | null) => void;
   setActiveDocumentChat: (documentId: string | null) => void;
   startWorkspaceQuery: (category: string, query: string) => void;
   appendStreamingToken: (category: string, token: string) => void;
-  finalizeStreamingEntry: (category: string, sourceCount: number, errorMessage?: string | null) => void;
+  finalizeStreamingEntry: (category: string, sourceCount: number, sources?: Array<{ id: string; title: string }>, errorMessage?: string | null) => void;
 };
 
 const emptyCounts: DocumentCounts = {
@@ -95,6 +100,8 @@ const emptyCounts: DocumentCounts = {
   generic: 0,
   moved: 0,
 };
+
+const emptySearchFilters = { documentType: null, dateFrom: null, dateTo: null } as const;
 
 const emptySearch: SearchState = {
   query: "",
@@ -128,7 +135,13 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
   activeWorkspace: "all",
   activeDocumentChat: null,
   conversations: {},
+  filesLoading: false,
+  searchFilters: emptySearchFilters,
   setSelectedDocument: (id) => set({ selectedDocumentId: id }),
+  setSearchFilters: (filters) => set((state) => ({
+    searchFilters: { ...state.searchFilters, ...filters },
+  })),
+  setFilesLoading: (loading) => set({ filesLoading: loading }),
   bootstrap: (documents, counts, activity) =>
     set({
       documents: Object.fromEntries(documents.map((document) => [document.id, document])),
@@ -164,6 +177,7 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
         documents,
         documentOrder,
         stageHistory,
+        selectedDocumentId: localJobs.length > 0 ? localJobs[0].id : state.selectedDocumentId,
         counts: {
           ...state.counts,
           all: state.counts.all + localJobs.length,
@@ -396,7 +410,7 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
         },
       };
     }),
-  clearSearch: () => set({ search: emptySearch }),
+  clearSearch: () => set({ search: emptySearch, searchFilters: emptySearchFilters }),
   setSidebarFilter: (sidebarFilter) => set({ sidebarFilter }),
   pushMoveToast: (toast) =>
     set((state) => ({
@@ -459,6 +473,17 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
       docs[target.id] = { ...target, thumbnailData };
       return { documents: docs };
     }),
+  removeDocument: (id) =>
+    set((state) => {
+      const documents = { ...state.documents };
+      delete documents[id];
+      return {
+        documents,
+        documentOrder: state.documentOrder.filter((docId) => docId !== id),
+        selectedDocumentId: state.selectedDocumentId === id ? null : state.selectedDocumentId,
+        counts: { ...state.counts, all: Math.max(0, state.counts.all - 1) },
+      };
+    }),
   setActiveWorkspace: (category) => set({ activeWorkspace: category, activeDocumentChat: null }),
   setActiveDocumentChat: (documentId) => set({ activeDocumentChat: documentId, activeWorkspace: null }),
   startWorkspaceQuery: (category, query) =>
@@ -476,6 +501,7 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
                   response: "",
                   timestamp: new Date().toISOString(),
                   sourceCount: 0,
+                  sources: [],
                   errorMessage: null,
                 },
               ],
@@ -496,12 +522,12 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
         },
       };
     }),
-  finalizeStreamingEntry: (category, sourceCount, errorMessage = null) =>
+  finalizeStreamingEntry: (category, sourceCount, sources = [], errorMessage = null) =>
     set((state) => {
       const conv = state.conversations[category];
       if (!conv || conv.entries.length === 0) return state;
       const entries = [...conv.entries];
-      const last = { ...entries[entries.length - 1], response: conv.streamingText, sourceCount, errorMessage };
+      const last = { ...entries[entries.length - 1], response: conv.streamingText, sourceCount, sources, errorMessage };
       entries[entries.length - 1] = last;
       return {
         conversations: {

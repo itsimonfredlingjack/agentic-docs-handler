@@ -10,6 +10,7 @@ export function useSearch() {
   const setSearchError = useDocumentStore((state) => state.setSearchError);
   const applySearchResponse = useDocumentStore((state) => state.applySearchResponse);
   const clearSearch = useDocumentStore((state) => state.clearSearch);
+  const searchFilters = useDocumentStore((state) => state.searchFilters);
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
   const [query, setQuery] = useState(searchState.query);
   const deferredQuery = useDeferredValue(query);
@@ -23,7 +24,7 @@ export function useSearch() {
     const handle = window.setTimeout(async () => {
       setSearchLoading(deferredQuery);
       try {
-        const response = await searchDocuments(deferredQuery, 8, "fast", activeWorkspaceId);
+        const response = await searchDocuments(deferredQuery, 8, "fast", activeWorkspaceId, searchFilters);
         startTransition(() => {
           applySearchResponse(response);
         });
@@ -36,7 +37,7 @@ export function useSearch() {
     return () => {
       window.clearTimeout(handle);
     };
-  }, [activeWorkspaceId, applySearchResponse, clearSearch, deferredQuery, setSearchError, setSearchLoading]);
+  }, [activeWorkspaceId, applySearchResponse, clearSearch, deferredQuery, searchFilters, setSearchError, setSearchLoading]);
 
   return {
     query,

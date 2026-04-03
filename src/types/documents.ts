@@ -409,6 +409,7 @@ export type NotebookEntry = {
   response: string;
   timestamp: string;
   sourceCount: number;
+  sources: Array<{ id: string; title: string }>;
   errorMessage: string | null;
 };
 
@@ -419,7 +420,7 @@ export type WorkspaceConversation = {
 };
 
 export type WorkspaceChatEvent =
-  | { type: "context"; data: { source_count: number } }
+  | { type: "context"; data: { source_count: number; sources?: Array<{ id: string; title: string }> } }
   | { type: "token"; data: { text: string } }
   | { type: "done"; data: Record<string, never> }
   | { type: "error"; data: { error: string } };
