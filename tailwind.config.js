@@ -3,6 +3,9 @@ export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      animation: {
+        'slide-in-right': 'slide-in-right var(--transition-slide) forwards',
+      },
       fontSize: {
         'xs-ui': ['10px', { lineHeight: '1.4' }],
         'sm-ui': ['12px', { lineHeight: '1.5' }],

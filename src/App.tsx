@@ -4,6 +4,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { InspectorPane } from "./components/InspectorPane";
 import { FileMoveToast } from "./components/FileMoveToast";
 import { WindowDropZone } from "./components/WindowDropZone";
+import { ToastContainer } from "./components/ui/ToastContainer";
 import { WorkspaceSidebar } from "./components/WorkspaceSidebar";
 import { WorkspaceView } from "./components/WorkspaceView";
 import { WorkspaceNotebook } from "./components/WorkspaceNotebook";
@@ -102,6 +103,7 @@ export default function App() {
       <CommandPalette open={cmdkOpen} onOpenChange={setCmdkOpen} />
       <FileMoveToast />
       <WindowDropZone />
+      <ToastContainer />
     </div>
   );
 }
