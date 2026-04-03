@@ -49,7 +49,9 @@ type DocumentStoreState = {
   activeDocumentChat: string | null;
   conversations: Record<string, WorkspaceConversation>;
   filesLoading: boolean;
+  searchFilters: { documentType: string | null; dateFrom: string | null; dateTo: string | null };
   setSelectedDocument: (id: string | null) => void;
+  setSearchFilters: (filters: Partial<{ documentType: string | null; dateFrom: string | null; dateTo: string | null }>) => void;
   setFilesLoading: (loading: boolean) => void;
   bootstrap: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
   resyncFromBackend: (documents: UiDocument[], counts: DocumentCounts, activity: ActivityEvent[]) => void;
@@ -98,6 +100,8 @@ const emptyCounts: DocumentCounts = {
   moved: 0,
 };
 
+const emptySearchFilters = { documentType: null, dateFrom: null, dateTo: null } as const;
+
 const emptySearch: SearchState = {
   query: "",
   rewrittenQuery: "",
@@ -131,7 +135,11 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
   activeDocumentChat: null,
   conversations: {},
   filesLoading: false,
+  searchFilters: emptySearchFilters,
   setSelectedDocument: (id) => set({ selectedDocumentId: id }),
+  setSearchFilters: (filters) => set((state) => ({
+    searchFilters: { ...state.searchFilters, ...filters },
+  })),
   setFilesLoading: (loading) => set({ filesLoading: loading }),
   bootstrap: (documents, counts, activity) =>
     set({
@@ -401,7 +409,7 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
         },
       };
     }),
-  clearSearch: () => set({ search: emptySearch }),
+  clearSearch: () => set({ search: emptySearch, searchFilters: emptySearchFilters }),
   setSidebarFilter: (sidebarFilter) => set({ sidebarFilter }),
   pushMoveToast: (toast) =>
     set((state) => ({

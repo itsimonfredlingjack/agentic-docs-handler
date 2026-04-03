@@ -4,6 +4,7 @@ import { useWorkspaceStore } from "../store/workspaceStore";
 import { DocumentRow } from "./DocumentRow";
 import { DiscoveryCards } from "./DiscoveryCards";
 import { WorkspaceHeader } from "./WorkspaceHeader";
+import { SearchFilterBar } from "./SearchFilterBar";
 import { AiPresence } from "./AiPresence";
 import { EmptyState } from "./ui/EmptyState";
 import { ErrorBanner } from "./ui/ErrorBanner";
@@ -119,6 +120,8 @@ export function WorkspaceView() {
             />
           </div>
         ) : null}
+
+        {hasActiveSearch && <SearchFilterBar />}
 
         {filesLoading ? (
           <div className="flex flex-col">

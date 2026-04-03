@@ -76,10 +76,20 @@ export async function searchDocuments(
   limit = 8,
   mode: "fast" | "full" = "fast",
   workspaceId?: string | null,
+  filters?: { documentType?: string | null; dateFrom?: string | null; dateTo?: string | null },
 ): Promise<SearchResponse> {
   const params = new URLSearchParams({ query, limit: String(limit), mode });
   if (workspaceId) {
     params.set("workspace_id", workspaceId);
+  }
+  if (filters?.documentType) {
+    params.set("document_type", filters.documentType);
+  }
+  if (filters?.dateFrom) {
+    params.set("date_from", filters.dateFrom);
+  }
+  if (filters?.dateTo) {
+    params.set("date_to", filters.dateTo);
   }
   return fetchJson<SearchResponse>(`/search?${params.toString()}`);
 }

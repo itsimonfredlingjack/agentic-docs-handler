@@ -31,6 +31,7 @@ describe("useSearch", () => {
         orphanResults: [],
         snippetsByDocId: {},
       },
+      searchFilters: { documentType: null, dateFrom: null, dateTo: null },
     });
     vi.mocked(searchDocuments).mockResolvedValue({
       query: "invoice",
@@ -48,7 +49,7 @@ describe("useSearch", () => {
     });
 
     await waitFor(() => {
-      expect(searchDocuments).toHaveBeenCalledWith("invoice", 8, "fast", "ws-1");
+      expect(searchDocuments).toHaveBeenCalledWith("invoice", 8, "fast", "ws-1", { documentType: null, dateFrom: null, dateTo: null });
     });
   });
 });
