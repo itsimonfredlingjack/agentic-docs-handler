@@ -201,6 +201,9 @@ def create_router(
         limit: int = Query(default=5, ge=1, le=20),
         mode: Literal["fast", "full"] = Query(default="fast"),
         workspace_id: str | None = Query(default=None),
+        document_type: str | None = Query(default=None),
+        date_from: str | None = Query(default=None),
+        date_to: str | None = Query(default=None),
     ) -> SearchResponse:
         if search_service is None:
             raise HTTPException(
@@ -221,12 +224,35 @@ def create_router(
                 (workspace_id,),
             ).fetchall()
             allowed_doc_ids = {row["id"] for row in rows}
+        # Date filtering via SQLite (efficient — uses indexed created_at column)
+        if date_from is not None or date_to is not None:
+            if document_registry is None:
+                raise HTTPException(503, "document registry unavailable")
+            date_conditions = []
+            date_params: list[str] = []
+            if date_from is not None:
+                date_conditions.append("created_at >= ?")
+                date_params.append(date_from)
+            if date_to is not None:
+                date_conditions.append("created_at <= ?")
+                date_params.append(date_to)
+            where_clause = " AND ".join(date_conditions)
+            date_rows = document_registry.conn.execute(
+                f"SELECT id FROM document WHERE {where_clause}",
+                date_params,
+            ).fetchall()
+            date_doc_ids = {row["id"] for row in date_rows}
+            if allowed_doc_ids is not None:
+                allowed_doc_ids = allowed_doc_ids & date_doc_ids
+            else:
+                allowed_doc_ids = date_doc_ids
         try:
             response = await search_service.search(
                 query,
                 limit=limit,
                 mode=mode,
                 allowed_doc_ids=allowed_doc_ids,
+                document_type=document_type,
             )
             if document_registry is not None and response.results:
                 doc_ids = [result.doc_id for result in response.results]
