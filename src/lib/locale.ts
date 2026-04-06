@@ -133,6 +133,7 @@ const SV: StringTable = {
   "inspector.meta": "Meta",
   "inspector.related_files": "Relaterade filer",
   "inspector.chat_about_doc": "Chatta om dokumentet",
+  "inspector.file_info": "Filinfo",
   "inspector.open_in_finder": "Öppna i Finder",
   "inspector.delete_confirm": "Radera permanent?",
   "inspector.confirm_delete": "Ja, radera",
@@ -205,6 +206,7 @@ const SV: StringTable = {
   "chat.new_chat": "Ny chatt",
   "chat.minimize": "Minimera",
   "chat.empty_prompt": "Fråga vad som helst om dina {count} dokument",
+  "chat.focus": "Fokus",
 
   // Command palette
   "cmd.search_placeholder": "Sök workspace...",
@@ -387,6 +389,7 @@ const EN: StringTable = {
   "inspector.meta": "Meta",
   "inspector.related_files": "Related Files",
   "inspector.chat_about_doc": "Chat about document",
+  "inspector.file_info": "File info",
   "inspector.open_in_finder": "Open in Finder",
   "inspector.delete_confirm": "Delete permanently?",
   "inspector.confirm_delete": "Yes, delete",
@@ -459,6 +462,7 @@ const EN: StringTable = {
   "chat.new_chat": "New chat",
   "chat.minimize": "Minimize",
   "chat.empty_prompt": "Ask anything about your {count} documents",
+  "chat.focus": "Focus",
 
   // Command palette
   "cmd.search_placeholder": "Search workspace...",

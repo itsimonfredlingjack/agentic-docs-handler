@@ -1,12 +1,13 @@
 import { useEffect, useCallback, useState, useRef } from "react";
 import { useDocumentStore } from "../store/documentStore";
+import { useWorkspaceStore } from "../store/workspaceStore";
 import { useToastStore } from "../store/toastStore";
 import { InlineEdit } from "./InlineEdit";
 import { PipelineStepper } from "./PipelineStepper";
 import { kindRgbVar, kindColor } from "../lib/document-colors";
 import { deleteDocument, fetchWorkspaceDiscovery } from "../lib/api";
 import { t } from "../lib/locale";
-import type { UiDocument, UiDocumentKind } from "../types/documents";
+import type { UiDocument, UiDocumentKind, DiscoveryCard } from "../types/documents";
 
 
 function formatKindLabel(kind: UiDocumentKind): string {
@@ -30,7 +31,7 @@ function formatKindLabel(kind: UiDocumentKind): string {
 
 function formatFieldValue(value: unknown): string {
   if (value === null || typeof value === "undefined" || value === "") {
-    return "—";
+    return "\u2014";
   }
   return String(value);
 }
@@ -64,7 +65,7 @@ function InlineEditField({ documentId, fieldKey, value }: { documentId: string; 
   return (
     <span className={`inline-edit-field-wrapper ${saved ? "is-rippling" : ""}`}>
       <InlineEdit value={value} onSave={handleSave} className="data-pill" />
-      {saved && <span className="inline-edit-saved" aria-label="Sparad">✓</span>}
+      {saved && <span className="inline-edit-saved" aria-label="Sparad">{"\u2713"}</span>}
     </span>
   );
 }
@@ -134,9 +135,19 @@ function RelatedFilesSection({ documentId, workspaceId }: { documentId: string; 
       try {
         const response = await fetchWorkspaceDiscovery(workspaceId!);
         if (cancelled) return;
-        const related = response.cards
-          .filter((card) => card.files.some((f) => f.id === documentId))
-          .flatMap((card) =>
+
+        // Filter out self-referential duplicate cards (all files share the same title)
+        const meaningfulCards = response.cards.filter((card: DiscoveryCard) => {
+          if (card.relation_type === "duplicate") {
+            const titles = card.files.map((f) => f.title);
+            return new Set(titles).size > 1;
+          }
+          return true;
+        });
+
+        const related = meaningfulCards
+          .filter((card: DiscoveryCard) => card.files.some((f) => f.id === documentId))
+          .flatMap((card: DiscoveryCard) =>
             card.files
               .filter((f) => f.id !== documentId)
               .map((f) => ({ title: f.title, type: card.relation_type, id: f.id }))
@@ -176,9 +187,17 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
   const removeDocument = useDocumentStore((s) => s.removeDocument);
   const showToast = useToastStore((s) => s.show);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [debugExpanded, setDebugExpanded] = useState(false);
+
+  // Determine if document is in the inbox
+  const inboxWorkspace = useWorkspaceStore((s) => s.workspaces.find((w) => w.is_inbox));
+  const isInbox = Boolean(
+    document.workspaceId && inboxWorkspace && document.workspaceId === inboxWorkspace.id,
+  );
 
   useEffect(() => {
     setConfirmDelete(false);
+    setDebugExpanded(false);
   }, [document.id]);
 
   const handleDelete = async () => {
@@ -201,8 +220,16 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
     document.transcription?.text &&
     (document.kind === "audio" || document.kind === "meeting_notes");
 
+  const entities = (document.extraction as any)?.entities as Array<{ name: string; entity_type: string }> | undefined;
+  const hasEntities = Array.isArray(entities) && entities.length > 0;
+  const hasTags = document.tags.length > 0;
+  const hasTagsOrEntities = hasTags || hasEntities;
+
+  const hasSuggestion = isInbox && document.movePlan?.suggested_workspace_name;
+
   return (
     <div className="flex h-full flex-col overflow-y-auto">
+      {/* ---- Header: type badge + title (no IDs) ---- */}
       <div className="hud-section flex items-start justify-between border-b border-[var(--surface-6)] px-5 py-4">
         <div className="space-y-2">
           <span
@@ -213,9 +240,6 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
             {formatKindLabel(document.kind)}
           </span>
           <h2 className="text-lg-ui font-bold text-[var(--text-primary)]">{document.title}</h2>
-          <p className="font-mono text-sm-ui text-[var(--text-muted)]">
-            Req {document.requestId.slice(0, 8)} · Doc {document.id.slice(0, 8)}
-          </p>
         </div>
         <button
           type="button"
@@ -230,16 +254,25 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
       </div>
 
       <div className="flex flex-1 flex-col gap-4 px-5 py-5">
-        {history.length > 0 && (
-          <div className="hud-section">
-            <PipelineStepper
-              currentStage={document.status}
-              history={history}
-              failed={document.status === "failed"}
-            />
-          </div>
-        )}
+        {/* ---- Inbox AI suggestion (only for inbox documents with a suggestion) ---- */}
+        {hasSuggestion ? (
+          <section className="hud-section control-card p-4">
+            <p className="section-kicker">{t("inbox.suggested_for")}</p>
+            <div className="mt-2 text-base-ui text-[var(--text-secondary)]">
+              <p className="font-bold">{document.movePlan!.suggested_workspace_name}</p>
+              {document.movePlan!.suggestion_confidence != null && (
+                <p className="mt-1 text-sm-ui text-[var(--text-muted)]">
+                  {Math.round(document.movePlan!.suggestion_confidence * 100)}%
+                </p>
+              )}
+              {document.movePlan!.suggestion_reason ? (
+                <p className="mt-1 text-sm-ui text-[var(--text-muted)]">{document.movePlan!.suggestion_reason}</p>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
 
+        {/* ---- Summary ---- */}
         {document.summary ? (
           <section className="hud-section control-card p-4">
             <p className="section-kicker">{t("inspector.summary")}</p>
@@ -247,6 +280,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
           </section>
         ) : null}
 
+        {/* ---- Extracted fields (editable) ---- */}
         {fieldEntries.length > 0 ? (
           <section
             className="hud-section control-card p-4"
@@ -270,6 +304,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
           </section>
         ) : null}
 
+        {/* ---- Transcription (audio / meeting_notes only) ---- */}
         {hasTranscription ? (
           <section className="hud-section control-card p-4">
             <p className="section-kicker">{t("inspector.transcription")}</p>
@@ -281,45 +316,41 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
           </section>
         ) : null}
 
-        {document.tags.length > 0 ? (
+        {/* ---- Tags + Entities (compact, combined) ---- */}
+        {hasTagsOrEntities ? (
           <section className="hud-section control-card p-4">
-            <p className="section-kicker">{t("inspector.tags")}</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-            {document.tags.map((tag) => (
-              <span key={tag} className="glass-badge bg-[var(--surface-6)] text-[var(--text-secondary)]">
-                {tag}
-              </span>
-            ))}
-            </div>
+            {hasTags ? (
+              <>
+                <p className="section-kicker">{t("inspector.tags")}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {document.tags.map((tag) => (
+                    <span key={tag} className="glass-badge bg-[var(--surface-6)] text-[var(--text-secondary)]">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </>
+            ) : null}
+            {hasEntities ? (
+              <div className={hasTags ? "mt-3" : ""}>
+                <p className="section-kicker">{t("inspector.entities")}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {entities!.map((entity, i) => (
+                    <span key={`${entity.name}-${i}`} className="glass-badge bg-[var(--surface-6)] text-[var(--text-secondary)]">
+                      {entityTypeLabel(entity.entity_type) && (
+                        <span className="text-[var(--text-muted)] text-xs-ui">{entityTypeLabel(entity.entity_type)}</span>
+                      )}
+                      {entity.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </section>
         ) : null}
 
-        {(document.extraction as any)?.entities && Array.isArray((document.extraction as any).entities) && ((document.extraction as any).entities as Array<{ name: string; entity_type: string }>).length > 0 ? (
-          <section className="hud-section control-card p-4">
-            <p className="section-kicker">{t("inspector.entities")}</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {((document.extraction as any).entities as Array<{ name: string; entity_type: string }>).map((entity, i) => (
-                <span key={`${entity.name}-${i}`} className="glass-badge bg-[var(--surface-6)] text-[var(--text-secondary)]">
-                  {entityTypeLabel(entity.entity_type) && (
-                    <span className="text-[var(--text-muted)] text-xs-ui">{entityTypeLabel(entity.entity_type)}</span>
-                  )}
-                  {entity.name}
-                </span>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {document.sourcePath ? (
-          <section className="hud-section control-card p-4">
-            <p className="section-kicker">{t("inspector.file_location")}</p>
-            <p className="mt-2 break-all font-[var(--font-mono)] text-sm-ui text-[var(--text-secondary)]">
-              {document.sourcePath}
-            </p>
-          </section>
-        ) : null}
-
-        {document.movePlan?.destination ? (
+        {/* ---- Move plan (non-inbox documents only) ---- */}
+        {!isInbox && document.movePlan?.destination ? (
           <section className="hud-section control-card p-4">
             <p className="section-kicker">{t("inspector.move_plan")}</p>
             <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-base-ui">
@@ -343,8 +374,10 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
           </section>
         ) : null}
 
+        {/* ---- Related files (filtered for meaningful relations) ---- */}
         <RelatedFilesSection documentId={document.id} workspaceId={document.workspaceId} />
 
+        {/* ---- Warnings ---- */}
         {document.warnings.length > 0 ? (
           <section className="hud-section rounded-2xl border border-[rgba(255,159,10,0.18)] bg-[rgba(255,159,10,0.08)] p-3">
             <p className="section-kicker text-[var(--meeting-color)]">{t("inspector.warnings")}</p>
@@ -354,6 +387,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
           </section>
         ) : null}
 
+        {/* ---- Action buttons ---- */}
         <div className="hud-section mt-auto flex flex-wrap items-center gap-2">
           {document.sourcePath ? (
             <button
@@ -395,14 +429,55 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
           )}
         </div>
 
-        <section className="hud-section control-card p-3">
-          <p className="section-kicker">{t("inspector.meta")}</p>
-          <div className="grid grid-cols-2 gap-2 text-sm-ui text-[var(--text-secondary)]">
-            <span className="font-mono">Req {document.requestId.slice(0, 8)}</span>
-            <span className="font-mono">Doc {document.id.slice(0, 8)}</span>
-            <span className="uppercase">{document.sourceModality}</span>
-            <span className="line-clamp-1">{document.mimeType}</span>
-          </div>
+        {/* ---- Collapsible Filinfo section ---- */}
+        <section className="hud-section control-card">
+          <button
+            type="button"
+            className="flex w-full items-center gap-1.5 px-4 py-3 text-sm-ui text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+            onClick={() => setDebugExpanded((prev) => !prev)}
+            aria-expanded={debugExpanded}
+          >
+            <span className="text-xs-ui" style={{ display: "inline-block", transform: debugExpanded ? "rotate(90deg)" : "rotate(0deg)" }}>{"\u25b8"}</span>
+            {t("inspector.file_info")}
+          </button>
+          {debugExpanded ? (
+            <div className="px-4 pb-4 grid grid-cols-2 gap-x-4 gap-y-3">
+              {document.sourcePath ? (
+                <div className="col-span-2">
+                  <p className="text-sm-ui uppercase tracking-[0.08em] text-[var(--text-muted)]">{t("inspector.file_location")}</p>
+                  <p className="mt-0.5 break-all font-[var(--font-mono)] text-sm-ui text-[var(--text-secondary)]">
+                    {document.sourcePath}
+                  </p>
+                </div>
+              ) : null}
+              <div>
+                <p className="text-sm-ui uppercase tracking-[0.08em] text-[var(--text-muted)]">Modality</p>
+                <p className="mt-0.5 text-sm-ui uppercase text-[var(--text-secondary)]">{document.sourceModality}</p>
+              </div>
+              <div>
+                <p className="text-sm-ui uppercase tracking-[0.08em] text-[var(--text-muted)]">MIME</p>
+                <p className="mt-0.5 text-sm-ui text-[var(--text-secondary)] line-clamp-1">{document.mimeType}</p>
+              </div>
+              <div>
+                <p className="text-sm-ui uppercase tracking-[0.08em] text-[var(--text-muted)]">Req ID</p>
+                <p className="mt-0.5 font-mono text-sm-ui text-[var(--text-secondary)]">{document.requestId.slice(0, 8)}</p>
+              </div>
+              <div>
+                <p className="text-sm-ui uppercase tracking-[0.08em] text-[var(--text-muted)]">Doc ID</p>
+                <p className="mt-0.5 font-mono text-sm-ui text-[var(--text-secondary)]">{document.id.slice(0, 8)}</p>
+              </div>
+              {history.length > 0 ? (
+                <div className="col-span-2">
+                  <p className="text-sm-ui uppercase tracking-[0.08em] text-[var(--text-muted)] mb-2">Pipeline</p>
+                  <PipelineStepper
+                    currentStage={document.status}
+                    history={history}
+                    failed={document.status === "failed"}
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </section>
       </div>
     </div>
