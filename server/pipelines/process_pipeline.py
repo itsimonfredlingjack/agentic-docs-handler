@@ -83,6 +83,7 @@ class DocumentProcessPipeline:
         entity_extractor: EntityExtractor | None = None,
         workspace_suggester: WorkspaceSuggester | None = None,
         workspace_registry: object | None = None,
+        workspace_event_log: object | None = None,
         max_text_characters: int = 12000,
         classifier_max_text_characters: int | None = None,
         llm_sequence_lock: asyncio.Lock | None = None,
@@ -93,6 +94,7 @@ class DocumentProcessPipeline:
         self.entity_extractor = entity_extractor
         self.workspace_suggester = workspace_suggester
         self.workspace_registry = workspace_registry
+        self.workspace_event_log = workspace_event_log
         self.whisper_service = whisper_service
         self.document_registry = document_registry
         self.realtime_manager = realtime_manager
@@ -151,7 +153,8 @@ class DocumentProcessPipeline:
                 "thumbnail_data": thumbnail_data,
             },
         )
-        await self._progress(client_id, request_id, "processing", "Bearbetar dokument")
+        from server.locale import msg as _msg
+        await self._progress(client_id, request_id, "processing", _msg("progress.processing"))
 
         try:
             extracted_text: str
@@ -219,7 +222,7 @@ class DocumentProcessPipeline:
             else:
                 raise UnsupportedMediaTypeError(mime_type)
 
-            await self._progress(client_id, request_id, "processing", "Väntar på modellkön")
+            await self._progress(client_id, request_id, "processing", _msg("progress.waiting_queue"))
             llm_wait_started = time.perf_counter()
             self._log_pipeline_event(
                 "pipeline.llm.waiting",
@@ -336,7 +339,7 @@ class DocumentProcessPipeline:
                         document_type=classification.document_type,
                     )
                 else:
-                    await self._progress(client_id, request_id, "extracting", "Extraherar fält")
+                    await self._progress(client_id, request_id, "extracting", _msg("progress.extracting"))
                     extract_started = time.perf_counter()
                     self._log_pipeline_event(
                         "pipeline.extract.start",
@@ -403,6 +406,7 @@ class DocumentProcessPipeline:
                     )
 
             # --- Workspace suggestion ---
+            suggestion = None
             suggested_workspace_id: str | None = None
             if (
                 self.workspace_suggester is not None
@@ -440,6 +444,17 @@ class DocumentProcessPipeline:
                                 workspace_name=suggestion.workspace_name,
                                 confidence=suggestion.confidence,
                             )
+                            if self.workspace_event_log is not None and hasattr(self.workspace_event_log, "emit"):
+                                try:
+                                    from server.locale import msg as _msg
+                                    self.workspace_event_log.emit(
+                                        workspace_id=suggestion.workspace_id,
+                                        event_type="document_added",
+                                        title=_msg("event.document_added", title=classification.title),
+                                        detail=_msg("event.document_added_detail", doc_type=classification.document_type, confidence=f"{suggestion.confidence:.0%}"),
+                                    )
+                                except Exception:
+                                    logger.warning("Failed to emit document_added event", exc_info=True)
                         else:
                             self._log_pipeline_event(
                                 "pipeline.workspace_suggest.inbox",
@@ -454,7 +469,7 @@ class DocumentProcessPipeline:
                     pipeline_flags.append("workspace_suggest_failed")
 
             await self._progress(
-                client_id, request_id, "extracted", "Fält extraherade",
+                client_id, request_id, "extracted", _msg("progress.fields_extracted"),
                 data={"extraction": extraction.model_dump(mode="json")},
             )
             await self._progress(client_id, request_id, "organizing", "Planerar filsortering")
@@ -469,6 +484,16 @@ class DocumentProcessPipeline:
                 record_id=record_id,
             )
             move_plan = self.organizer.plan_move(filename, classification)
+
+            # Attach workspace suggestion data to the move plan
+            if suggestion is not None:
+                move_plan = move_plan.model_copy(update={
+                    "suggested_workspace_id": suggestion.workspace_id,
+                    "suggested_workspace_name": suggestion.workspace_name,
+                    "suggestion_confidence": suggestion.confidence,
+                    "suggestion_reason": suggestion.reason,
+                })
+
             move_result = MoveResult(
                 attempted=False,
                 success=False,
@@ -576,7 +601,7 @@ class DocumentProcessPipeline:
                         "undo_token": undo_token,
                     },
                 )
-                await self._progress(client_id, request_id, "moved", "Filen flyttades")
+                await self._progress(client_id, request_id, "moved", _msg("progress.file_moved"))
 
             if self.search_pipeline is not None:
                 indexed_source_path = move_result.to_path or source_path or filename
@@ -623,6 +648,61 @@ class DocumentProcessPipeline:
                 move_status=move_status,
             )
             return response
+        except OllamaServiceError as ollama_err:
+            # ── Degraded mode: Ollama unavailable → persist as pending ──
+            logger.warning(
+                "pipeline.ollama_unavailable request_id=%s error=%s — persisting as pending",
+                request_id, ollama_err.code,
+            )
+            classification = self._fallback_classification(
+                filename=filename,
+                extracted_text=extracted_text if "extracted_text" in dir() else "",
+                source_modality=source_modality,
+                source_path=source_path,
+            )
+            ui_kind = self._resolve_ui_kind(
+                document_type=classification.document_type,
+                source_modality=source_modality,
+            )
+            pending_response = ProcessResponse(
+                request_id=request_id,
+                status="pending_classification",
+                mime_type=mime_type,
+                classification=classification,
+                extraction=ExtractionResult(fields={}, field_confidence={}, missing_fields=[]),
+                move_plan=MovePlan(reason="workspace_pending"),
+                move_result=MoveResult(from_path=source_path),
+                timings=timings,
+                errors=[ollama_err.code],
+                record_id=record_id,
+                source_modality=source_modality,
+                created_at=created_at,
+                transcription=transcription,
+                ui_kind=ui_kind,
+                undo_token=None,
+                move_status="not_requested",
+                retryable=True,
+                error_code=ollama_err.code,
+                warnings=["AI-motorn är inte tillgänglig. Dokumentet sparas och bearbetas senare."],
+                diagnostics=ProcessDiagnostics(
+                    pipeline_flags=["ollama_unavailable_degraded"],
+                    fallback_reason="ollama_unavailable",
+                ),
+                thumbnail_data=thumbnail_data,
+            )
+            self._persist_record(pending_response)
+            await self._emit_event(
+                client_id,
+                {
+                    "type": "job.failed",
+                    "request_id": request_id,
+                    "client_id": client_id,
+                    "record_id": record_id,
+                    "message": "pending_classification",
+                    "retryable": True,
+                },
+            )
+            return pending_response
         except Exception as error:
             self._log_pipeline_event(
                 "pipeline.failed",
@@ -644,6 +724,35 @@ class DocumentProcessPipeline:
                 },
             )
             raise
+
+    async def reprocess_pending(
+        self,
+        *,
+        record_id: str,
+        content: bytes,
+        filename: str,
+        content_type: str | None,
+        source_path: str | None,
+        client_id: str | None = None,
+    ) -> ProcessResponse:
+        """Re-enter the processing pipeline for a pending_classification document.
+
+        Deletes the old pending record and runs process_upload fresh.
+        On success a new completed record is created.
+        On OllamaServiceError a new pending record is persisted (no data lost).
+        """
+        if self.document_registry is not None:
+            self.document_registry.delete_document(record_id=record_id)
+        return await self.process_upload(
+            filename=filename,
+            content=content,
+            content_type=content_type,
+            execute_move=False,
+            source_path=source_path,
+            client_id=client_id,
+            client_request_id=f"retry-{record_id}",
+            move_executor="none",
+        )
 
     async def _classify_image(
         self,
@@ -839,7 +948,7 @@ class DocumentProcessPipeline:
     def _resolve_ui_kind(*, document_type: str, source_modality: SourceModality) -> UiDocumentKind:
         if source_modality == "audio":
             return "audio"
-        if document_type in {"receipt", "contract", "invoice", "meeting_notes"}:
+        if document_type in {"receipt", "contract", "invoice", "meeting_notes", "report", "letter", "tax_document"}:
             return document_type
         return "generic"
 
@@ -972,6 +1081,15 @@ class DocumentProcessPipeline:
         move_status: str,
         indexed_document: IndexedDocument,
     ) -> None:
+        # Mark document as indexing before background task starts
+        if self.document_registry is not None:
+            try:
+                self.document_registry.update_document_status(
+                    record_id=record_id, status="indexing",
+                )
+            except Exception:
+                logger.warning("Failed to set indexing status for %s", record_id, exc_info=True)
+
         task = asyncio.create_task(
             self._index_document_and_finalize(
                 request_id=request_id,
@@ -1039,6 +1157,15 @@ class DocumentProcessPipeline:
                 error=str(error),
             )
             return
+
+        # Mark document as completed now that indexing succeeded
+        if self.document_registry is not None:
+            try:
+                self.document_registry.update_document_status(
+                    record_id=record_id, status="completed",
+                )
+            except Exception:
+                logger.warning("Failed to set completed status for %s", record_id, exc_info=True)
 
         if move_status not in {"auto_pending_client", "awaiting_confirmation"}:
             await self._emit_completed_event(

@@ -86,6 +86,10 @@ class MovePlan(BaseModel):
     destination: str | None = None
     auto_move_allowed: bool = False
     reason: str
+    suggested_workspace_id: str | None = None
+    suggested_workspace_name: str | None = None
+    suggestion_confidence: float | None = None
+    suggestion_reason: str | None = None
 
 
 class MoveResult(BaseModel):
