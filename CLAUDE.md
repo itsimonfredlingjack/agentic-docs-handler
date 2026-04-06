@@ -78,8 +78,14 @@ npm run dev
 # Tauri desktop shell
 npm run tauri dev
 
-# Start backend
+# Start backend (Swedish, default)
 uvicorn server.main:app --host 0.0.0.0 --port 9000
+
+# Start backend (English)
+ADH_LOCALE=en uvicorn server.main:app --host 0.0.0.0 --port 9000
+
+# English prompt smoke tests (requires running backend + Ollama)
+PYTHONPATH=. pytest server/tests/test_english_smoke.py -m smoke -v
 
 # Full verification before shipping
 PYTHONPATH=. pytest server/tests -q && npm test && npm run build && cargo check --manifest-path src-tauri/Cargo.toml
@@ -145,11 +151,12 @@ Pipelines (core logic layer):
 
 LLM prompts (text files that drive classification, extraction, and chat behavior):
 
-- `server/prompts/classifier_system.txt` - text classification system prompt
-- `server/prompts/image_classifier_system.txt` - vision classification system prompt
-- `server/prompts/extractors/*.txt` - per-document-type extraction prompts
-- `server/prompts/workspace_*.txt` - workspace chat, brief, and suggestion prompts
-- `server/prompts/search_*.txt` - search rewrite and answer prompts
+- `server/prompts/sv/` - Swedish prompts (default reference locale)
+- `server/prompts/en/` - English prompts (full parity with sv/)
+- `server/prompts/sv/classifier_system.txt` - text classification system prompt
+- `server/prompts/sv/image_classifier_system.txt` - vision classification system prompt
+- `server/prompts/sv/extractors/*.txt` - per-document-type extraction prompts
+- `server/prompts/sv/workspace_*.txt` - workspace chat, brief, and suggestion prompts
 
 API layer:
 
@@ -177,6 +184,52 @@ Tauri shell:
 All LLM behavior is driven by text prompt files in `server/prompts/`. Classification, extraction, chat, and workspace features each have a system prompt file. Per-document-type extractors live under `server/prompts/extractors/`. Changing LLM behavior usually means editing these text files, not Python code.
 
 The Ollama client (`server/clients/ollama_client.py`) wraps all LLM calls. Qwen 3.5 hangs with Ollama's `json_object` response format — extract structured data from raw text output instead.
+
+### Prompt locales
+
+Prompts exist in two languages: Swedish (default) and English.
+
+```text
+server/prompts/
+  sv/                  ← Swedish prompts (default, reference locale)
+  en/                  ← English prompts (full parity with sv/)
+  _planned/            ← Future prompts not yet in the runtime registry
+```
+
+14 prompt files are loaded at startup (defined in `AppConfig.PROMPT_NAMES` in `server/config.py`):
+- 2 classifier prompts (text + image)
+- 1 entity extraction prompt
+- 8 per-type extractor prompts (receipt, invoice, contract, meeting_notes, report, letter, tax_document, generic)
+- 3 workspace prompts (chat, brief, suggest)
+
+Resolution order (`config.resolve_prompt_path()`): locale dir → `sv/` fallback → flat fallback.
+
+**Locale rules for prompt editing:**
+- Swedish (`sv/`) is the reference locale — edit there first.
+- English (`en/`) must preserve identical JSON output contracts (same keys, same schema).
+- When editing a prompt in one locale, update the other to keep them aligned.
+- Examples should be culturally adapted (Swedish names/amounts in `sv/`, English in `en/`), not literally translated.
+
+### Running in English
+
+To run the backend in English, set the locale before starting:
+
+```bash
+ADH_LOCALE=en uvicorn server.main:app --port 9000
+```
+
+Without this, everything runs in Swedish (the default).
+
+### Smoke tests (English prompt quality)
+
+Synthetic English test documents live in `server/tests/fixtures/en/`. To verify English prompts work against a live backend + Ollama:
+
+```bash
+# Start backend with English locale first, then in another terminal:
+PYTHONPATH=. pytest server/tests/test_english_smoke.py -m smoke -v
+```
+
+These tests are excluded from the normal test suite (`pytest server/tests -q` skips them).
 
 ## Design Token System
 
@@ -225,4 +278,4 @@ See `CODE_STYLE.md` for full conventions. Key rules that affect correctness:
 - PDFs without extractable text fall back to the image pipeline.
 - Local uploads stage under `/tmp/agentic-docs/server-staging` before processing.
 - Env vars are prefixed `ADH_`; check `.env.example` before adding config.
-- Key env vars: `ADH_OLLAMA_BASE_URL`, `ADH_OLLAMA_MODEL`, `ADH_OLLAMA_MODEL_CLASSIFIER`, `ADH_OLLAMA_MODEL_EXTRACTOR`, `ADH_OLLAMA_MODEL_WORKSPACE_CHAT`, `ADH_OLLAMA_NUM_CTX_WORKSPACE_CHAT`, `ADH_SQLITE_DB_PATH`, `ADH_LANCEDB_PATH`, `ADH_PROMPTS_DIR`, `ADH_CORS_ALLOWED_ORIGINS`.
+- Key env vars: `ADH_LOCALE` (default `sv`, set to `en` for English), `ADH_OLLAMA_BASE_URL`, `ADH_OLLAMA_MODEL`, `ADH_OLLAMA_MODEL_CLASSIFIER`, `ADH_OLLAMA_MODEL_EXTRACTOR`, `ADH_OLLAMA_MODEL_WORKSPACE_CHAT`, `ADH_OLLAMA_NUM_CTX_WORKSPACE_CHAT`, `ADH_SQLITE_DB_PATH`, `ADH_LANCEDB_PATH`, `ADH_PROMPTS_DIR`, `ADH_CORS_ALLOWED_ORIGINS`.
