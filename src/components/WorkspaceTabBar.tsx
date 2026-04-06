@@ -1,13 +1,20 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
 import { useWorkspaceStore } from "../store/workspaceStore";
 import { useDocumentStore } from "../store/documentStore";
+import { computeActionQueues, totalActionCount } from "../lib/action-queues";
 import { t } from "../lib/locale";
 
 export function WorkspaceTabBar() {
   const activeTab = useWorkspaceStore((s) => s.activeWorkspaceTab);
   const setTab = useWorkspaceStore((s) => s.setActiveWorkspaceTab);
-  const cardCount = useDocumentStore((s) => s.discoveryCards.length);
+  const discoveryCards = useDocumentStore((s) => s.discoveryCards);
+  const documents = useDocumentStore((s) => s.documents);
+
+  const actionCount = useMemo(() => {
+    const queues = computeActionQueues(discoveryCards, documents);
+    return totalActionCount(queues);
+  }, [discoveryCards, documents]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -54,10 +61,10 @@ export function WorkspaceTabBar() {
         }`}
         onClick={() => setTab("insights")}
       >
-        {t("insights.tab_insights")}
-        {cardCount > 0 && (
+        {t("actions.tab")}
+        {actionCount > 0 && (
           <span className="ml-1.5 inline-block rounded-full bg-[rgba(88,86,214,0.2)] px-1.5 py-0.5 font-mono text-xs-ui text-[var(--accent-primary)]">
-            {cardCount}
+            {actionCount}
           </span>
         )}
       </button>

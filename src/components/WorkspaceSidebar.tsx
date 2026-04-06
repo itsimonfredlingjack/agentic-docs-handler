@@ -1,6 +1,8 @@
 import { useState, useMemo } from "react";
 import { useWorkspaceStore } from "../store/workspaceStore";
 import { useDocumentStore } from "../store/documentStore";
+import { computeActionQueues, totalActionCount } from "../lib/action-queues";
+import type { ActionQueueType } from "../lib/action-queues";
 import { t } from "../lib/locale";
 
 const DEFAULT_COLORS = ["#5856d6", "#34c759", "#ff375f", "#ff9f0a", "#30b0c7", "#8e8e93"];
@@ -14,16 +16,14 @@ export function WorkspaceSidebar() {
   const setActiveTab = useWorkspaceStore((s) => s.setActiveWorkspaceTab);
 
   const discoveryCards = useDocumentStore((s) => s.discoveryCards);
+  const documents = useDocumentStore((s) => s.documents);
+  const setActiveActionQueue = useDocumentStore((s) => s.setActiveActionQueue);
 
-  const discoveryCounts = useMemo(() => {
-    const result = { total: discoveryCards.length, related: 0, version: 0, duplicate: 0 };
-    for (const card of discoveryCards) {
-      if (card.relation_type in result) {
-        result[card.relation_type as keyof typeof result]++;
-      }
-    }
-    return result;
-  }, [discoveryCards]);
+  const actionQueues = useMemo(
+    () => computeActionQueues(discoveryCards, documents),
+    [discoveryCards, documents],
+  );
+  const actionTotal = totalActionCount(actionQueues);
 
   const [showForm, setShowForm] = useState(false);
   const [inputValue, setInputValue] = useState("");
@@ -137,68 +137,40 @@ export function WorkspaceSidebar() {
           </div>
         </div>
 
-        {/* AI Insikter Section */}
-        {discoveryCounts.total > 0 && (
-          <div className="mt-3 space-y-1.5">
+        {/* Action Queues Section */}
+        {actionTotal > 0 && (
+          <div className="mt-3 space-y-0.5">
             <div className="h-px bg-[var(--surface-4)] mx-2 mb-2" />
             <div className="px-2 pb-1">
               <h3 className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)]">
-                {t("insights.sidebar_heading")}
+                {t("actions.sidebar_heading")}
               </h3>
             </div>
-            <button
-              type="button"
-              className="w-full rounded-[10px] p-2.5 text-left transition-colors hover:bg-[rgba(88,86,214,0.12)]"
-              style={{ background: "rgba(88,86,214,0.08)", border: "1px solid rgba(88,86,214,0.18)" }}
-              onClick={() => setActiveTab("insights")}
-            >
-              <div className="mb-2 flex items-center justify-between">
-                <div className="flex items-baseline gap-1.5">
-                  <span className="font-mono text-xl-ui font-bold text-[var(--accent-primary)]">
-                    {discoveryCounts.total}
+            {actionQueues.map((queue) => {
+              const labelKey: Record<ActionQueueType, string> = {
+                merge_duplicates: "actions.merge_duplicates",
+                review_classification: "actions.review_classification",
+                cluster_to_workspace: "actions.cluster_to_workspace",
+              };
+              return (
+                <button
+                  key={queue.type}
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left transition-colors hover:bg-[var(--surface-4)]"
+                  onClick={() => {
+                    setActiveActionQueue(queue.type);
+                    setActiveTab("insights");
+                  }}
+                >
+                  <span className="font-mono text-sm-ui font-semibold text-[var(--text-secondary)]">
+                    {queue.count}
                   </span>
-                  <span className="text-xs-ui text-[var(--text-secondary)]">
-                    {t("insights.discoveries")}
+                  <span className="text-xs-ui text-[var(--text-muted)]">
+                    {t(labelKey[queue.type])}
                   </span>
-                </div>
-                <span className="text-xs-ui text-[rgba(88,86,214,0.6)]">{t("insights.show")}</span>
-              </div>
-              <div className="flex gap-2.5">
-                {discoveryCounts.related > 0 && (
-                  <div className="flex items-center gap-1">
-                    <span className="inline-block h-1 w-1 rounded-full bg-[#5856d6]" />
-                    <span className="font-mono text-xs-ui text-[var(--text-muted)]">{discoveryCounts.related} {t("insights.filter_related").toLowerCase()}</span>
-                  </div>
-                )}
-                {discoveryCounts.version > 0 && (
-                  <div className="flex items-center gap-1">
-                    <span className="inline-block h-1 w-1 rounded-full bg-[#ff375f]" />
-                    <span className="font-mono text-xs-ui text-[var(--text-muted)]">{discoveryCounts.version} {t("insights.filter_versions").toLowerCase()}</span>
-                  </div>
-                )}
-                {discoveryCounts.duplicate > 0 && (
-                  <div className="flex items-center gap-1">
-                    <span className="inline-block h-1 w-1 rounded-full bg-[#34c759]" />
-                    <span className="font-mono text-xs-ui text-[var(--text-muted)]">{discoveryCounts.duplicate} {t("insights.filter_duplicates").toLowerCase()}</span>
-                  </div>
-                )}
-              </div>
-            </button>
-
-            {/* Latest insight preview */}
-            {discoveryCards[0] && (
-              <div className="mx-1 rounded-lg bg-white/[0.03] border border-white/[0.06] p-2 opacity-70">
-                <div className="mb-0.5 flex items-center gap-1">
-                  <span className="rounded bg-[rgba(88,86,214,0.15)] px-1.5 py-0.5 font-mono text-[7px] text-[#5856d6]">
-                    {t("insights.new_badge")}
-                  </span>
-                  <span className="text-[8px] text-[var(--text-disabled)]">{t("insights.time_now")}</span>
-                </div>
-                <p className="text-xs-ui leading-snug text-[var(--text-muted)] line-clamp-2">
-                  {discoveryCards[0].explanation}
-                </p>
-              </div>
-            )}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
