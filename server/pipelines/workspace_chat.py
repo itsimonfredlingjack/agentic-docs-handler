@@ -25,8 +25,9 @@ MAX_AGGREGATE_FIELDS = 5
 # Token budget proportions
 BUDGET_SYSTEM = 0.10
 BUDGET_FIELDS = 0.40
-BUDGET_RAG = 0.20
-BUDGET_HISTORY = 0.20
+BUDGET_MEMORY = 0.10
+BUDGET_RAG = 0.15
+BUDGET_HISTORY = 0.15
 BUDGET_MARGIN = 0.10
 
 DEFAULT_NUM_CTX = 16384
@@ -41,12 +42,20 @@ def estimate_tokens(text: str) -> int:
 
 def compute_token_budget(num_ctx: int) -> dict[str, int]:
     """Compute token budgets per section from the total context window size."""
+    allocated = (
+        int(num_ctx * BUDGET_SYSTEM)
+        + int(num_ctx * BUDGET_FIELDS)
+        + int(num_ctx * BUDGET_MEMORY)
+        + int(num_ctx * BUDGET_RAG)
+        + int(num_ctx * BUDGET_HISTORY)
+    )
     return {
         "system": int(num_ctx * BUDGET_SYSTEM),
         "fields": int(num_ctx * BUDGET_FIELDS),
+        "memory": int(num_ctx * BUDGET_MEMORY),
         "rag": int(num_ctx * BUDGET_RAG),
         "history": int(num_ctx * BUDGET_HISTORY),
-        "margin": num_ctx - int(num_ctx * BUDGET_SYSTEM) - int(num_ctx * BUDGET_FIELDS) - int(num_ctx * BUDGET_RAG) - int(num_ctx * BUDGET_HISTORY),
+        "margin": num_ctx - allocated,
     }
 
 
@@ -92,6 +101,7 @@ class WorkspaceChatPipeline:
         system_prompt: str,
         temperature: float = 0.3,
         num_ctx: int = DEFAULT_NUM_CTX,
+        conversation_registry: Any | None = None,
     ) -> None:
         self.ollama_client = ollama_client
         self.search_pipeline = search_pipeline
@@ -99,6 +109,46 @@ class WorkspaceChatPipeline:
         self.system_prompt = system_prompt
         self.temperature = temperature
         self.num_ctx = num_ctx
+        self.conversation_registry = conversation_registry
+
+    def _prepare_memory_block(
+        self,
+        *,
+        conversation_key: str,
+        token_budget: int,
+        current_entry_ids: set[str] | None = None,
+    ) -> str:
+        """Build a condensed summary of past conversations for this workspace."""
+        if self.conversation_registry is None:
+            return ""
+        if not hasattr(self.conversation_registry, "list_recent_entries"):
+            return ""
+
+        entries = self.conversation_registry.list_recent_entries(
+            conversation_key=conversation_key,
+            limit=20,
+            exclude_ids=current_entry_ids,
+        )
+        if not entries:
+            return ""
+
+        lines: list[str] = []
+        budget_chars = token_budget * 4  # ~4 chars per token
+        used = 0
+        for entry in entries:
+            date_part = entry["timestamp"][:10] if entry.get("timestamp") else "?"
+            line = f"- {date_part}: F: \"{entry['query']}\" S: \"{entry['response']}\""
+            line_len = len(line)
+            if used + line_len > budget_chars:
+                break
+            lines.append(line)
+            used += line_len
+
+        if not lines:
+            return ""
+
+        header = _msg("memory.header")
+        return f"{header}\n" + "\n".join(lines)
 
     async def prepare_context(
         self,
@@ -315,6 +365,13 @@ class WorkspaceChatPipeline:
         if rag_context:
             system_msg += f"\n\nRELEVANTA TEXTUTDRAG:\n{rag_context}"
 
+        memory_block = self._prepare_memory_block(
+            conversation_key=workspace_id,
+            token_budget=budget["memory"],
+        )
+        if memory_block:
+            system_msg += f"\n\n{memory_block}"
+
         messages: list[dict[str, str]] = [{"role": "system", "content": system_msg}]
         history_turns = history[-MAX_HISTORY_TURNS * 2:]
         history_budget_chars = budget["history"] * 4
@@ -444,6 +501,13 @@ class WorkspaceChatPipeline:
 
         if rag_context:
             system_msg += f"\n\nRELEVANTA TEXTUTDRAG:\n{rag_context}"
+
+        memory_block = self._prepare_memory_block(
+            conversation_key=workspace_id,
+            token_budget=budget["memory"],
+        )
+        if memory_block:
+            system_msg += f"\n\n{memory_block}"
 
         messages: list[dict[str, str]] = [{"role": "system", "content": system_msg}]
         history_turns = history[-MAX_HISTORY_TURNS * 2:]

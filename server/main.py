@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import os
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -13,17 +15,18 @@ from fastapi.responses import JSONResponse
 from server.api.routes import create_router
 from server.api.ws import create_ws_router
 from server.clients.ollama_client import AsyncOllamaClient
-from server.config import AppConfig, get_config
+from server.config import AppConfig, REPO_ROOT, get_config
 from server.document_registry import DocumentRegistry
 from server.engagement_tracker import EngagementTracker
 from server.logging_config import LLMLogWriter, configure_logging
-from server.migrations.jsonl_to_sqlite import create_schema, create_inbox_workspace, is_migrated, run_migration
+from server.migrations.jsonl_to_sqlite import create_inbox_workspace, is_migrated, run_migration
+from server.migrations.migrate import ensure_schema, get_schema_version
 from server.pipelines.entity_extractor import EntityExtractor
 from server.pipelines.discovery import WorkspaceDiscoveryPipeline
 from server.pipelines.workspace_brief import WorkspaceBriefPipeline
 from server.pipelines.workspace_suggester import WorkspaceSuggester
 from server.pipelines.noop_organizer import NoOpOrganizer
-from server.services import build_app_services
+from server.services import build_app_services, load_default_documents
 from server.pipelines.classifier import DocumentClassifier
 from server.pipelines.extractor import DocumentExtractor
 from server.pipelines.process_pipeline import DocumentProcessPipeline
@@ -49,18 +52,7 @@ class ReadinessProbe:
         self.config = config
         self.ollama_client = ollama_client
         self.whisper_service = whisper_service
-        self.prompt_paths = [
-            config.prompts_dir / "classifier_system.txt",
-            config.prompts_dir / "image_classifier_system.txt",
-            config.prompts_dir / "extractors" / "receipt.txt",
-            config.prompts_dir / "extractors" / "contract.txt",
-            config.prompts_dir / "extractors" / "invoice.txt",
-            config.prompts_dir / "extractors" / "meeting_notes.txt",
-            config.prompts_dir / "extractors" / "generic.txt",
-            config.prompts_dir / "entity_system.txt",
-            config.prompts_dir / "workspace_brief_system.txt",
-            config.prompts_dir / "workspace_suggest_system.txt",
-        ]
+        self.prompt_paths = config.required_prompt_paths()
 
     def __call__(self) -> dict[str, object]:
         ollama_checks = self.ollama_client.readiness()
@@ -104,30 +96,32 @@ def load_validation_report(path: Path) -> dict[str, object]:
 
 
 def _setup_database(config: AppConfig) -> DocumentRegistry:
-    """Initialize SQLite database, run migration if needed, return DocumentRegistry."""
+    """Initialize SQLite database, run migrations, return DocumentRegistry."""
     config.sqlite_db_path.parent.mkdir(parents=True, exist_ok=True)
 
     document_registry = DocumentRegistry(db_path=config.sqlite_db_path)
     conn = document_registry.conn
 
-    if not is_migrated(conn):
-        logger.info("Database not initialized — running schema creation and JSONL migration")
-        create_schema(conn)
-        create_inbox_workspace(conn)
+    pre_version = get_schema_version(conn)
 
-        # Migrate existing JSONL data if present
+    # Apply all pending schema migrations (v1 = base DDL, v2+ = incremental)
+    ensure_schema(conn)
+
+    # If this is a fresh v0→v1 migration, create inbox and migrate JSONL data
+    if pre_version == 0:
+        if not is_migrated(conn):
+            create_inbox_workspace(conn)
+
         if config.ui_documents_path.exists() or config.move_history_path.exists():
+            logger.info("Migrating JSONL data to SQLite")
             run_migration(
                 db_path=config.sqlite_db_path,
                 documents_path=config.ui_documents_path,
                 move_history_path=config.move_history_path,
                 events_path=config.engagement_events_path,
             )
-            # Reconnect after migration
             document_registry.close()
             document_registry = DocumentRegistry(db_path=config.sqlite_db_path)
-    else:
-        logger.info("Database already initialized — skipping migration")
 
     return document_registry
 
@@ -148,6 +142,9 @@ def create_app(
 ) -> FastAPI:
     configure_logging()
     config = config or get_config()
+
+    from server.locale import set_locale
+    set_locale(config.locale)
     config.llm_log_dir.mkdir(parents=True, exist_ok=True)
     config.validation_log_dir.mkdir(parents=True, exist_ok=True)
     config.staging_dir.mkdir(parents=True, exist_ok=True)
@@ -162,6 +159,12 @@ def create_app(
 
     engagement_tracker = EngagementTracker(conn=document_registry.conn)
 
+    from server.conversation_registry import ConversationRegistry
+    conversation_registry = ConversationRegistry(conn=document_registry.conn)
+
+    from server.workspace_event_log import WorkspaceEventLog
+    workspace_event_log = WorkspaceEventLog(conn=document_registry.conn)
+
     if workspace_registry is None:
         workspace_registry = WorkspaceRegistry(conn=document_registry.conn)
 
@@ -175,31 +178,34 @@ def create_app(
         )
         classifier = DocumentClassifier(
             ollama_client=classifier_llm,
-            classifier_prompt=read_prompt(config.prompts_dir / "classifier_system.txt"),
-            image_classifier_prompt=read_prompt(config.prompts_dir / "image_classifier_system.txt"),
+            classifier_prompt=read_prompt(config.resolve_prompt_path("classifier_system.txt")),
+            image_classifier_prompt=read_prompt(config.resolve_prompt_path("image_classifier_system.txt")),
             temperature=config.classifier_temperature,
             max_image_dimension=config.classifier_max_image_dimension,
         )
         extractor = DocumentExtractor(
             ollama_client=extractor_llm,
             prompts={
-                "receipt": read_prompt(config.prompts_dir / "extractors" / "receipt.txt"),
-                "contract": read_prompt(config.prompts_dir / "extractors" / "contract.txt"),
-                "invoice": read_prompt(config.prompts_dir / "extractors" / "invoice.txt"),
-                "meeting_notes": read_prompt(config.prompts_dir / "extractors" / "meeting_notes.txt"),
-                "generic": read_prompt(config.prompts_dir / "extractors" / "generic.txt"),
+                "receipt": read_prompt(config.resolve_prompt_path("extractors/receipt.txt")),
+                "contract": read_prompt(config.resolve_prompt_path("extractors/contract.txt")),
+                "invoice": read_prompt(config.resolve_prompt_path("extractors/invoice.txt")),
+                "meeting_notes": read_prompt(config.resolve_prompt_path("extractors/meeting_notes.txt")),
+                "report": read_prompt(config.resolve_prompt_path("extractors/report.txt")),
+                "letter": read_prompt(config.resolve_prompt_path("extractors/letter.txt")),
+                "tax_document": read_prompt(config.resolve_prompt_path("extractors/tax_document.txt")),
+                "generic": read_prompt(config.resolve_prompt_path("extractors/generic.txt")),
             },
             temperature=config.extract_temperature,
         )
         entity_extractor_llm = _make_llm(config, log_writer, "entity_extractor")
         entity_extractor = EntityExtractor(
             ollama_client=entity_extractor_llm,
-            system_prompt=read_prompt(config.prompts_dir / "entity_system.txt"),
+            system_prompt=read_prompt(config.resolve_prompt_path("entity_system.txt")),
             temperature=config.extract_temperature,
         )
         workspace_suggester_instance = WorkspaceSuggester(
             ollama_client=_make_llm(config, log_writer, "workspace_suggester"),
-            system_prompt=read_prompt(config.prompts_dir / "workspace_suggest_system.txt"),
+            system_prompt=read_prompt(config.resolve_prompt_path("workspace_suggest_system.txt")),
             temperature=config.extract_temperature,
         )
         organizer = NoOpOrganizer()
@@ -213,6 +219,7 @@ def create_app(
             entity_extractor=entity_extractor,
             workspace_suggester=workspace_suggester_instance,
             workspace_registry=workspace_registry,
+            workspace_event_log=workspace_event_log,
             max_text_characters=config.max_text_characters,
             classifier_max_text_characters=config.classifier_max_text_characters,
         )
@@ -225,16 +232,7 @@ def create_app(
         if hasattr(pipeline, "whisper_service") and whisper_service is not None:
             setattr(pipeline, "whisper_service", whisper_service)
 
-    default_documents = build_app_services(
-        config=config,
-        pipeline=pipeline,
-        search_service=search_service,
-        whisper_service=whisper_service,
-        document_registry=document_registry,
-        realtime_manager=realtime_manager,
-        readiness_probe=readiness_probe,
-        validation_report_loader=validation_report_loader,
-    ).documents
+    default_documents = load_default_documents(REPO_ROOT)
 
     if search_service is None:
         search_service = SearchPipeline(
@@ -281,12 +279,13 @@ def create_app(
             ollama_client=workspace_llm,
             search_pipeline=search_service,
             document_registry=document_registry,
-            system_prompt=read_prompt(config.prompts_dir / "workspace_system.txt"),
+            system_prompt=read_prompt(config.resolve_prompt_path("workspace_system.txt")),
             num_ctx=config.resolve_num_ctx("workspace_chat") or DEFAULT_NUM_CTX,
+            conversation_registry=conversation_registry,
         )
         workspace_brief_service = WorkspaceBriefPipeline(
             ollama_client=workspace_llm,
-            system_prompt=read_prompt(config.prompts_dir / "workspace_brief_system.txt"),
+            system_prompt=read_prompt(config.resolve_prompt_path("workspace_brief_system.txt")),
             document_registry=document_registry,
             workspace_registry=workspace_registry,
         )
@@ -305,9 +304,104 @@ def create_app(
         validation_report_loader=validation_report_loader,
     )
 
+    async def _retry_pending_documents() -> None:
+        """Startup sweep: retry pending_classification documents if Ollama is healthy."""
+        try:
+            if not callable(readiness_probe):
+                return
+            health = readiness_probe()
+            if not health.get("ready"):
+                logger.info("startup_retry: Ollama not ready — skipping pending document sweep")
+                return
+
+            pending = document_registry.list_pending_retryable()
+            if not pending:
+                logger.info("startup_retry: no pending documents to retry")
+                return
+
+            logger.info("startup_retry: found %d pending documents — beginning retry sweep", len(pending))
+            retried = 0
+            skipped = 0
+            still_pending = 0
+            for record in pending:
+                source_path = record.source_path
+                if not source_path or not os.path.exists(source_path):
+                    logger.warning(
+                        "startup_retry: skipping %s — source file not available at %s",
+                        record.id, source_path,
+                    )
+                    skipped += 1
+                    continue
+
+                try:
+                    content = Path(source_path).read_bytes()
+                    filename = Path(source_path).name
+                    parts = filename.split("-", 1)
+                    if len(parts) == 2 and len(parts[0]) >= 32:
+                        filename = parts[1]
+
+                    result = await pipeline.reprocess_pending(
+                        record_id=record.id,
+                        content=content,
+                        filename=filename,
+                        content_type=record.mime_type,
+                        source_path=source_path,
+                        client_id=None,
+                    )
+                    if result.status == "pending_classification":
+                        still_pending += 1
+                        logger.warning("startup_retry: %s still pending after retry", record.id)
+                    else:
+                        retried += 1
+                        logger.info("startup_retry: %s recovered → %s", record.id, result.status)
+                except Exception:
+                    still_pending += 1
+                    logger.warning("startup_retry: %s retry failed", record.id, exc_info=True)
+
+            logger.info(
+                "startup_retry: sweep complete — retried=%d skipped=%d still_pending=%d",
+                retried, skipped, still_pending,
+            )
+        except Exception:
+            logger.error("startup_retry: sweep failed", exc_info=True)
+
+    async def _health_recovery_monitor() -> None:
+        """Background monitor: detect Ollama unhealthy→healthy and trigger one retry sweep."""
+        poll_interval = 30  # seconds
+        last_healthy = True  # assume healthy at startup (startup sweep handles the unhealthy case)
+        try:
+            # Wait before first poll to let the startup sweep finish
+            await asyncio.sleep(poll_interval)
+            while True:
+                try:
+                    if callable(readiness_probe):
+                        health = readiness_probe()
+                        is_healthy = bool(health.get("ready"))
+                    else:
+                        is_healthy = False
+
+                    if is_healthy and not last_healthy:
+                        logger.info("health_recovery: Ollama recovered — triggering pending document sweep")
+                        await _retry_pending_documents()
+
+                    last_healthy = is_healthy
+                except Exception:
+                    logger.debug("health_recovery: probe failed", exc_info=True)
+                    last_healthy = False
+
+                await asyncio.sleep(poll_interval)
+        except asyncio.CancelledError:
+            return
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        # Startup: launch pending-document retry sweep + health recovery monitor
+        retry_task = asyncio.create_task(_retry_pending_documents())
+        monitor_task = asyncio.create_task(_health_recovery_monitor())
         yield
+        # Shutdown
+        monitor_task.cancel()
+        retry_task.cancel()
         if _owns_db and hasattr(document_registry, "close"):
             document_registry.close()
 
@@ -335,6 +429,8 @@ def create_app(
             workspace_registry=workspace_registry,
             workspace_brief_service=workspace_brief_service,
             discovery_service=discovery_service,
+            conversation_registry=conversation_registry,
+            workspace_event_log=workspace_event_log,
         )
     )
     app.include_router(create_ws_router(realtime_manager=services.realtime_manager))

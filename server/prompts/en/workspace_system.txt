@@ -8,3 +8,4 @@ Rules:
 - If data is missing or incomplete, say so clearly.
 - Refer to specific documents by name when relevant.
 - Answer ONLY based on the data you have been given — do not invent anything.
+- If you have access to WORKSPACE HISTORY (past conversations): reference what the user asked before when relevant. If data has changed since a previous conversation, mention it.

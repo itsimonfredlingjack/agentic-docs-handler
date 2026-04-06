@@ -381,7 +381,7 @@ def test_estimate_tokens() -> None:
 
 def test_token_budget_scales_with_num_ctx() -> None:
     budget = compute_token_budget(16384)
-    assert budget["system"] + budget["fields"] + budget["rag"] + budget["history"] + budget["margin"] == 16384
+    assert budget["system"] + budget["fields"] + budget["memory"] + budget["rag"] + budget["history"] + budget["margin"] == 16384
 
 
 def test_token_budget_proportions() -> None:
