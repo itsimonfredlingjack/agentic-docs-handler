@@ -1,153 +1,181 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
-import type { DiscoveryFilterType } from "../types/documents";
 import { useDocumentStore } from "../store/documentStore";
+import { computeActionQueues, totalActionCount } from "../lib/action-queues";
+import type { ActionQueue, ActionQueueItem, ActionQueueType } from "../lib/action-queues";
+import { batchDeleteDocuments } from "../lib/api";
 import { t } from "../lib/locale";
-import { InsightCard } from "./InsightCard";
+import { ActionCard } from "./ActionCard";
 import { SkeletonLoader } from "./ui/SkeletonLoader";
 
 type InsightsFeedProps = {
   workspaceId: string;
 };
 
-type FilterDef = {
-  key: DiscoveryFilterType;
-  label: string;
+const SECTION_LABELS: Record<ActionQueueType, string> = {
+  merge_duplicates: "actions.section_duplicates",
+  review_classification: "actions.section_review",
+  cluster_to_workspace: "actions.section_clusters",
 };
 
-const FILTERS: FilterDef[] = [
-  { key: "all", label: "insights.filter_all" },
-  { key: "related", label: "insights.filter_related" },
-  { key: "version", label: "insights.filter_versions" },
-  { key: "duplicate", label: "insights.filter_duplicates" },
-];
-
 export function InsightsFeed({ workspaceId }: InsightsFeedProps) {
-  const cards = useDocumentStore((s) => s.discoveryCards);
+  const discoveryCards = useDocumentStore((s) => s.discoveryCards);
+  const documents = useDocumentStore((s) => s.documents);
   const loading = useDocumentStore((s) => s.discoveryLoading);
-  const filter = useDocumentStore((s) => s.discoveryFilter);
-  const setFilter = useDocumentStore((s) => s.setDiscoveryFilter);
   const dismissCard = useDocumentStore((s) => s.dismissDiscoveryCard);
+  const removeDocuments = useDocumentStore((s) => s.removeDocuments);
 
-  const counts = useMemo(() => {
-    const result = { all: cards.length, related: 0, version: 0, duplicate: 0 };
-    for (const card of cards) {
-      if (card.relation_type in result) {
-        result[card.relation_type as keyof typeof result]++;
-      }
-    }
-    return result;
-  }, [cards]);
-
-  const filteredCards = useMemo(
-    () => filter === "all" ? cards : cards.filter((c) => c.relation_type === filter),
-    [cards, filter],
+  const queues = useMemo(
+    () => computeActionQueues(discoveryCards, documents),
+    [discoveryCards, documents],
   );
 
-  if (loading && cards.length === 0) {
+  const total = totalActionCount(queues);
+
+  if (loading && discoveryCards.length === 0) {
     return (
-      <div className="insights-feed flex gap-4 p-4">
-        <div className="w-[90px] flex-shrink-0">
-          <SkeletonLoader count={4} />
-        </div>
-        <div className="flex-1">
-          <SkeletonLoader count={3} />
-        </div>
+      <div className="action-feed p-4">
+        <SkeletonLoader count={3} />
       </div>
     );
   }
 
-  return (
-    <div className="insights-feed flex gap-4 p-4">
-      {/* Filter sidebar */}
-      <nav className="insights-filter-sidebar flex w-[90px] flex-shrink-0 flex-col gap-1.5">
-        {FILTERS.map((f) => {
-          const count = counts[f.key];
-          const isActive = filter === f.key;
-          return (
-            <button
-              key={f.key}
-              type="button"
-              className="insights-filter-card rounded-lg p-2 text-center transition"
-              style={{
-                background: isActive ? "rgba(88,86,214,0.12)" : "rgba(255,255,255,0.04)",
-                border: `1px solid ${isActive ? "rgba(88,86,214,0.25)" : "rgba(255,255,255,0.06)"}`,
-              }}
-              onClick={() => setFilter(f.key)}
-            >
-              <div
-                className="font-mono text-lg-ui font-bold"
-                style={{ color: isActive ? "#5856d6" : "rgba(255,255,255,0.55)" }}
-              >
-                {count}
-              </div>
-              <div
-                className="text-[8px] uppercase tracking-[0.08em]"
-                style={{ color: isActive ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.3)" }}
-              >
-                {t(f.label)}
-              </div>
-            </button>
-          );
-        })}
-      </nav>
+  if (total === 0) {
+    return <ActionFeedEmpty />;
+  }
 
-      {/* Card feed */}
-      <div className="flex-1 space-y-2.5">
-        {filteredCards.length === 0 ? (
-          <InsightsEmptyState hasCards={cards.length > 0} />
-        ) : (
-          filteredCards.map((card) => (
-            <InsightCard
-              key={card.id}
-              card={card}
-              onDismiss={(cardId) => dismissCard(workspaceId, cardId)}
-            />
-          ))
-        )}
-      </div>
+  return (
+    <div className="action-feed p-4 space-y-6">
+      {queues.map((queue) => (
+        <ActionQueueSection
+          key={queue.type}
+          queue={queue}
+          workspaceId={workspaceId}
+          onDismissCards={(cardIds) => {
+            for (const cardId of cardIds) {
+              dismissCard(workspaceId, cardId);
+            }
+          }}
+          onDeleteDocuments={async (docIds) => {
+            try {
+              await batchDeleteDocuments(docIds);
+              removeDocuments(docIds);
+            } catch {
+              // Optimistic removal failed — cards will reappear on next fetch
+            }
+          }}
+        />
+      ))}
     </div>
   );
 }
 
-function InsightsEmptyState({ hasCards }: { hasCards: boolean }) {
-  if (hasCards) {
-    // Filter is active but no matches for this type
-    return (
-      <div className="flex items-center justify-center py-16">
-        <p className="text-sm-ui text-[var(--text-muted)]">
-          {t("discovery.result_count").replace("{count}", "0")}
-        </p>
-      </div>
-    );
-  }
+// ---- Section for each queue type -------------------------------------------
+
+type ActionQueueSectionProps = {
+  queue: ActionQueue;
+  workspaceId: string;
+  onDismissCards: (cardIds: string[]) => void;
+  onDeleteDocuments: (docIds: string[]) => Promise<void>;
+};
+
+function ActionQueueSection({
+  queue,
+  workspaceId,
+  onDismissCards,
+  onDeleteDocuments,
+}: ActionQueueSectionProps) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const setSelectedDocument = useDocumentStore((s) => s.setSelectedDocument);
+
+  // Keep index in bounds as items get dismissed
+  const safeIndex = Math.min(currentIndex, queue.items.length - 1);
+  const item = queue.items[safeIndex];
+
+  if (!item) return null;
+
+  const handleSkip = () => {
+    // Dismiss backing cards
+    if (item.cardIds.length > 0) {
+      onDismissCards(item.cardIds);
+    }
+    // Advance to next item (or stay if last)
+    if (safeIndex < queue.items.length - 1) {
+      setCurrentIndex(safeIndex + 1);
+    }
+  };
+
+  const handleKeepNewest = async () => {
+    // Keep the document with the most recent createdAt, delete the rest
+    const docs = item.documents;
+    if (docs.length < 2) return;
+
+    const store = useDocumentStore.getState();
+    const withTimestamps = docs.map((d) => ({
+      ...d,
+      createdAt: store.documents[d.id]?.createdAt ?? "",
+    }));
+    withTimestamps.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const toDelete = withTimestamps.slice(1).map((d) => d.id);
+
+    await onDeleteDocuments(toDelete);
+    // Dismiss the discovery cards backing this item
+    if (item.cardIds.length > 0) {
+      onDismissCards(item.cardIds);
+    }
+  };
+
+  const handleKeepBoth = () => {
+    // Just dismiss the cards — keep all documents
+    if (item.cardIds.length > 0) {
+      onDismissCards(item.cardIds);
+    }
+  };
+
+  const handleMoveToWorkspace = () => {
+    // Select the first doc to open inspector context
+    if (item.documents[0]) {
+      setSelectedDocument(item.documents[0].id);
+    }
+  };
 
   return (
-    <div className="flex flex-col items-center justify-center py-16">
-      {/* Simplified AiPresence ring motif */}
-      <div className="insights-empty-ring mb-4">
-        <svg width="56" height="56" viewBox="0 0 56 56">
-          <circle
-            cx="28" cy="28" r="26"
-            fill="none"
-            stroke="rgba(88,86,214,0.25)"
-            strokeWidth="1.5"
-            strokeDasharray="4 3"
-          />
-          <circle
-            cx="28" cy="28" r="10"
-            fill="rgba(88,86,214,0.12)"
-            stroke="rgba(88,86,214,0.3)"
-            strokeWidth="1"
-          />
-          <circle cx="46" cy="12" r="2" fill="#5856d6" opacity="0.5" />
-        </svg>
+    <div>
+      {/* Section header */}
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+          {t(SECTION_LABELS[queue.type])}
+        </h3>
+        <span className="text-xs-ui font-mono text-[var(--text-disabled)]">
+          {t("actions.progress")
+            .replace("{current}", String(safeIndex + 1))
+            .replace("{total}", String(queue.count))}
+        </span>
       </div>
+
+      {/* Current action card */}
+      <ActionCard
+        queueType={queue.type}
+        item={item}
+        index={safeIndex}
+        total={queue.count}
+        onSkip={handleSkip}
+        onKeepNewest={queue.type === "merge_duplicates" ? handleKeepNewest : undefined}
+        onKeepBoth={queue.type === "merge_duplicates" ? handleKeepBoth : undefined}
+        onOpenInspector={(docId) => setSelectedDocument(docId)}
+        onMoveToWorkspace={queue.type === "cluster_to_workspace" ? handleMoveToWorkspace : undefined}
+      />
+    </div>
+  );
+}
+
+// ---- Empty state -----------------------------------------------------------
+
+function ActionFeedEmpty() {
+  return (
+    <div className="flex flex-col items-center justify-center py-16">
       <p className="text-base-ui text-[var(--text-secondary)]">
-        {t("insights.empty_title")}
-      </p>
-      <p className="mt-1.5 max-w-[280px] text-center text-sm-ui leading-relaxed text-[var(--text-muted)]">
-        {t("insights.empty_description")}
+        {t("actions.all_done")}
       </p>
     </div>
   );
