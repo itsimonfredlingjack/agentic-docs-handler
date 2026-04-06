@@ -247,6 +247,13 @@ const SV: StringTable = {
   // Workspace
   "workspace.items": "objekt",
   "workspace.inbox": "Inkorg",
+  "workspace.show_more": "Visa mer",
+  "workspace.show_less": "Visa mindre",
+
+  // Inbox triage
+  "inbox.progress": "{routed} av {total} dirigerade",
+  "inbox.classifying": "{count} klassificeras",
+  "inbox.needs_review": "{count} att granska",
 
   // Extraction fallback
   "extraction.no_details": "Inga detaljer",
@@ -474,6 +481,13 @@ const EN: StringTable = {
   // Workspace
   "workspace.items": "items",
   "workspace.inbox": "Inbox",
+  "workspace.show_more": "Show more",
+  "workspace.show_less": "Show less",
+
+  // Inbox triage
+  "inbox.progress": "{routed} of {total} routed",
+  "inbox.classifying": "{count} classifying",
+  "inbox.needs_review": "{count} to review",
 
   // Extraction fallback
   "extraction.no_details": "No details",

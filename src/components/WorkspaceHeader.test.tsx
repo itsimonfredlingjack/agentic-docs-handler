@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { WorkspaceHeader } from "./WorkspaceHeader";
 import type { WorkspaceResponse } from "../types/workspace";
 
@@ -62,5 +62,64 @@ describe("WorkspaceHeader", () => {
     const ws = makeWorkspace({ ai_entities: [], ai_topics: [] });
     const { container } = render(<WorkspaceHeader workspace={ws} />);
     expect(container.querySelector(".glass-badge")).not.toBeInTheDocument();
+  });
+
+  describe("inbox header", () => {
+    it("shows inbox name and triage progress instead of file count badge", () => {
+      const inbox = makeWorkspace({ is_inbox: true, name: "Inkorg", file_count: 5 });
+      render(<WorkspaceHeader workspace={inbox} />);
+      expect(screen.getByText("Inkorg")).toBeInTheDocument();
+      // Should show triage progress text, not the count badge
+      expect(screen.queryByText(/5 OBJEKT/)).not.toBeInTheDocument();
+      expect(screen.getByText(/av.*dirigerade|of.*routed/)).toBeInTheDocument();
+    });
+
+    it("does not render brief, entities, or topics for inbox", () => {
+      const inbox = makeWorkspace({
+        is_inbox: true,
+        name: "Inkorg",
+        ai_brief: "Some brief text",
+        ai_entities: [{ name: "Telia", entity_type: "company" }],
+        ai_topics: ["tax"],
+      });
+      render(<WorkspaceHeader workspace={inbox} />);
+      expect(screen.queryByText("Some brief text")).not.toBeInTheDocument();
+      expect(screen.queryByText("Telia")).not.toBeInTheDocument();
+      expect(screen.queryByText("#tax")).not.toBeInTheDocument();
+    });
+
+    it("still renders Import button for inbox", () => {
+      const inbox = makeWorkspace({ is_inbox: true, name: "Inkorg" });
+      render(<WorkspaceHeader workspace={inbox} />);
+      expect(screen.getByText("Importera")).toBeInTheDocument();
+    });
+  });
+
+  describe("brief expand toggle", () => {
+    it("shows expand toggle for long briefs", () => {
+      const longBrief = "A".repeat(200);
+      const ws = makeWorkspace({ ai_brief: longBrief });
+      render(<WorkspaceHeader workspace={ws} />);
+      expect(screen.getByText("Visa mer")).toBeInTheDocument();
+    });
+
+    it("does not show toggle for short briefs", () => {
+      const ws = makeWorkspace({ ai_brief: "Short brief." });
+      render(<WorkspaceHeader workspace={ws} />);
+      expect(screen.queryByText("Visa mer")).not.toBeInTheDocument();
+    });
+
+    it("toggles between Visa mer and Visa mindre", () => {
+      const longBrief = "A".repeat(200);
+      const ws = makeWorkspace({ ai_brief: longBrief });
+      render(<WorkspaceHeader workspace={ws} />);
+
+      const toggle = screen.getByText("Visa mer");
+      fireEvent.click(toggle);
+      expect(screen.getByText("Visa mindre")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByText("Visa mindre"));
+      expect(screen.getByText("Visa mer")).toBeInTheDocument();
+    });
   });
 });
