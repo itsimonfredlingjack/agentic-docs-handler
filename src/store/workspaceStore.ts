@@ -17,7 +17,6 @@ type WorkspaceStoreState = {
   activeWorkspaceTab: WorkspaceTab;
   loading: boolean;
   error: string | null;
-  chatPanelOpen: boolean;
   backendStatus: "checking" | "online" | "offline";
 
   checkBackend: () => Promise<void>;
@@ -27,8 +26,6 @@ type WorkspaceStoreState = {
   createWorkspace: (name: string) => Promise<WorkspaceResponse>;
   updateWorkspace: (id: string, fields: { name?: string; description?: string; cover_color?: string }) => Promise<void>;
   deleteWorkspace: (id: string) => Promise<void>;
-  toggleChatPanel: () => void;
-  setChatPanelOpen: (open: boolean) => void;
 };
 
 export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
@@ -37,7 +34,6 @@ export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
   activeWorkspaceTab: "documents",
   loading: false,
   error: null,
-  chatPanelOpen: false,
   backendStatus: "checking",
 
   checkBackend: async () => {
@@ -85,7 +81,7 @@ export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
     }
   },
 
-  setActiveWorkspace: (id) => set({ activeWorkspaceId: id, activeWorkspaceTab: "documents", chatPanelOpen: false }),
+  setActiveWorkspace: (id) => set({ activeWorkspaceId: id, activeWorkspaceTab: "documents" }),
 
   setActiveWorkspaceTab: (tab) => set({ activeWorkspaceTab: tab }),
 
@@ -114,7 +110,4 @@ export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
     }
   },
 
-  toggleChatPanel: () => set((state) => ({ chatPanelOpen: !state.chatPanelOpen })),
-
-  setChatPanelOpen: (open) => set({ chatPanelOpen: open }),
 }));

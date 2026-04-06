@@ -51,7 +51,7 @@ type DocumentStoreState = {
   selectedDocumentIds: Set<string>;
   stageHistory: Record<string, StageEntry[]>;
   activeWorkspace: string | null;
-  activeDocumentChat: string | null;
+  chatDrawerExpanded: boolean;
   conversations: Record<string, WorkspaceConversation>;
   filesLoading: boolean;
   searchFilters: { documentType: string | null; dateFrom: string | null; dateTo: string | null };
@@ -92,7 +92,7 @@ type DocumentStoreState = {
   setDocumentThumbnail: (requestId: string, thumbnailData: string) => void;
   removeDocument: (id: string) => void;
   setActiveWorkspace: (category: string | null) => void;
-  setActiveDocumentChat: (documentId: string | null) => void;
+  setChatDrawerExpanded: (expanded: boolean) => void;
   startWorkspaceQuery: (category: string, query: string) => void;
   appendStreamingToken: (category: string, token: string) => void;
   finalizeStreamingEntry: (category: string, sourceCount: number, sources?: Array<{ id: string; title: string }>, errorMessage?: string | null) => void;
@@ -154,7 +154,7 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => ({
   selectedDocumentIds: new Set<string>(),
   stageHistory: {},
   activeWorkspace: "all",
-  activeDocumentChat: null,
+  chatDrawerExpanded: false,
   conversations: {},
   filesLoading: false,
   searchFilters: emptySearchFilters,
@@ -509,8 +509,8 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => ({
         counts: { ...state.counts, all: Math.max(0, state.counts.all - 1) },
       };
     }),
-  setActiveWorkspace: (category) => set({ activeWorkspace: category, activeDocumentChat: null, selectedDocumentIds: new Set<string>() }),
-  setActiveDocumentChat: (documentId) => set({ activeDocumentChat: documentId, activeWorkspace: null }),
+  setActiveWorkspace: (category) => set({ activeWorkspace: category, selectedDocumentIds: new Set<string>() }),
+  setChatDrawerExpanded: (expanded) => set({ chatDrawerExpanded: expanded }),
   startWorkspaceQuery: (category, query) =>
     set((state) => {
       const conv = state.conversations[category] ?? { entries: [], isStreaming: false, streamingText: "" };

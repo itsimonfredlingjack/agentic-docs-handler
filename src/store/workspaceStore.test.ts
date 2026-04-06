@@ -39,7 +39,6 @@ beforeEach(() => {
     activeWorkspaceId: null,
     loading: false,
     error: null,
-    chatPanelOpen: false,
     backendStatus: "checking",
   });
 });
@@ -88,34 +87,6 @@ describe("setActiveWorkspace", () => {
     expect(useWorkspaceStore.getState().activeWorkspaceId).toBe("ws-2");
   });
 
-  it("closes the chat panel when switching workspace", () => {
-    useWorkspaceStore.setState({ chatPanelOpen: true });
-    useWorkspaceStore.getState().setActiveWorkspace("ws-2");
-    expect(useWorkspaceStore.getState().chatPanelOpen).toBe(false);
-  });
-});
-
-describe("toggleChatPanel", () => {
-  it("flips chatPanelOpen from false to true", () => {
-    useWorkspaceStore.getState().toggleChatPanel();
-    expect(useWorkspaceStore.getState().chatPanelOpen).toBe(true);
-  });
-
-  it("flips chatPanelOpen from true to false", () => {
-    useWorkspaceStore.setState({ chatPanelOpen: true });
-    useWorkspaceStore.getState().toggleChatPanel();
-    expect(useWorkspaceStore.getState().chatPanelOpen).toBe(false);
-  });
-});
-
-describe("setChatPanelOpen", () => {
-  it("sets chatPanelOpen directly", () => {
-    useWorkspaceStore.getState().setChatPanelOpen(true);
-    expect(useWorkspaceStore.getState().chatPanelOpen).toBe(true);
-
-    useWorkspaceStore.getState().setChatPanelOpen(false);
-    expect(useWorkspaceStore.getState().chatPanelOpen).toBe(false);
-  });
 });
 
 describe("createWorkspace", () => {
