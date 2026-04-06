@@ -39,17 +39,6 @@ class AppServices:
         default_factory=lambda: {"name": "agentic-docs-handler", "status": "ok", "phase": 5}
     )
 
-    def prompt_paths(self) -> list[Path]:
-        return [
-            self.config.prompts_dir / "classifier_system.txt",
-            self.config.prompts_dir / "image_classifier_system.txt",
-            self.config.prompts_dir / "extractors" / "receipt.txt",
-            self.config.prompts_dir / "extractors" / "contract.txt",
-            self.config.prompts_dir / "extractors" / "invoice.txt",
-            self.config.prompts_dir / "extractors" / "meeting_notes.txt",
-            self.config.prompts_dir / "extractors" / "generic.txt",
-        ]
-
     def load_activity_events(self, limit: int) -> list[dict[str, object]]:
         if self.activity_log_loader is not None:
             return list(self.activity_log_loader(limit))

@@ -1,11 +1,13 @@
 import type { UiDocument } from "../types/documents";
+import { t } from "./locale";
 
 export type UserStatus =
   | "uppladdad"
   | "bearbetas"
   | "klar"
   | "behöver_granskas"
-  | "misslyckades";
+  | "misslyckades"
+  | "väntar";
 
 export function mapToUserStatus(doc: UiDocument): UserStatus {
   switch (doc.status) {
@@ -25,6 +27,8 @@ export function mapToUserStatus(doc: UiDocument): UserStatus {
       return "behöver_granskas";
     case "failed":
       return "misslyckades";
+    case "pending_classification":
+      return "väntar";
     case "completed":
     case "moved":
     case "ready":
@@ -35,15 +39,17 @@ export function mapToUserStatus(doc: UiDocument): UserStatus {
 export function userStatusLabel(status: UserStatus): string {
   switch (status) {
     case "uppladdad":
-      return "Uppladdad";
+      return t("status.uploaded");
     case "bearbetas":
-      return "Bearbetas";
+      return t("status.processing");
     case "klar":
-      return "Klar";
+      return t("status.completed");
     case "behöver_granskas":
-      return "Granska";
+      return t("status.review");
     case "misslyckades":
-      return "Misslyckades";
+      return t("status.failed");
+    case "väntar":
+      return t("status.pending");
   }
 }
 
@@ -59,6 +65,8 @@ export function userStatusColor(status: UserStatus): string {
       return "var(--meeting-color)";
     case "misslyckades":
       return "var(--invoice-color)";
+    case "väntar":
+      return "var(--meeting-color)";
   }
 }
 
@@ -91,6 +99,24 @@ export function getKeyLine(doc: UiDocument): string {
       const dur = doc.transcription?.duration ? `${doc.transcription.duration.toFixed(1)}s` : "";
       const model = doc.transcription?.model ?? "";
       return [lang, dur, model].filter(Boolean).join(" · ");
+    }
+    case "report": {
+      const author = fmt(fields.author ?? fields.organization);
+      const date = fmt(fields.date);
+      const ref = fmt(fields.reference_number);
+      return [author, date, ref].filter(Boolean).join(" · ");
+    }
+    case "letter": {
+      const sender = fmt(fields.sender);
+      const subject = fmt(fields.subject ?? fields.key_message);
+      const date = fmt(fields.date);
+      return [sender, subject, date].filter(Boolean).join(" · ");
+    }
+    case "tax_document": {
+      const subtype = fmt(fields.document_subtype);
+      const taxYear = fmt(fields.tax_year);
+      const amount = fmt(fields.tax_amount ?? fields.total_income);
+      return [subtype, taxYear, amount].filter(Boolean).join(" · ");
     }
     case "file_moved": {
       const to = doc.moveResult?.to_path;

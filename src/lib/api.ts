@@ -247,6 +247,29 @@ export async function deleteDocument(recordId: string): Promise<{ success: boole
   return response.json();
 }
 
+export type BatchResult = {
+  succeeded: number;
+  failed: number;
+  skipped?: number;
+  errors: string[];
+};
+
+export async function batchDeleteDocuments(recordIds: string[]): Promise<BatchResult> {
+  return fetchJson("/documents/batch-delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ record_ids: recordIds }),
+  });
+}
+
+export async function batchRetryDocuments(recordIds: string[], clientId?: string): Promise<BatchResult> {
+  return fetchJson("/documents/batch-retry", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ record_ids: recordIds, client_id: clientId }),
+  });
+}
+
 export async function deleteWorkspace(id: string): Promise<void> {
   const baseUrl = await resolveBaseUrl();
   const response = await fetch(`${baseUrl}/workspaces/${id}`, { method: "DELETE" });
@@ -293,6 +316,38 @@ export async function moveFilesToWorkspace(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ file_ids: fileIds }),
+  });
+}
+
+export type TimelineEvent = {
+  id: string;
+  event_type: string;
+  title: string;
+  detail: string;
+  created_at: string;
+};
+
+export async function fetchWorkspaceTimeline(
+  workspaceId: string,
+  limit = 10,
+): Promise<{ events: TimelineEvent[] }> {
+  return fetchJson(`/workspaces/${workspaceId}/timeline?limit=${limit}`);
+}
+
+export async function fetchConversation(
+  conversationKey: string,
+): Promise<{ entries: Array<{ id: string; query: string; response: string; sourceCount: number; sources: Array<{ id: string; title: string }>; errorMessage: string | null; timestamp: string }> }> {
+  return fetchJson(`/conversations/${encodeURIComponent(conversationKey)}`);
+}
+
+export async function saveConversationEntry(
+  conversationKey: string,
+  entry: { query: string; response: string; sourceCount: number; sources?: Array<{ id: string; title: string }>; errorMessage?: string | null },
+): Promise<{ id: string }> {
+  return fetchJson(`/conversations/${encodeURIComponent(conversationKey)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(entry),
   });
 }
 

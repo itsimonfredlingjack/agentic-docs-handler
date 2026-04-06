@@ -311,6 +311,30 @@ class DocumentRegistry:
         ).fetchone()
         return row["id"] if row else None
 
+    def update_document_status(
+        self,
+        *,
+        record_id: str,
+        status: str,
+    ) -> None:
+        """Update only the status column for a document."""
+        with self._conn:
+            self._conn.execute(
+                "UPDATE document SET status = ?, updated_at = ? WHERE id = ?",
+                (status, utcnow_iso(), record_id),
+            )
+
+    def list_pending_retryable(self) -> list[UiDocumentRecord]:
+        """Return all documents with pending_classification status that are retryable."""
+        rows = self._conn.execute(
+            """
+            SELECT * FROM document
+            WHERE status = 'pending_classification' AND retryable = 1
+            ORDER BY created_at ASC
+            """
+        ).fetchall()
+        return [_row_to_record(row) for row in rows]
+
     def mark_document_failed(
         self,
         *,
@@ -418,6 +442,12 @@ class DocumentRegistry:
                 counts.invoice += n
             elif kind == "meeting_notes":
                 counts.meeting_notes += n
+            elif kind == "report":
+                counts.report += n
+            elif kind == "letter":
+                counts.letter += n
+            elif kind == "tax_document":
+                counts.tax_document += n
             elif kind == "audio":
                 counts.audio += n
             elif kind == "generic":

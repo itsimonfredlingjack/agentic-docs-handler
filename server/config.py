@@ -62,7 +62,40 @@ class AppConfig(BaseSettings):
     staging_dir: Path = Path("/tmp/agentic-docs/server-staging")
     whisper_base_url: str = "http://ai-server2:8090"
     whisper_timeout_seconds: float = 300.0
+    locale: str = "sv"
 
+    def resolve_prompt_path(self, name: str) -> Path:
+        """Resolve a prompt file path by locale with fallback to sv."""
+        locale_path = self.prompts_dir / self.locale / name
+        if locale_path.exists():
+            return locale_path
+        sv_path = self.prompts_dir / "sv" / name
+        if sv_path.exists():
+            return sv_path
+        # Final fallback: flat directory (pre-locale structure)
+        return self.prompts_dir / name
+
+    # Canonical prompt file names (relative to locale directory)
+    PROMPT_NAMES: list[str] = [
+        "classifier_system.txt",
+        "image_classifier_system.txt",
+        "entity_system.txt",
+        "workspace_system.txt",
+        "workspace_brief_system.txt",
+        "workspace_suggest_system.txt",
+        "extractors/receipt.txt",
+        "extractors/contract.txt",
+        "extractors/invoice.txt",
+        "extractors/meeting_notes.txt",
+        "extractors/report.txt",
+        "extractors/letter.txt",
+        "extractors/tax_document.txt",
+        "extractors/generic.txt",
+    ]
+
+    def required_prompt_paths(self) -> list[Path]:
+        """Canonical list of all prompt files required at startup, resolved by locale."""
+        return [self.resolve_prompt_path(name) for name in self.PROMPT_NAMES]
 
     def resolve_model(self, pipeline: str) -> str:
         """Return the model for a pipeline, falling back to the global default."""

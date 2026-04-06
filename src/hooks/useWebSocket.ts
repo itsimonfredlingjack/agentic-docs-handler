@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { fetchActivity, fetchCounts, fetchDocuments } from "../lib/api";
+import { checkHealth, fetchActivity, fetchCounts, fetchDocuments } from "../lib/api";
 import { listenToBackendConnection, listenToBackendEvent } from "../lib/tauri-events";
 import { useDocumentStore } from "../store/documentStore";
 import { useToastStore } from "../store/toastStore";
@@ -44,11 +44,29 @@ export function useWebSocket(): void {
       }
     }).then((unlisten) => {
       unlistenConnection = unlisten;
+      // Recover from startup race: Rust WS may have already connected before
+      // this listener was registered. If we're still "connecting", check health
+      // as a fallback signal — if the backend responds, the WS is likely up too.
+      if (previousConnection.current === "connecting") {
+        void checkHealth().then((ok) => {
+          if (ok && previousConnection.current === "connecting") {
+            previousConnection.current = "connected";
+            setConnectionState("connected");
+          }
+        });
+      }
     });
 
     void listenToBackendEvent((payload) => {
       if (debugWebSocket) {
         console.debug("backend:event", payload);
+      }
+      // Any event from backend proves the WebSocket is alive.
+      // This recovers from the startup race condition where the Rust WS client
+      // emits "connected" before the frontend listener is registered.
+      if (previousConnection.current !== "connected") {
+        previousConnection.current = "connected";
+        setConnectionState("connected");
       }
       handleServerEvent(payload, {
         markJobStage,
@@ -73,7 +91,7 @@ export function useWebSocket(): void {
 function handleServerEvent(
   payload: BackendServerEvent,
   handlers: {
-    markJobStage: (requestId: string, stage: "uploading" | "processing" | "transcribing" | "classified" | "classifying" | "extracting" | "extracted" | "organizing" | "indexing" | "awaiting_confirmation" | "moved" | "completed" | "failed" | "ready" | "queued", data?: { classification?: import("../types/documents").DocumentClassification; extraction?: import("../types/documents").ExtractionResult }) => void;
+    markJobStage: (requestId: string, stage: import("../types/documents").UiDocument["status"], data?: { classification?: import("../types/documents").DocumentClassification; extraction?: import("../types/documents").ExtractionResult }) => void;
     markJobFailed: (requestId: string, error: string, errorCode?: string | null) => void;
     pushMoveToast: (toast: FileMoveToastItem) => void;
     applyUndoSuccess: (payload: UndoMoveResponse) => void;

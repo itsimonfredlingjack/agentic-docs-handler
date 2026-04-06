@@ -12,7 +12,6 @@ from uuid import uuid4
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from server.clients.ollama_client import OllamaServiceError
 from server.pipelines.classifier import ClassificationValidationError
 from server.pipelines.extractor import ExtractionValidationError
 from server.pipelines.process_pipeline import UnsupportedMediaTypeError
@@ -82,14 +81,7 @@ def _maybe_cleanup_staging(staging_dir: Path) -> None:
             pass
 
 
-WORKSPACE_CATEGORY_LABELS = {
-    "receipt": "Kvitton",
-    "contract": "Avtal",
-    "invoice": "Fakturor",
-    "meeting_notes": "Mötesanteckningar",
-    "audio": "Ljud",
-    "generic": "Övrigt",
-}
+from server.locale import msg, category_labels as _category_labels
 
 
 def create_router(
@@ -108,6 +100,8 @@ def create_router(
     workspace_registry: object | None = None,
     workspace_brief_service: object | None = None,
     discovery_service: object | None = None,
+    conversation_registry: object | None = None,
+    workspace_event_log: object | None = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -200,6 +194,9 @@ def create_router(
         if document_registry is None:
             raise HTTPException(503, "document registry unavailable")
 
+        # Capture workspace context before deletion for timeline event
+        _pre_delete_record = document_registry.get_document(record_id=record_id)
+
         source_path = document_registry.delete_document(record_id=record_id)
         if source_path is None:
             raise HTTPException(status_code=404, detail="Document not found")
@@ -217,7 +214,222 @@ def create_router(
             except OSError:
                 pass  # File already gone or inaccessible
 
+        # Clean up persisted conversation history for this document
+        if conversation_registry is not None:
+            try:
+                conversation_registry.delete_conversation(conversation_key=f"doc:{record_id}")
+            except Exception:
+                logger.warning("Failed to clean up conversations for document %s", record_id, exc_info=True)
+
+        # Emit document_removed timeline event for the source workspace
+        if (
+            workspace_event_log is not None
+            and _pre_delete_record is not None
+            and _pre_delete_record.workspace_id
+        ):
+            # Check source workspace is not inbox
+            _is_inbox = False
+            if workspace_registry is not None:
+                try:
+                    _src_ws = workspace_registry.get_workspace(workspace_id=_pre_delete_record.workspace_id)
+                    _is_inbox = _src_ws is not None and _src_ws.is_inbox
+                except Exception:
+                    pass
+            if not _is_inbox:
+                try:
+                    doc_title = _pre_delete_record.classification.title if _pre_delete_record.classification else _pre_delete_record.title
+                    workspace_event_log.emit(
+                        workspace_id=_pre_delete_record.workspace_id,
+                        event_type="document_removed",
+                        title=msg("event.document_removed", title=doc_title),
+                    )
+                except Exception:
+                    logger.warning("Failed to emit document_removed event", exc_info=True)
+
         return {"success": True, "record_id": record_id}
+
+    @router.post("/documents/batch-delete")
+    async def batch_delete_documents(payload: dict[str, Any]) -> JSONResponse:
+        if document_registry is None:
+            raise HTTPException(503, "document registry unavailable")
+        record_ids: list[str] = payload.get("record_ids", [])
+        if not record_ids:
+            raise HTTPException(400, "record_ids is required")
+
+        succeeded = 0
+        failed = 0
+        errors: list[str] = []
+        for record_id in record_ids:
+            try:
+                # Capture workspace context before deletion for timeline
+                pre_record = document_registry.get_document(record_id=record_id)
+                if pre_record is None:
+                    failed += 1
+                    errors.append(f"{record_id}: not found")
+                    continue
+                source_path = document_registry.delete_document(record_id=record_id)
+                if search_service is not None:
+                    try:
+                        search_service.delete_document(record_id)
+                    except Exception:
+                        pass
+                if source_path:
+                    try:
+                        import os
+                        if os.path.exists(source_path):
+                            os.remove(source_path)
+                    except OSError:
+                        pass
+                if conversation_registry is not None:
+                    try:
+                        conversation_registry.delete_conversation(conversation_key=f"doc:{record_id}")
+                    except Exception:
+                        pass
+                # Emit document_removed timeline event
+                if (
+                    workspace_event_log is not None
+                    and pre_record is not None
+                    and pre_record.workspace_id
+                    and workspace_registry is not None
+                ):
+                    try:
+                        src_ws = workspace_registry.get_workspace(workspace_id=pre_record.workspace_id)
+                        if src_ws and not src_ws.is_inbox:
+                            doc_title = pre_record.classification.title if pre_record.classification else pre_record.title
+                            workspace_event_log.emit(
+                                workspace_id=pre_record.workspace_id,
+                                event_type="document_removed",
+                                title=msg("event.document_removed", title=doc_title),
+                            )
+                    except Exception:
+                        pass
+                succeeded += 1
+            except Exception as exc:
+                failed += 1
+                errors.append(f"{record_id}: {exc}")
+        return JSONResponse({"succeeded": succeeded, "failed": failed, "errors": errors})
+
+    @router.post("/documents/batch-retry")
+    async def batch_retry_documents(
+        payload: dict[str, Any],
+    ) -> JSONResponse:
+        if document_registry is None or pipeline is None:
+            raise HTTPException(503, "service unavailable")
+        record_ids: list[str] = payload.get("record_ids", [])
+        if not record_ids:
+            raise HTTPException(400, "record_ids is required")
+
+        succeeded = 0
+        failed = 0
+        skipped = 0
+        errors: list[str] = []
+        for record_id in record_ids:
+            try:
+                record = document_registry.get_document(record_id=record_id)
+                if record is None:
+                    skipped += 1
+                    errors.append(f"{record_id}: not found")
+                    continue
+                if record.status != "pending_classification" or not record.retryable:
+                    skipped += 1
+                    continue
+                source_path = record.source_path
+                if not source_path:
+                    skipped += 1
+                    errors.append(f"{record_id}: no source path")
+                    continue
+                import os
+                if not os.path.exists(source_path):
+                    skipped += 1
+                    errors.append(f"{record_id}: source file gone")
+                    continue
+                content = Path(source_path).read_bytes()
+                filename = Path(source_path).name
+                parts = filename.split("-", 1)
+                if len(parts) == 2 and len(parts[0]) >= 32:
+                    filename = parts[1]
+                result = await pipeline.reprocess_pending(
+                    record_id=record_id,
+                    content=content,
+                    filename=filename,
+                    content_type=record.mime_type,
+                    source_path=source_path,
+                    client_id=payload.get("client_id"),
+                )
+                if result.status == "pending_classification":
+                    failed += 1
+                else:
+                    succeeded += 1
+            except Exception as exc:
+                failed += 1
+                errors.append(f"{record_id}: {exc}")
+        return JSONResponse({"succeeded": succeeded, "failed": failed, "skipped": skipped, "errors": errors})
+
+    @router.get("/documents/pending")
+    async def list_pending_documents() -> JSONResponse:
+        if document_registry is None:
+            return JSONResponse({"documents": []})
+        records = document_registry.list_pending_retryable()
+        return JSONResponse({
+            "documents": [
+                {
+                    "id": r.id,
+                    "title": r.title,
+                    "source_path": r.source_path,
+                    "mime_type": r.mime_type,
+                    "error_code": r.error_code,
+                    "created_at": r.created_at,
+                }
+                for r in records
+            ]
+        })
+
+    @router.post("/documents/{record_id}/retry")
+    async def retry_pending_document(
+        record_id: str,
+        client_id: str | None = Query(default=None),
+    ) -> ProcessResponse:
+        if document_registry is None or pipeline is None:
+            raise HTTPException(503, "service unavailable")
+
+        record = document_registry.get_document(record_id=record_id)
+        if record is None:
+            raise HTTPException(404, "document not found")
+        if record.status != "pending_classification":
+            raise HTTPException(
+                400,
+                f"document status is '{record.status}', not 'pending_classification'",
+            )
+
+        source_path = record.source_path
+        if not source_path:
+            raise HTTPException(
+                410,
+                "source file path not available — document cannot be retried",
+            )
+
+        import os
+        if not os.path.exists(source_path):
+            raise HTTPException(
+                410,
+                "source file has been cleaned up — document cannot be retried",
+            )
+
+        content = Path(source_path).read_bytes()
+        filename = Path(source_path).name
+        # Strip UUID prefix from staged filename (e.g., "abc123-faktura.txt" → "faktura.txt")
+        parts = filename.split("-", 1)
+        if len(parts) == 2 and len(parts[0]) >= 32:
+            filename = parts[1]
+
+        return await pipeline.reprocess_pending(
+            record_id=record_id,
+            content=content,
+            filename=filename,
+            content_type=record.mime_type,
+            source_path=source_path,
+            client_id=client_id,
+        )
 
     @router.get("/search", response_model=SearchResponse)
     async def search(
@@ -448,11 +660,6 @@ def create_router(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=str(error),
             ) from error
-        except OllamaServiceError as error:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=error.code,
-            ) from error
 
     @router.post("/moves/undo", response_model=UndoMoveResponse)
     async def undo_move(payload: UndoMoveRequest) -> UndoMoveResponse:
@@ -632,7 +839,7 @@ def create_router(
             raise HTTPException(503, "document registry unavailable")
         raw_counts = document_registry.counts()
         categories = []
-        for kind, label in WORKSPACE_CATEGORY_LABELS.items():
+        for kind, label in _category_labels().items():
             count = getattr(raw_counts, kind, 0)
             if count > 0:
                 categories.append(
@@ -686,6 +893,15 @@ def create_router(
         match = next((w for w in result.workspaces if w.id == ws.id), None)
         if match is None:
             raise HTTPException(500, "workspace creation failed")
+        if workspace_event_log is not None:
+            try:
+                workspace_event_log.emit(
+                    workspace_id=ws.id,
+                    event_type="workspace_created",
+                    title=msg("event.workspace_created", name=ws.name),
+                )
+            except Exception:
+                logger.warning("Failed to emit workspace_created event", exc_info=True)
         return match
 
     @router.get("/workspaces/{workspace_id}", response_model=WorkspaceResponse)
@@ -730,6 +946,17 @@ def create_router(
             raise HTTPException(404, "workspace not found")
         except ValueError as exc:
             raise HTTPException(400, str(exc))
+        # Clean up persisted conversation history for this workspace
+        if conversation_registry is not None:
+            try:
+                conversation_registry.delete_conversation(conversation_key=workspace_id)
+            except Exception:
+                logger.warning("Failed to clean up conversations for workspace %s", workspace_id, exc_info=True)
+        if workspace_event_log is not None:
+            try:
+                workspace_event_log.delete_workspace_events(workspace_id=workspace_id)
+            except Exception:
+                logger.warning("Failed to clean up timeline events for workspace %s", workspace_id, exc_info=True)
 
     @router.post("/workspaces/{workspace_id}/brief")
     async def generate_workspace_brief(workspace_id: str) -> dict:
@@ -739,6 +966,17 @@ def create_router(
             result = await workspace_brief_service.generate(workspace_id=workspace_id)
         except KeyError:
             raise HTTPException(404, "workspace not found")
+        if workspace_event_log is not None:
+            try:
+                brief_preview = (result.get("ai_brief") or "")[:80]
+                workspace_event_log.emit(
+                    workspace_id=workspace_id,
+                    event_type="brief_updated",
+                    title=msg("event.brief_updated"),
+                    detail=brief_preview,
+                )
+            except Exception:
+                logger.warning("Failed to emit brief_updated event", exc_info=True)
         return {"workspace_id": workspace_id, **result}
 
     @router.get("/workspaces/{workspace_id}/files", response_model=DocumentListResponse)
@@ -770,6 +1008,23 @@ def create_router(
     async def move_files_to_workspace(workspace_id: str, request: MoveFilesToWorkspaceRequest) -> dict:
         if workspace_registry is None:
             raise HTTPException(503, "workspace registry unavailable")
+
+        # Capture source workspace_ids before the move for documents_moved_out events
+        _source_workspaces: dict[str, int] = {}  # workspace_id → count
+        if workspace_event_log is not None and document_registry is not None:
+            try:
+                placeholders = ", ".join("?" for _ in request.file_ids)
+                rows = document_registry.conn.execute(
+                    f"SELECT workspace_id FROM document WHERE id IN ({placeholders})",
+                    request.file_ids,
+                ).fetchall()
+                for row in rows:
+                    src_ws = row["workspace_id"]
+                    if src_ws and src_ws != workspace_id:
+                        _source_workspaces[src_ws] = _source_workspaces.get(src_ws, 0) + 1
+            except Exception:
+                logger.debug("Failed to query source workspaces for move-out events", exc_info=True)
+
         try:
             moved = workspace_registry.move_files_to_workspace(
                 file_ids=request.file_ids,
@@ -777,6 +1032,28 @@ def create_router(
             )
         except KeyError:
             raise HTTPException(404, "workspace not found")
+        if workspace_event_log is not None and moved > 0:
+            try:
+                workspace_event_log.emit(
+                    workspace_id=workspace_id,
+                    event_type="documents_moved_in",
+                    title=msg("event.documents_moved_in", count=moved),
+                    detail=msg("event.documents_moved_in_detail"),
+                )
+            except Exception:
+                logger.warning("Failed to emit documents_moved_in event", exc_info=True)
+            # Emit documents_moved_out for each non-inbox source workspace
+            for src_ws_id, count in _source_workspaces.items():
+                try:
+                    src_ws = workspace_registry.get_workspace(workspace_id=src_ws_id) if workspace_registry else None
+                    if src_ws and not src_ws.is_inbox:
+                        workspace_event_log.emit(
+                            workspace_id=src_ws_id,
+                            event_type="documents_moved_out",
+                            title=msg("event.documents_moved_out", count=count),
+                        )
+                except Exception:
+                    logger.warning("Failed to emit documents_moved_out event for %s", src_ws_id, exc_info=True)
         return {"moved": moved}
 
     @router.get("/workspaces/{workspace_id}/discovery", response_model=WorkspaceDiscoveryResponse)
@@ -802,5 +1079,51 @@ def create_router(
             raise HTTPException(404, "workspace not found")
         discovery_service.dismiss_relation(relation_id=relation_id)
         return {"success": True}
+
+    # -----------------------------------------------------------------
+    # Conversation persistence
+    # -----------------------------------------------------------------
+
+    @router.get("/conversations/{conversation_key}")
+    async def get_conversation(conversation_key: str) -> JSONResponse:
+        if conversation_registry is None:
+            return JSONResponse({"entries": []})
+        entries = conversation_registry.load_conversation(conversation_key=conversation_key)
+        return JSONResponse({"entries": entries})
+
+    @router.post("/conversations/{conversation_key}")
+    async def save_conversation_entry(conversation_key: str, payload: dict[str, Any]) -> JSONResponse:
+        if conversation_registry is None:
+            raise HTTPException(503, "conversation persistence unavailable")
+        entry_id = conversation_registry.save_entry(
+            conversation_key=conversation_key,
+            query=payload.get("query", ""),
+            response=payload.get("response", ""),
+            source_count=payload.get("sourceCount", 0),
+            sources=payload.get("sources"),
+            error_message=payload.get("errorMessage"),
+        )
+        return JSONResponse({"id": entry_id})
+
+    @router.delete("/conversations/{conversation_key}")
+    async def delete_conversation(conversation_key: str) -> JSONResponse:
+        if conversation_registry is None:
+            raise HTTPException(503, "conversation persistence unavailable")
+        count = conversation_registry.delete_conversation(conversation_key=conversation_key)
+        return JSONResponse({"deleted": count})
+
+    # -----------------------------------------------------------------
+    # Workspace timeline
+    # -----------------------------------------------------------------
+
+    @router.get("/workspaces/{workspace_id}/timeline")
+    async def workspace_timeline(
+        workspace_id: str,
+        limit: int = Query(default=20, ge=1, le=100),
+    ) -> JSONResponse:
+        if workspace_event_log is None:
+            return JSONResponse({"events": []})
+        events = workspace_event_log.list_events(workspace_id=workspace_id, limit=limit)
+        return JSONResponse({"events": events})
 
     return router

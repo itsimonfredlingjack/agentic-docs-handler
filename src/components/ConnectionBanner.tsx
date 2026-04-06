@@ -1,12 +1,13 @@
 import { useDocumentStore } from "../store/documentStore";
 import { useWorkspaceStore } from "../store/workspaceStore";
+import { t } from "../lib/locale";
 
 function statusLabel(connectionState: string, backendStatus: string): string {
-  if (backendStatus === "offline") return "Backend offline";
-  if (connectionState === "reconnecting") return "Återansluter…";
-  if (connectionState === "connected") return "Ansluten";
-  if (connectionState === "disconnected") return "Frånkopplad";
-  return "Ansluter…";
+  if (backendStatus === "offline") return t("connection.offline");
+  if (connectionState === "reconnecting") return t("connection.reconnecting");
+  if (connectionState === "connected") return t("connection.connected");
+  if (connectionState === "disconnected") return t("connection.disconnected");
+  return t("connection.connecting");
 }
 
 export function ConnectionBanner() {

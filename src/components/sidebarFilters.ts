@@ -1,4 +1,5 @@
 import type { DocumentCounts, SidebarFilter } from "../types/documents";
+import { t } from "../lib/locale";
 
 export type SidebarFilterItem = {
   id: SidebarFilter;
@@ -6,19 +7,40 @@ export type SidebarFilterItem = {
   countKey: keyof DocumentCounts;
 };
 
-export const SIDEBAR_FILTER_ITEMS: SidebarFilterItem[] = [
-  { id: "all", label: "Alla", countKey: "all" },
-  { id: "recent", label: "Senaste", countKey: "all" },
-  { id: "processing", label: "Pågår", countKey: "processing" },
-  { id: "receipt", label: "Kvitton", countKey: "receipt" },
-  { id: "contract", label: "Avtal", countKey: "contract" },
-  { id: "invoice", label: "Fakturor", countKey: "invoice" },
-  { id: "meeting_notes", label: "Möten", countKey: "meeting_notes" },
-  { id: "audio", label: "Ljud", countKey: "audio" },
-  { id: "generic", label: "Övrigt", countKey: "generic" },
-  { id: "moved", label: "Flyttade", countKey: "moved" },
+type FilterDef = {
+  id: SidebarFilter;
+  localeKey: string;
+  countKey: keyof DocumentCounts;
+};
+
+const FILTER_DEFS: FilterDef[] = [
+  { id: "all", localeKey: "filter.all", countKey: "all" },
+  { id: "recent", localeKey: "filter.recent", countKey: "all" },
+  { id: "processing", localeKey: "filter.processing", countKey: "processing" },
+  { id: "receipt", localeKey: "filter.receipt", countKey: "receipt" },
+  { id: "contract", localeKey: "filter.contract", countKey: "contract" },
+  { id: "invoice", localeKey: "filter.invoice", countKey: "invoice" },
+  { id: "meeting_notes", localeKey: "filter.meeting_notes", countKey: "meeting_notes" },
+  { id: "report", localeKey: "filter.report", countKey: "report" },
+  { id: "letter", localeKey: "filter.letter", countKey: "letter" },
+  { id: "tax_document", localeKey: "filter.tax_document", countKey: "tax_document" },
+  { id: "audio", localeKey: "filter.audio", countKey: "audio" },
+  { id: "generic", localeKey: "filter.generic", countKey: "generic" },
+  { id: "moved", localeKey: "filter.moved", countKey: "moved" },
 ];
 
+export function getSidebarFilterItems(): SidebarFilterItem[] {
+  return FILTER_DEFS.map((def) => ({
+    id: def.id,
+    label: t(def.localeKey),
+    countKey: def.countKey,
+  }));
+}
+
+// Backward-compatible constant — evaluates labels at import time (Swedish default)
+export const SIDEBAR_FILTER_ITEMS: SidebarFilterItem[] = getSidebarFilterItems();
+
 export function getSidebarFilterLabel(filter: SidebarFilter): string {
-  return SIDEBAR_FILTER_ITEMS.find((item) => item.id === filter)?.label ?? "Alla";
+  const items = getSidebarFilterItems();
+  return items.find((item) => item.id === filter)?.label ?? t("filter.all");
 }

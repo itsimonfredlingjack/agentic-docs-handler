@@ -38,3 +38,4 @@ server/logs/validation/*
 !docs/**/*.png
 !apps/**/*.png
 !src/assets/**/*.png
+brainfileing.db

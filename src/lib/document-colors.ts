@@ -5,6 +5,9 @@ const KIND_RGB_MAP: Record<string, string> = {
   contract: "--contract-color-rgb",
   invoice: "--invoice-color-rgb",
   meeting_notes: "--meeting-color-rgb",
+  report: "--report-color-rgb",
+  letter: "--letter-color-rgb",
+  tax_document: "--tax-color-rgb",
   audio: "--audio-color-rgb",
 };
 
@@ -17,6 +20,9 @@ const KIND_COLOR_MAP: Record<string, string> = {
   contract: "var(--contract-color)",
   invoice: "var(--invoice-color)",
   meeting_notes: "var(--meeting-color)",
+  report: "var(--report-color)",
+  letter: "var(--letter-color)",
+  tax_document: "var(--tax-color)",
   audio: "var(--audio-color)",
 };
 

@@ -4,15 +4,18 @@ import { isProcessingStatus } from "../lib/status";
 import { kindRgbVar } from "../lib/document-colors";
 import type { UiDocument } from "../types/documents";
 import { GhostTyper } from "./GhostTyper";
+import { t } from "../lib/locale";
 
-const KIND_LABELS: Record<string, string> = {
-  receipt: "Kvitto",
-  contract: "Avtal",
-  invoice: "Faktura",
-  meeting_notes: "Mötesanteckning",
-  audio: "Ljud",
-  file_moved: "Flyttad",
-};
+function kindLabels(): Record<string, string> {
+  return {
+    receipt: t("kind.receipt"),
+    contract: t("kind.contract"),
+    invoice: t("kind.invoice"),
+    meeting_notes: t("kind.meeting_notes"),
+    audio: t("kind.audio"),
+    file_moved: t("kind.file_moved"),
+  };
+}
 
 const MINI_STEPPER_STAGES = [
   "uploading",
@@ -29,17 +32,19 @@ const ACTIVE_STAGE_MAP: Record<string, string> = {
   queued: "uploading",
 };
 
-const STAGE_LABELS: Record<string, string> = {
-  queued: "I kö",
-  uploading: "Laddar upp",
-  processing: "Bearbetar",
-  transcribing: "Transkriberar",
-  classifying: "Klassificera",
-  classified: "Extrahera",
-  extracting: "Extrahera",
-  organizing: "Organisera",
-  indexing: "Indexera",
-};
+function stageLabels(): Record<string, string> {
+  return {
+    queued: t("stage.queued"),
+    uploading: t("stage.uploading"),
+    processing: t("stage.processing"),
+    transcribing: t("stage.transcribing"),
+    classifying: t("stage.classifying"),
+    classified: t("stage.classified"),
+    extracting: t("stage.extracting"),
+    organizing: t("stage.organizing"),
+    indexing: t("stage.indexing"),
+  };
+}
 
 const WAVEFORM_HEIGHTS = [40, 70, 55, 80, 60];
 
@@ -210,7 +215,7 @@ const RailCard = memo(function RailCard({ doc }: { doc: UiDocument }) {
     }
   }, [doc.status]);
 
-  const stageLabel = STAGE_LABELS[doc.status] ?? doc.status;
+  const stageLabel = stageLabels()[doc.status] ?? doc.status;
   const isClassified = !PRE_CLASSIFICATION_STAGES.has(doc.status);
 
   // Shape class: use fast pulse for processing/transcribing
@@ -250,7 +255,7 @@ const RailCard = memo(function RailCard({ doc }: { doc: UiDocument }) {
 
 const CompletionReceipt = memo(function CompletionReceipt({ doc }: { doc: UiDocument }) {
   const isFailed = doc.status === "failed";
-  const kindLabel = KIND_LABELS[doc.kind] ?? "Dokument";
+  const kindLabel = kindLabels()[doc.kind] ?? "Dokument";
   const keyLine = extractKeyLine(doc);
 
   return (
@@ -266,7 +271,7 @@ const CompletionReceipt = memo(function CompletionReceipt({ doc }: { doc: UiDocu
         <span className="rail-card__title">{doc.title}</span>
       </div>
       <div className="rail-card__stage" style={{ color: isFailed ? "var(--invoice-color)" : "var(--receipt-color)" }}>
-        {isFailed ? "Misslyckades" : kindLabel}
+        {isFailed ? t("stage.failed") : kindLabel}
       </div>
       {keyLine && !isFailed && (
         <div className="rail-card__fields">{keyLine}</div>
@@ -334,7 +339,7 @@ export function ProcessingRail() {
   }
 
   return (
-    <div className="processing-rail" role="region" aria-label="Aktiva jobb" aria-live="polite">
+    <div className="processing-rail" role="region" aria-label={t("processing.active_jobs")} aria-live="polite">
       {processingDocs.map((doc) => (
         <RailCard key={doc.id} doc={doc} />
       ))}

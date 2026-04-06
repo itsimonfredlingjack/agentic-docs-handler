@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { DiscoveryCard } from "../types/documents";
 import { dismissWorkspaceDiscovery, fetchWorkspaceDiscovery } from "../lib/api";
 import { useDocumentStore } from "../store/documentStore";
+import { t } from "../lib/locale";
 import { Card } from "./ui/Card";
 import { EmptyState } from "./ui/EmptyState";
 import { SkeletonLoader } from "./ui/SkeletonLoader";
@@ -11,11 +12,15 @@ type DiscoveryCardsProps = {
   workspaceId: string;
 };
 
-const RELATION_LABELS: Record<string, string> = {
-  duplicate: "Dublett",
-  related: "Relaterad",
-  version: "Version",
-};
+function relationLabel(type: string): string {
+  const KEY_MAP: Record<string, string> = {
+    duplicate: "discovery.type_duplicate",
+    related: "discovery.type_related",
+    version: "discovery.type_version",
+  };
+  const key = KEY_MAP[type];
+  return key ? t(key) : type;
+}
 
 export function DiscoveryCards({ workspaceId }: DiscoveryCardsProps) {
   const setSelectedDocument = useDocumentStore((state) => state.setSelectedDocument);
@@ -35,7 +40,7 @@ export function DiscoveryCards({ workspaceId }: DiscoveryCardsProps) {
         setCards(response.cards);
       } catch (loadError) {
         if (cancelled) return;
-        setError(loadError instanceof Error ? loadError.message : "Kunde inte läsa discovery");
+        setError(loadError instanceof Error ? loadError.message : t("discovery.load_error"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -50,10 +55,10 @@ export function DiscoveryCards({ workspaceId }: DiscoveryCardsProps) {
   if (loading && cards.length === 0) {
     return (
       <section className="pt-4">
-        <h2 className="text-sm-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Insikter</h2>
+        <h2 className="text-sm-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">{t("discovery.heading")}</h2>
         <div className="mt-2">
           <SkeletonLoader count={2} />
-          <p className="mt-2 text-base-ui text-[var(--text-muted)]">Söker samband mellan filer...</p>
+          <p className="mt-2 text-base-ui text-[var(--text-muted)]">{t("discovery.loading")}</p>
         </div>
       </section>
     );
@@ -62,9 +67,9 @@ export function DiscoveryCards({ workspaceId }: DiscoveryCardsProps) {
   if (error) {
     return (
       <section className="pt-4">
-        <h2 className="text-sm-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Insikter</h2>
+        <h2 className="text-sm-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">{t("discovery.heading")}</h2>
         <div className="mt-2">
-          <EmptyState title="Kunde inte läsa insikter" description={error} />
+          <EmptyState title={t("discovery.error")} description={error} />
         </div>
       </section>
     );
@@ -77,26 +82,26 @@ export function DiscoveryCards({ workspaceId }: DiscoveryCardsProps) {
   return (
     <section className="pt-4">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-sm-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Insikter</h2>
-        <span className="text-sm-ui text-[var(--text-muted)]">{cards.length} fynd</span>
+        <h2 className="text-sm-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">{t("discovery.heading")}</h2>
+        <span className="text-sm-ui text-[var(--text-muted)]">{t("discovery.result_count").replace("{count}", String(cards.length))}</span>
       </div>
       <div className="space-y-3">
         {cards.map((card) => (
           <Card key={card.id} className="rounded-2xl bg-white/[0.035] px-4 py-3">
             <div className="flex items-start justify-between gap-3">
               <span className="rounded-full bg-[var(--surface-8)] px-2.5 py-1 text-sm-ui font-medium text-[var(--text-secondary)]">
-                {RELATION_LABELS[card.relation_type] ?? card.relation_type}
+                {relationLabel(card.relation_type)}
               </span>
               <button
                 type="button"
                 className="text-sm-ui text-[var(--text-muted)] transition hover:text-white/80"
-                aria-label="Dölj insikt"
+                aria-label={t("discovery.hide_button")}
                 onClick={async () => {
                   await dismissWorkspaceDiscovery(workspaceId, card.id);
                   setCards((current) => current.filter((entry) => entry.id !== card.id));
                 }}
               >
-                Dölj
+                {t("discovery.hide_button")}
               </button>
             </div>
             <p className="mt-2 text-base-ui leading-relaxed text-[var(--text-secondary)]">
@@ -119,7 +124,7 @@ export function DiscoveryCards({ workspaceId }: DiscoveryCardsProps) {
       </div>
 
       {loading && cards.length > 0 ? (
-        <p className="mt-2 text-sm-ui text-[var(--text-muted)]">Uppdaterar insikter...</p>
+        <p className="mt-2 text-sm-ui text-[var(--text-muted)]">{t("discovery.updating")}</p>
       ) : null}
     </section>
   );

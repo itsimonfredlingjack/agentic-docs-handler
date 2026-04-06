@@ -57,6 +57,7 @@ describe("mapToUserStatus", () => {
     ["indexing", "bearbetas"],
     ["awaiting_confirmation", "behöver_granskas"],
     ["failed", "misslyckades"],
+    ["pending_classification", "väntar"],
     ["completed", "klar"],
     ["moved", "klar"],
     ["ready", "klar"],
@@ -72,6 +73,7 @@ describe("userStatusLabel", () => {
     expect(userStatusLabel("klar")).toBe("Klar");
     expect(userStatusLabel("behöver_granskas")).toBe("Granska");
     expect(userStatusLabel("misslyckades")).toBe("Misslyckades");
+    expect(userStatusLabel("väntar")).toBe("Väntar på AI");
   });
 });
 
@@ -79,6 +81,7 @@ describe("userStatusColor", () => {
   it("returns CSS variable for each status", () => {
     expect(userStatusColor("klar")).toBe("var(--receipt-color)");
     expect(userStatusColor("misslyckades")).toBe("var(--invoice-color)");
+    expect(userStatusColor("väntar")).toBe("var(--meeting-color)");
   });
 });
 

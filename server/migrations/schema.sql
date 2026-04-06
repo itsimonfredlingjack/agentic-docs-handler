@@ -1,10 +1,19 @@
--- Brainfileing SQLite schema
+-- Brainfileing SQLite schema (v1 base)
 -- All metadata storage for the workspace-centric document manager.
 -- LanceDB remains the vector store; this replaces the JSONL persistence layer.
+-- Incremental migrations live in migrate.py — this file is the v1 baseline.
 
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 PRAGMA busy_timeout = 5000;
+
+-- -------------------------------------------------
+-- Schema version tracking
+-- -------------------------------------------------
+CREATE TABLE IF NOT EXISTS schema_version (
+    version INTEGER PRIMARY KEY,
+    applied_at TEXT NOT NULL
+);
 
 -- -------------------------------------------------
 -- Workspaces

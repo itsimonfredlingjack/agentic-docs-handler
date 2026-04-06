@@ -58,6 +58,7 @@ function processingStepCount(stage: UiDocument["status"] | null): number {
     || stage === "moved"
     || stage === "failed"
     || stage === "completed"
+    || stage === "pending_classification"
   ) {
     return 0;
   }

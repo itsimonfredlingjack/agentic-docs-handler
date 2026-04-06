@@ -30,12 +30,16 @@
   --invoice-color: #ff375f;
   --meeting-color: #ff9f0a;
   --report-color: #8e8e93;
+  --letter-color: #64d2ff;
+  --tax-color: #bf5af2;
   --audio-color: #30b0c7;
   --receipt-color-rgb: 52, 199, 89;
   --contract-color-rgb: 88, 86, 214;
   --invoice-color-rgb: 255, 55, 95;
   --meeting-color-rgb: 255, 159, 10;
   --report-color-rgb: 142, 142, 147;
+  --letter-color-rgb: 100, 210, 255;
+  --tax-color-rgb: 191, 90, 242;
   --audio-color-rgb: 48, 176, 199;
   --success-surface: rgba(52, 199, 89, 0.1);
   --warning-surface: rgba(255, 159, 10, 0.1);
@@ -621,37 +625,6 @@ input {
     backdrop-filter: blur(24px);
   }
 
-  .mobile-sheet-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 55;
-    background: rgba(0, 0, 0, 0.4);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity var(--transition-smooth);
-  }
-
-  .mobile-sheet-backdrop.is-open {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  .mobile-sheet {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 60;
-    border-radius: 24px 24px 0 0;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-bottom: 0;
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(24px);
-    box-shadow: 0 -14px 32px rgba(0, 0, 0, 0.5);
-    padding: 1.5rem 1rem 2rem;
-    transform: translateY(100%);
-    transition: transform var(--transition-slide);
-  }
 @keyframes aurora-pulse {
   0%, 100% {
     box-shadow: 0 4px 24px rgba(88, 86, 214, 0.04);
@@ -666,10 +639,6 @@ input {
 .animate-aurora-pulse {
   animation: aurora-pulse 3s ease-in-out infinite;
 }
-
-  .mobile-sheet.is-open {
-    transform: translateY(0);
-  }
 
   .action-primary {
     border-radius: 12px;

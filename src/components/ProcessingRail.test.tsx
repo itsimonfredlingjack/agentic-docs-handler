@@ -70,7 +70,7 @@ describe("ProcessingRail", () => {
     const { container } = render(<ProcessingRail />);
     // classifying is post-classification, so title is ghost-typed (GhostTyper starts empty)
     expect(container.querySelector("[data-testid='ghost-typer']")).not.toBeNull();
-    expect(container.querySelector(".rail-card__stage")?.textContent).toBe("Klassificera");
+    expect(container.querySelector(".rail-card__stage")?.textContent).toBe("Klassificerar");
   });
 
   it("does not render completed documents", () => {

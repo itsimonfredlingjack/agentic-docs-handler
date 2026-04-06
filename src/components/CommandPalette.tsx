@@ -10,6 +10,7 @@ import {
 import { useDocumentStore } from "../store/documentStore";
 import { useWorkspaceStore } from "../store/workspaceStore";
 import { useToastStore } from "../store/toastStore";
+import { t } from "../lib/locale";
 import type { SearchResult } from "../types/documents";
 
 type CommandPaletteProps = {
@@ -25,6 +26,9 @@ const WORKSPACE_COUNTS = {
   contract: 0,
   invoice: 0,
   meeting_notes: 0,
+  report: 0,
+  letter: 0,
+  tax_document: 0,
   audio: 0,
   generic: 0,
   moved: 0,
@@ -120,7 +124,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     const name = createName.trim();
     if (!name) return;
     await createWorkspace(name);
-    showToast(`Workspace "${name}" skapad`, "info");
+    showToast(t("cmd.workspace_created").replace("{name}", name), "info");
     onOpenChange(false);
   };
 
@@ -169,15 +173,15 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           <Command label="Command palette">
             <Command.Input
               className="command-palette__input"
-              placeholder="Sök workspace..."
+              placeholder={t("cmd.search_placeholder")}
               autoFocus
               value={query}
               onValueChange={setQuery}
             />
             <Command.List className="command-palette__list">
-              <Command.Empty className="command-palette__empty">Inga träffar</Command.Empty>
+              <Command.Empty className="command-palette__empty">{t("cmd.no_results")}</Command.Empty>
               {searchResults.length > 0 ? (
-                <Command.Group heading="Sökresultat">
+                <Command.Group heading={t("cmd.search_results")}>
                   {searchResults.map((result) => {
                     const workspaceId = typeof result.metadata.workspace_id === "string"
                       ? result.metadata.workspace_id
@@ -193,7 +197,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                           value={`open ${result.title} ${result.snippet}`}
                         >
                           <div className="min-w-0">
-                            <div>Öppna fil: {result.title}</div>
+                            <div>{t("cmd.open_file").replace("{title}", result.title)}</div>
                             <div className="truncate text-xs text-[var(--text-muted)]">{result.snippet}</div>
                           </div>
                         </Command.Item>
@@ -203,7 +207,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                             onSelect={() => handleSelectWorkspace(workspaceId)}
                             value={`workspace ${workspaceName} ${result.title}`}
                           >
-                            <span>Gå till workspace: {workspaceName}</span>
+                            <span>{t("cmd.go_to_workspace").replace("{name}", workspaceName)}</span>
                           </Command.Item>
                         ) : null}
                         <Command.Item
@@ -214,7 +218,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                           }}
                           value={`move ${result.title}`}
                         >
-                          <span>Flytta: {result.title}</span>
+                          <span>{t("cmd.move_file").replace("{title}", result.title)}</span>
                         </Command.Item>
                       </div>
                     );
@@ -222,7 +226,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                 </Command.Group>
               ) : null}
               {searchStatus === "loading" ? (
-                <div className="command-palette__empty">Söker i index...</div>
+                <div className="command-palette__empty">{t("cmd.searching")}</div>
               ) : null}
               <Command.Separator />
               <Command.Group heading="Workspaces">
@@ -245,7 +249,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               {activeDocuments.length > 0 ? (
                 <>
                   <Command.Separator />
-                  <Command.Group heading="Filer">
+                  <Command.Group heading={t("cmd.files")}>
                     {activeDocuments.map((document) => (
                       <Command.Item
                         key={document.id}
@@ -263,9 +267,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               <Command.Item
                 className="command-palette__item"
                 onSelect={() => setMode("create")}
-                value="Skapa workspace"
+                value={t("cmd.create_workspace")}
               >
-                <span style={{ fontSize: 14 }}>+</span> Skapa workspace
+                <span style={{ fontSize: 14 }}>+</span> {t("cmd.create_workspace")}
               </Command.Item>
             </Command.List>
           </Command>
@@ -276,7 +280,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             <input
               ref={createInputRef}
               className="command-palette__input"
-              placeholder="Namn på workspace..."
+              placeholder={t("cmd.create_name_placeholder")}
               value={createName}
               onChange={(e) => setCreateName(e.target.value)}
               onKeyDown={handleCreateKeyDown}
@@ -288,11 +292,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           <Command label="Move search result">
             <Command.Input
               className="command-palette__input"
-              placeholder={`Flytta ${moveTarget.title} till workspace...`}
+              placeholder={t("cmd.move_to_ws").replace("{title}", moveTarget.title)}
               autoFocus
             />
             <Command.List className="command-palette__list">
-              <Command.Group heading="Välj workspace">
+              <Command.Group heading={t("cmd.select_workspace")}>
                 {workspaces.map((workspace) => (
                   <Command.Item
                     key={workspace.id}

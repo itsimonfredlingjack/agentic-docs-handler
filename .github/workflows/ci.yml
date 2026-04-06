@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install Python dependencies
+        run: pip install -r server/requirements.txt
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Run backend tests
+        run: PYTHONPATH=. pytest server/tests -q
+        env:
+          ADH_SQLITE_DB_PATH: /tmp/brainfileing-ci.db
+          ADH_LANCEDB_PATH: /tmp/lancedb-ci
+          ADH_STAGING_DIR: /tmp/staging-ci
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: TypeScript check and build
+        run: npm run build
