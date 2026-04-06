@@ -199,6 +199,13 @@ const SV: StringTable = {
   "insights.new_badge": "NY",
   "insights.time_now": "Just nu",
 
+  // Chat drawer
+  "chat.drawer_placeholder": "Fråga AI om dina dokument...",
+  "chat.followup_placeholder": "Följ upp...",
+  "chat.new_chat": "Ny chatt",
+  "chat.minimize": "Minimera",
+  "chat.empty_prompt": "Fråga vad som helst om dina {count} dokument",
+
   // Command palette
   "cmd.search_placeholder": "Sök workspace...",
   "cmd.no_results": "Inga träffar",
@@ -392,6 +399,13 @@ const EN: StringTable = {
   "insights.empty_description": "Insights will appear here when the AI finds related documents, versions, or duplicates in your workspace.",
   "insights.new_badge": "NEW",
   "insights.time_now": "Just now",
+
+  // Chat drawer
+  "chat.drawer_placeholder": "Ask AI about your documents...",
+  "chat.followup_placeholder": "Follow up...",
+  "chat.new_chat": "New chat",
+  "chat.minimize": "Minimize",
+  "chat.empty_prompt": "Ask anything about your {count} documents",
 
   // Command palette
   "cmd.search_placeholder": "Search workspace...",
