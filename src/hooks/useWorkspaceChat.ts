@@ -11,6 +11,7 @@ export function useWorkspaceChat() {
   const finalize = useDocumentStore((s) => s.finalizeStreamingEntry);
   const hydrate = useDocumentStore((s) => s.hydrateConversation);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const selectedDocumentId = useDocumentStore((s) => s.selectedDocumentId);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -85,6 +86,7 @@ export function useWorkspaceChat() {
         for await (const event of streamWorkspaceChat(undefined, message, history, {
           signal: controller.signal,
           workspace_id: workspaceId,
+          ...(selectedDocumentId ? { document_id: selectedDocumentId } : {}),
         })) {
           if (event.type === "context") {
             sourceCount = event.data.source_count;
@@ -127,8 +129,8 @@ export function useWorkspaceChat() {
         });
       }
     },
-    [conversationKey, workspaceId, startQuery, appendToken, finalize],
+    [conversationKey, workspaceId, selectedDocumentId, startQuery, appendToken, finalize],
   );
 
-  return { conversation, isStreaming, sendMessage, conversationKey };
+  return { conversation, isStreaming, sendMessage, conversationKey, selectedDocumentId };
 }

@@ -536,3 +536,56 @@ async def test_prepare_context_truncates_large_history(tmp_path) -> None:
     # History should never start with an orphaned assistant message
     if history_msgs:
         assert history_msgs[0]["role"] == "user"
+
+
+@pytest.mark.asyncio
+async def test_focused_workspace_context_includes_document_and_workspace(tmp_path) -> None:
+    """When both workspace_id and document_id are provided, context should include
+    the focused document's details AND the workspace RAG context."""
+    ollama = FakeOllamaClient()
+    search = SearchPipeline(
+        db_path=tmp_path / "lancedb",
+        embedder=FakeEmbedder(),
+    )
+    search.index_documents([
+        IndexedDocument(
+            doc_id="r1", title="Kvitto ICA", source_path="/r1.pdf",
+            text="ICA Maxi kvitto moms 100", metadata={"document_type": "receipt"},
+        ),
+        IndexedDocument(
+            doc_id="r2", title="Kvitto Coop", source_path="/r2.pdf",
+            text="Coop kvitto moms 50", metadata={"document_type": "receipt"},
+        ),
+    ])
+    registry = FakeDocumentRegistry([
+        build_test_record(
+            record_id="r1", title="Kvitto ICA", kind="receipt",
+            workspace_id="ws-a", fields={"vendor": "ICA Maxi", "vat_amount": "100"},
+        ),
+        build_test_record(
+            record_id="r2", title="Kvitto Coop", kind="receipt",
+            workspace_id="ws-a", fields={"vendor": "Coop", "vat_amount": "50"},
+        ),
+    ])
+
+    pipeline = WorkspaceChatPipeline(
+        ollama_client=ollama, search_pipeline=search,
+        document_registry=registry, system_prompt="Du analyserar dokument.",
+    )
+
+    context = await pipeline.prepare_context(
+        workspace_id="ws-a",
+        document_id="r1",
+        message="Vad är momsen?",
+        history=[],
+    )
+
+    system_msg = context.messages[0]["content"]
+    # Should include the focused document block
+    assert "FOKUSERAT DOKUMENT: Kvitto ICA" in system_msg
+    # Should still include workspace context
+    assert "WORKSPACE_ID: ws-a" in system_msg
+    assert context.source_count == 2
+    # Focused document should be in sources
+    source_ids = [s["id"] for s in context.sources]
+    assert "r1" in source_ids

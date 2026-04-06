@@ -64,7 +64,7 @@ describe("useWorkspaceChat", () => {
     expect(result.current.conversationKey).toBe("ws-1");
   });
 
-  it("does not send document_id in workspace mode", async () => {
+  it("does not send document_id when no document is selected", async () => {
     const { result } = renderHook(() => useWorkspaceChat());
 
     await act(async () => {
@@ -73,5 +73,18 @@ describe("useWorkspaceChat", () => {
 
     const callOptions = vi.mocked(streamWorkspaceChat).mock.calls[0][3];
     expect(callOptions).not.toHaveProperty("document_id");
+  });
+
+  it("sends document_id when a document is selected", async () => {
+    useDocumentStore.setState({ selectedDocumentId: "doc-42" });
+
+    const { result } = renderHook(() => useWorkspaceChat());
+
+    await act(async () => {
+      await result.current.sendMessage("Tell me about this doc");
+    });
+
+    const callOptions = vi.mocked(streamWorkspaceChat).mock.calls[0][3];
+    expect(callOptions).toHaveProperty("document_id", "doc-42");
   });
 });

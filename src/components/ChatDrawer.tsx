@@ -16,7 +16,10 @@ export function ChatDrawer({ workspaceId }: ChatDrawerProps) {
   const workspace = useWorkspaceStore((s) =>
     s.workspaces.find((w) => w.id === workspaceId),
   );
-  const { conversation, isStreaming, sendMessage } = useWorkspaceChat();
+  const { conversation, isStreaming, sendMessage, selectedDocumentId } = useWorkspaceChat();
+  const selectedDoc = useDocumentStore((s) =>
+    s.selectedDocumentId ? s.documents[s.selectedDocumentId] : null,
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
 
@@ -130,7 +133,12 @@ export function ChatDrawer({ workspaceId }: ChatDrawerProps) {
         <span className="text-xs-ui text-[var(--text-muted)]">
           {docCount}
         </span>
-        <span className="flex-1" />
+        {selectedDoc && (
+          <span className="truncate text-xs-ui text-[var(--accent-primary)]">
+            · {t("chat.focus")}: {selectedDoc.title}
+          </span>
+        )}
+        <span className="flex-1 min-w-0" />
         <button
           type="button"
           onClick={handleNewChat}
