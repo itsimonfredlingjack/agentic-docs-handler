@@ -1,0 +1,38 @@
+Internal Revenue Service
+Department of the Treasury
+
+Tax Year 2024 — Notice of Assessment
+Notice Date: February 15, 2025
+Notice Number: CP2000-2025-48721
+
+Taxpayer: Erik Nilsson
+SSN: ***-**-1234
+Filing Status: Single
+
+INCOME SUMMARY
+  Wages (W-2):                    $78,500.00
+  Interest income (1099-INT):        $425.00
+  Freelance income (1099-NEC):     $6,075.00
+  Adjusted Gross Income:          $85,000.00
+
+TAX COMPUTATION
+  Federal income tax:             $14,200.00
+  Self-employment tax:               $858.00
+  Total tax liability:            $15,058.00
+
+CREDITS AND PAYMENTS
+  Federal withholding (W-2):      $15,800.00
+  Estimated tax payments:            $858.00
+  Total credits:                  $16,658.00
+
+RESULT
+  Overpayment:                     $1,600.00
+  Refund amount:                   $1,600.00
+
+Your refund of $1,600.00 will be direct-deposited to the bank account
+on file within 21 business days.
+
+If you have questions about this notice, call 1-800-829-1040 or visit
+www.irs.gov. Please reference Notice Number CP2000-2025-48721.
+
+This notice is for tax year 2024 only.

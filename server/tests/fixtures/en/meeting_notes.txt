@@ -1,0 +1,42 @@
+Board of Directors Meeting
+March 15, 2025
+
+Present: Anna Chen (Chair), Erik Johansson, Maria Lopez, David Park
+Absent: Thomas Reed (excused)
+
+Location: Conference Room A, 450 Park Avenue
+Called to order at 10:00 AM
+
+1. APPROVAL OF PREVIOUS MINUTES
+The minutes from the February 15 meeting were approved without changes.
+
+2. FINANCIAL REPORT
+Erik presented the Q1 financial report.
+- Revenue: $2.3M (up 12% YoY)
+- Net income: +$150K
+- Operating margin: 6.5%
+Erik noted that the Austin project contributed $800K in new revenue.
+Decision: The Q1 financial report was unanimously approved.
+
+3. NEW HIRE — SENIOR DEVELOPER
+Maria proposed hiring a senior full-stack developer for the Austin office.
+Estimated salary range: $140K-$165K plus benefits.
+David raised concerns about the current hiring freeze timeline.
+Decision: The board approved proceeding with the hire, conditional on
+Q2 revenue targets being met.
+Action: Maria to draft job posting and submit to LinkedIn by March 22.
+Action: David to update the headcount budget by March 28.
+
+4. OFFICE EXPANSION
+Discussion about expanding the Austin office by 2,000 sq ft.
+Estimated buildout cost: $180K. Landlord willing to contribute $50K.
+Decision: Tabled until Q2 review. Erik to gather detailed cost estimates.
+Action: Erik to request formal buildout proposals by April 15.
+
+5. NEXT MEETING
+April 12, 2025 at 10:00 AM, Conference Room A.
+
+Meeting adjourned at 11:45 AM.
+
+Respectfully submitted,
+Anna Chen, Chair

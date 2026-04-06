@@ -1,0 +1,34 @@
+INVOICE
+
+Summit Consulting LLC
+450 Park Avenue, Suite 800
+New York, NY 10022
+EIN: 12-3456789
+
+Bill To:
+Acme Corp.
+1200 Industrial Parkway
+Austin, TX 78701
+
+Invoice No: INV-2025-0381
+Invoice Date: March 1, 2025
+Due Date: March 31, 2025
+Terms: Net 30
+
+Description                              Amount
+-------------------------------------------------
+Consulting services, February 2025    $45,000.00
+Travel expenses (Austin site visit)    $2,350.00
+Software license reimbursement         $1,200.00
+
+                          Subtotal:   $48,550.00
+                     Sales tax (0%):       $0.00
+                       TOTAL DUE:     $48,550.00
+
+Payment instructions:
+Wire to First National Bank
+Routing: 021000089
+Account: 483729156
+
+Please remit payment by the due date.
+Late payments subject to 1.5% monthly interest.
