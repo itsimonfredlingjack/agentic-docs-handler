@@ -54,12 +54,6 @@ export function WorkspaceView() {
     [docs],
   );
 
-  useEffect(() => {
-    if (docs.length > 0 && !selectedDocumentId) {
-      setSelectedDocument(docs[0].id);
-    }
-  }, [docs, selectedDocumentId, setSelectedDocument]);
-
   // Fetch discovery cards when workspace changes
   useEffect(() => {
     if (activeWorkspaceId) {
