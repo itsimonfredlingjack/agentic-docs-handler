@@ -9,6 +9,7 @@ import { WorkspaceTabBar } from "./WorkspaceTabBar";
 import { InsightsFeed } from "./InsightsFeed";
 import { SearchFilterBar } from "./SearchFilterBar";
 import { AiPresence } from "./AiPresence";
+import { ChatDrawer } from "./ChatDrawer";
 import { EmptyState } from "./ui/EmptyState";
 import { ErrorBanner } from "./ui/ErrorBanner";
 import { DocumentRowSkeleton } from "./ui/DocumentRowSkeleton";
@@ -150,86 +151,89 @@ export function WorkspaceView() {
         </div>
         <WorkspaceTabBar />
       </div>
-      <div className="flex-1 overflow-y-auto pt-2 pb-4">
-        {activeTab === "insights" && activeWorkspaceId ? (
-          <InsightsFeed workspaceId={activeWorkspaceId} />
-        ) : (
-        <>
-        {searchState.status === "error" ? (
-          <div className="px-6 pt-2">
-            <ErrorBanner
-              title={t("search.failed_title")}
-              message={searchState.error ?? t("search.failed_message")}
-            />
-          </div>
-        ) : null}
-
-        {hasActiveSearch && <SearchFilterBar />}
-
-        {filesLoading ? (
-          <div className="flex flex-col">
-            <div className="flex items-center gap-3 px-4 py-1.5 border-b border-[var(--surface-4)]">
-              <span className="h-2 w-2 shrink-0" />
-              <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[2]">Name</span>
-              <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[3]">Details</span>
-              <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] w-16 text-right">Status</span>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex-1 overflow-y-auto pt-2 pb-4">
+          {activeTab === "insights" && activeWorkspaceId ? (
+            <InsightsFeed workspaceId={activeWorkspaceId} />
+          ) : (
+          <>
+          {searchState.status === "error" ? (
+            <div className="px-6 pt-2">
+              <ErrorBanner
+                title={t("search.failed_title")}
+                message={searchState.error ?? t("search.failed_message")}
+              />
             </div>
-            <DocumentRowSkeleton />
-          </div>
-        ) : showSearchEmptyState ? (
-          <EmptyState
-            title={t("search.no_results")}
-            description={t("search.no_results_hint").replace("{query}", searchState.query)}
-            icon={<AiPresence mode="idle" accentKind={null} processingStage={null} connectionState="connected" />}
-          />
-        ) : docs.length === 0 ? (
-          <EmptyState
-            title={isInbox ? t("empty.inbox") : t("empty.workspace")}
-            description={t("empty.drop_hint")}
-            icon={<AiPresence mode="idle" accentKind={null} processingStage={null} connectionState="connected" />}
-          />
-        ) : (
-          <div className="flex flex-col">
-            {/* Column headers or bulk action bar */}
-            {selectedDocumentIds.size > 0 ? (
-              <BulkActionBar />
-            ) : (
+          ) : null}
+
+          {hasActiveSearch && <SearchFilterBar />}
+
+          {filesLoading ? (
+            <div className="flex flex-col">
               <div className="flex items-center gap-3 px-4 py-1.5 border-b border-[var(--surface-4)]">
                 <span className="h-2 w-2 shrink-0" />
                 <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[2]">Name</span>
                 <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[3]">Details</span>
                 <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] w-16 text-right">Status</span>
               </div>
-            )}
-
-            {groups.map((group) => (
-              <div key={group.label}>
-                <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-1.5 bg-[rgba(10,10,16,0.92)] backdrop-blur-sm">
-                  <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-                    {group.label}
-                  </span>
-                  <span className="flex-1 h-px bg-[var(--surface-4)]" />
+              <DocumentRowSkeleton />
+            </div>
+          ) : showSearchEmptyState ? (
+            <EmptyState
+              title={t("search.no_results")}
+              description={t("search.no_results_hint").replace("{query}", searchState.query)}
+              icon={<AiPresence mode="idle" accentKind={null} processingStage={null} connectionState="connected" />}
+            />
+          ) : docs.length === 0 ? (
+            <EmptyState
+              title={isInbox ? t("empty.inbox") : t("empty.workspace")}
+              description={t("empty.drop_hint")}
+              icon={<AiPresence mode="idle" accentKind={null} processingStage={null} connectionState="connected" />}
+            />
+          ) : (
+            <div className="flex flex-col">
+              {/* Column headers or bulk action bar */}
+              {selectedDocumentIds.size > 0 ? (
+                <BulkActionBar />
+              ) : (
+                <div className="flex items-center gap-3 px-4 py-1.5 border-b border-[var(--surface-4)]">
+                  <span className="h-2 w-2 shrink-0" />
+                  <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[2]">Name</span>
+                  <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[3]">Details</span>
+                  <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] w-16 text-right">Status</span>
                 </div>
-                {group.items.map((doc) => (
-                  <DocumentRow
-                    key={doc.id}
-                    document={doc}
-                    focused={doc.id === selectedDocumentId}
-                    selected={selectedDocumentIds.has(doc.id)}
-                    isInbox={Boolean(isInbox)}
-                    onSelectId={setSelectedDocument}
-                    onToggleSelect={toggleDocumentSelection}
-                    onMoveToWorkspace={isInbox ? handleMoveToWorkspace : undefined}
-                    snippet={searchState.snippetsByDocId[doc.id]}
-                    searchQuery={hasActiveSearch ? searchState.query : undefined}
-                  />
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
-        </>
-        )}
+              )}
+
+              {groups.map((group) => (
+                <div key={group.label}>
+                  <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-1.5 bg-[rgba(10,10,16,0.92)] backdrop-blur-sm">
+                    <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                      {group.label}
+                    </span>
+                    <span className="flex-1 h-px bg-[var(--surface-4)]" />
+                  </div>
+                  {group.items.map((doc) => (
+                    <DocumentRow
+                      key={doc.id}
+                      document={doc}
+                      focused={doc.id === selectedDocumentId}
+                      selected={selectedDocumentIds.has(doc.id)}
+                      isInbox={Boolean(isInbox)}
+                      onSelectId={setSelectedDocument}
+                      onToggleSelect={toggleDocumentSelection}
+                      onMoveToWorkspace={isInbox ? handleMoveToWorkspace : undefined}
+                      snippet={searchState.snippetsByDocId[doc.id]}
+                      searchQuery={hasActiveSearch ? searchState.query : undefined}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+          </>
+          )}
+        </div>
+        {activeWorkspaceId && <ChatDrawer workspaceId={activeWorkspaceId} />}
       </div>
     </main>
   );
