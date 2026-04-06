@@ -9,6 +9,9 @@ DocumentType = Literal[
     "contract",
     "invoice",
     "meeting_notes",
+    "report",
+    "letter",
+    "tax_document",
     "generic",
     "unsupported",
 ]
@@ -29,6 +32,9 @@ UiDocumentKind = Literal[
     "contract",
     "invoice",
     "meeting_notes",
+    "report",
+    "letter",
+    "tax_document",
     "audio",
     "generic",
     "file_moved",
@@ -40,6 +46,7 @@ ProcessingStatus = Literal[
     "move_executed",
     "failed_validation",
     "failed_runtime",
+    "pending_classification",
 ]
 
 
@@ -255,6 +262,9 @@ class DocumentCountsResponse(BaseModel):
     contract: int = 0
     invoice: int = 0
     meeting_notes: int = 0
+    report: int = 0
+    letter: int = 0
+    tax_document: int = 0
     audio: int = 0
     generic: int = 0
     moved: int = 0
@@ -416,6 +426,7 @@ class DiscoveryFileRef(BaseModel):
     id: str
     title: str
     source_path: str | None = None
+    kind: str | None = None
 
 
 class DiscoveryCard(BaseModel):
@@ -425,6 +436,7 @@ class DiscoveryCard(BaseModel):
     explanation: str
     files: list[DiscoveryFileRef] = Field(default_factory=list)
     created_at: str
+    metadata: dict[str, Any] | None = None
 
 
 class WorkspaceDiscoveryResponse(BaseModel):

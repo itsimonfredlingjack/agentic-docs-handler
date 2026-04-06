@@ -6,6 +6,8 @@ import re
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime
+
+from server.locale import msg
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Protocol
@@ -101,9 +103,11 @@ class WorkspaceDiscoveryPipeline:
                 a.id AS file_a_id,
                 a.title AS file_a_title,
                 a.source_path AS file_a_source_path,
+                a.kind AS file_a_kind,
                 b.id AS file_b_id,
                 b.title AS file_b_title,
-                b.source_path AS file_b_source_path
+                b.source_path AS file_b_source_path,
+                b.kind AS file_b_kind
             FROM file_relation fr
             JOIN document a ON a.id = fr.file_a_id
             JOIN document b ON b.id = fr.file_b_id
@@ -124,17 +128,38 @@ class WorkspaceDiscoveryPipeline:
                         id=row["file_a_id"],
                         title=row["file_a_title"],
                         source_path=row["file_a_source_path"],
+                        kind=row["file_a_kind"],
                     ),
                     DiscoveryFileRef(
                         id=row["file_b_id"],
                         title=row["file_b_title"],
                         source_path=row["file_b_source_path"],
+                        kind=row["file_b_kind"],
                     ),
                 ],
                 created_at=row["created_at"],
+                metadata=self._build_metadata(row),
             )
             for row in rows
         ]
+
+    @staticmethod
+    def _build_metadata(row: sqlite3.Row) -> dict[str, Any]:
+        relation_type = row["relation_type"]
+        confidence = float(row["confidence"])
+        if relation_type == "duplicate":
+            return {"is_exact_hash": confidence >= EXACT_DUPLICATE_CONFIDENCE}
+        if relation_type == "version":
+            return {"similarity_pct": round(confidence * 100)}
+        if relation_type == "related":
+            explanation = row["explanation"]
+            # Extract entity names from the localized explanation string
+            # Pattern: "... entiteter: X, Y" or "... entities: X, Y"
+            match = re.search(r"(?:entiteter|entities):\s*(.+)", explanation)
+            if match:
+                entities = [e.strip() for e in match.group(1).split(",") if e.strip()]
+                return {"shared_entities": entities}
+        return {}
 
     def dismiss_relation(self, *, relation_id: str) -> None:
         with self.document_registry.conn:
@@ -183,7 +208,7 @@ class WorkspaceDiscoveryPipeline:
                             file_b_id=pair[1],
                             relation_type="duplicate",
                             confidence=EXACT_DUPLICATE_CONFIDENCE,
-                            explanation="Exakt kopia: filerna har samma SHA-256-hash.",
+                            explanation=msg("discovery.exact_duplicate"),
                             created_at=created_at,
                         )
                     )
@@ -200,7 +225,7 @@ class WorkspaceDiscoveryPipeline:
                         file_b_id=pair[1],
                         relation_type="duplicate",
                         confidence=similarity,
-                        explanation=f"Nästan identiskt innehåll med semantisk likhet {similarity:.2f}.",
+                        explanation=msg("discovery.near_duplicate", similarity=f"{similarity:.2f}"),
                         created_at=created_at,
                     )
                 )
@@ -212,7 +237,7 @@ class WorkspaceDiscoveryPipeline:
             shared = sorted(entity_names.get(pair[0], set()) & entity_names.get(pair[1], set()))
             if len(shared) >= RELATED_ENTITY_MIN:
                 pair_claims.add(pair)
-                explanation = "Delar entiteter: " + ", ".join(shared[:4]) + "."
+                explanation = msg("discovery.related_entities", entities=", ".join(shared[:4]))
                 relations.append(
                     self._make_relation(
                         file_a_id=pair[0],
@@ -242,7 +267,7 @@ class WorkspaceDiscoveryPipeline:
                     file_b_id=pair[1],
                     relation_type="version",
                     confidence=similarity,
-                    explanation="Liknande titel och innehåll, men olika filversioner.",
+                    explanation=msg("discovery.version_relation"),
                     created_at=created_at,
                 )
             )

@@ -9,9 +9,12 @@ import {
   deleteWorkspace as apiDeleteWorkspace,
 } from "../lib/api";
 
+type WorkspaceTab = "documents" | "insights";
+
 type WorkspaceStoreState = {
   workspaces: WorkspaceResponse[];
   activeWorkspaceId: string | null;
+  activeWorkspaceTab: WorkspaceTab;
   loading: boolean;
   error: string | null;
   chatPanelOpen: boolean;
@@ -20,6 +23,7 @@ type WorkspaceStoreState = {
   checkBackend: () => Promise<void>;
   fetchWorkspaces: () => Promise<void>;
   setActiveWorkspace: (id: string) => void;
+  setActiveWorkspaceTab: (tab: WorkspaceTab) => void;
   createWorkspace: (name: string) => Promise<WorkspaceResponse>;
   updateWorkspace: (id: string, fields: { name?: string; description?: string; cover_color?: string }) => Promise<void>;
   deleteWorkspace: (id: string) => Promise<void>;
@@ -30,6 +34,7 @@ type WorkspaceStoreState = {
 export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
   workspaces: [],
   activeWorkspaceId: null,
+  activeWorkspaceTab: "documents",
   loading: false,
   error: null,
   chatPanelOpen: false,
@@ -80,7 +85,9 @@ export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
     }
   },
 
-  setActiveWorkspace: (id) => set({ activeWorkspaceId: id, chatPanelOpen: false }),
+  setActiveWorkspace: (id) => set({ activeWorkspaceId: id, activeWorkspaceTab: "documents", chatPanelOpen: false }),
+
+  setActiveWorkspaceTab: (tab) => set({ activeWorkspaceTab: tab }),
 
   createWorkspace: async (name) => {
     const created = await apiCreateWorkspace(name);

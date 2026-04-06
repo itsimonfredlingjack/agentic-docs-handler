@@ -4,6 +4,8 @@ import type {
   ActivityEvent,
   BackendConnectionPayload,
   ConnectionState,
+  DiscoveryCard,
+  DiscoveryFilterType,
   DismissMoveResponse,
   DocumentClassification,
   DocumentCounts,
@@ -16,8 +18,10 @@ import type {
   UiDocument,
   UiDocumentKind,
   UndoMoveResponse,
+  NotebookEntry,
   WorkspaceConversation,
 } from "../types/documents";
+import { fetchWorkspaceDiscovery, dismissWorkspaceDiscovery } from "../lib/api";
 
 type UploadMemory = {
   file: File;
@@ -44,12 +48,17 @@ type DocumentStoreState = {
   uploadsByRequestId: Record<string, UploadMemory>;
   pendingMoveStateByRecordId: Record<string, PendingMoveUiState>;
   selectedDocumentId: string | null;
+  selectedDocumentIds: Set<string>;
   stageHistory: Record<string, StageEntry[]>;
   activeWorkspace: string | null;
   activeDocumentChat: string | null;
   conversations: Record<string, WorkspaceConversation>;
   filesLoading: boolean;
   searchFilters: { documentType: string | null; dateFrom: string | null; dateTo: string | null };
+  discoveryCards: DiscoveryCard[];
+  discoveryLoading: boolean;
+  discoveryError: string | null;
+  discoveryFilter: DiscoveryFilterType;
   setSelectedDocument: (id: string | null) => void;
   setSearchFilters: (filters: Partial<{ documentType: string | null; dateFrom: string | null; dateTo: string | null }>) => void;
   setFilesLoading: (loading: boolean) => void;
@@ -87,6 +96,14 @@ type DocumentStoreState = {
   startWorkspaceQuery: (category: string, query: string) => void;
   appendStreamingToken: (category: string, token: string) => void;
   finalizeStreamingEntry: (category: string, sourceCount: number, sources?: Array<{ id: string; title: string }>, errorMessage?: string | null) => void;
+  hydrateConversation: (key: string, entries: NotebookEntry[]) => void;
+  toggleDocumentSelection: (id: string) => void;
+  selectAllVisible: (ids: string[]) => void;
+  clearSelection: () => void;
+  removeDocuments: (ids: string[]) => void;
+  fetchDiscovery: (workspaceId: string) => Promise<void>;
+  dismissDiscoveryCard: (workspaceId: string, cardId: string) => Promise<void>;
+  setDiscoveryFilter: (filter: DiscoveryFilterType) => void;
 };
 
 const emptyCounts: DocumentCounts = {
@@ -96,6 +113,9 @@ const emptyCounts: DocumentCounts = {
   contract: 0,
   invoice: 0,
   meeting_notes: 0,
+  report: 0,
+  letter: 0,
+  tax_document: 0,
   audio: 0,
   generic: 0,
   moved: 0,
@@ -118,7 +138,7 @@ function upsertOrder(order: string[], id: string): string[] {
   return [id, ...order.filter((entry) => entry !== id)];
 }
 
-export const useDocumentStore = create<DocumentStoreState>((set) => ({
+export const useDocumentStore = create<DocumentStoreState>((set, get) => ({
   clientId: null,
   connectionState: "connecting",
   documents: {},
@@ -131,12 +151,17 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
   uploadsByRequestId: {},
   pendingMoveStateByRecordId: {},
   selectedDocumentId: null,
+  selectedDocumentIds: new Set<string>(),
   stageHistory: {},
   activeWorkspace: "all",
   activeDocumentChat: null,
   conversations: {},
   filesLoading: false,
   searchFilters: emptySearchFilters,
+  discoveryCards: [],
+  discoveryLoading: false,
+  discoveryError: null,
+  discoveryFilter: "all",
   setSelectedDocument: (id) => set({ selectedDocumentId: id }),
   setSearchFilters: (filters) => set((state) => ({
     searchFilters: { ...state.searchFilters, ...filters },
@@ -410,7 +435,7 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
         },
       };
     }),
-  clearSearch: () => set({ search: emptySearch, searchFilters: emptySearchFilters }),
+  clearSearch: () => set({ search: emptySearch, searchFilters: emptySearchFilters, selectedDocumentIds: new Set<string>() }),
   setSidebarFilter: (sidebarFilter) => set({ sidebarFilter }),
   pushMoveToast: (toast) =>
     set((state) => ({
@@ -484,7 +509,7 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
         counts: { ...state.counts, all: Math.max(0, state.counts.all - 1) },
       };
     }),
-  setActiveWorkspace: (category) => set({ activeWorkspace: category, activeDocumentChat: null }),
+  setActiveWorkspace: (category) => set({ activeWorkspace: category, activeDocumentChat: null, selectedDocumentIds: new Set<string>() }),
   setActiveDocumentChat: (documentId) => set({ activeDocumentChat: documentId, activeWorkspace: null }),
   startWorkspaceQuery: (category, query) =>
     set((state) => {
@@ -540,4 +565,64 @@ export const useDocumentStore = create<DocumentStoreState>((set) => ({
         },
       };
     }),
+  hydrateConversation: (key, entries) =>
+    set((state) => {
+      const existing = state.conversations[key];
+      if (existing && existing.entries.length > 0) return state;
+      return {
+        conversations: {
+          ...state.conversations,
+          [key]: { entries, isStreaming: false, streamingText: "" },
+        },
+      };
+    }),
+  toggleDocumentSelection: (id) =>
+    set((state) => {
+      const next = new Set(state.selectedDocumentIds);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return { selectedDocumentIds: next };
+    }),
+  selectAllVisible: (ids) =>
+    set(() => ({ selectedDocumentIds: new Set(ids) })),
+  clearSelection: () =>
+    set(() => ({ selectedDocumentIds: new Set<string>() })),
+  removeDocuments: (ids) =>
+    set((state) => {
+      const documents = { ...state.documents };
+      for (const id of ids) delete documents[id];
+      const idSet = new Set(ids);
+      return {
+        documents,
+        documentOrder: state.documentOrder.filter((docId) => !idSet.has(docId)),
+        selectedDocumentId: idSet.has(state.selectedDocumentId ?? "") ? null : state.selectedDocumentId,
+        selectedDocumentIds: new Set<string>(),
+        counts: { ...state.counts, all: Math.max(0, state.counts.all - ids.length) },
+      };
+    }),
+  fetchDiscovery: async (workspaceId) => {
+    set({ discoveryLoading: true, discoveryError: null });
+    try {
+      const response = await fetchWorkspaceDiscovery(workspaceId);
+      set({ discoveryCards: response.cards, discoveryLoading: false });
+    } catch (err) {
+      set({
+        discoveryLoading: false,
+        discoveryError: err instanceof Error ? err.message : "Failed to load insights",
+      });
+    }
+  },
+  dismissDiscoveryCard: async (workspaceId, cardId) => {
+    const prev = get().discoveryCards;
+    set({ discoveryCards: prev.filter((c) => c.id !== cardId) });
+    try {
+      await dismissWorkspaceDiscovery(workspaceId, cardId);
+    } catch {
+      set({ discoveryCards: prev });
+    }
+  },
+  setDiscoveryFilter: (filter) => set({ discoveryFilter: filter }),
 }));

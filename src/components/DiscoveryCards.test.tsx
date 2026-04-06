@@ -67,8 +67,8 @@ describe("DiscoveryCards", () => {
           explanation: "Delar entiteter: Acme AB, Stockholm.",
           created_at: "2026-03-28T10:00:00Z",
           files: [
-            { id: "doc-1", title: "Kontrakt.pdf", source_path: "/tmp/kontrakt.pdf" },
-            { id: "doc-2", title: "Mötesanteckningar.pdf", source_path: "/tmp/mote.pdf" },
+            { id: "doc-1", title: "Kontrakt.pdf", source_path: "/tmp/kontrakt.pdf", kind: "contract" },
+            { id: "doc-2", title: "Mötesanteckningar.pdf", source_path: "/tmp/mote.pdf", kind: "meeting_notes" },
           ],
         },
       ],
@@ -98,7 +98,7 @@ describe("DiscoveryCards", () => {
       expect(screen.getByText("Insikter")).toBeInTheDocument();
     });
 
-    await userEvent.click(screen.getByRole("button", { name: "Dölj insikt" }));
+    await userEvent.click(screen.getByRole("button", { name: "Dölj" }));
 
     await waitFor(() => {
       expect(dismissWorkspaceDiscovery).toHaveBeenCalledWith("ws-1", "rel-1");

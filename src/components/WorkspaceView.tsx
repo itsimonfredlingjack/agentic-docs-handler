@@ -2,8 +2,11 @@ import { useEffect, useCallback, useMemo } from "react";
 import { useDocumentStore } from "../store/documentStore";
 import { useWorkspaceStore } from "../store/workspaceStore";
 import { DocumentRow } from "./DocumentRow";
-import { DiscoveryCards } from "./DiscoveryCards";
+import { BulkActionBar } from "./BulkActionBar";
 import { WorkspaceHeader } from "./WorkspaceHeader";
+import { WorkspaceTimeline } from "./WorkspaceTimeline";
+import { WorkspaceTabBar } from "./WorkspaceTabBar";
+import { InsightsFeed } from "./InsightsFeed";
 import { SearchFilterBar } from "./SearchFilterBar";
 import { AiPresence } from "./AiPresence";
 import { EmptyState } from "./ui/EmptyState";
@@ -12,10 +15,14 @@ import { DocumentRowSkeleton } from "./ui/DocumentRowSkeleton";
 import { moveLocalFile } from "../lib/tauri-events";
 import { finalizeClientMove } from "../lib/api";
 import { groupByTime } from "../lib/feed-utils";
+import { t } from "../lib/locale";
 
 export function WorkspaceView() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const activeTab = useWorkspaceStore((s) => s.activeWorkspaceTab);
+  const setActiveTab = useWorkspaceStore((s) => s.setActiveWorkspaceTab);
+  const fetchDiscovery = useDocumentStore((s) => s.fetchDiscovery);
 
   const clientId = useDocumentStore((s) => s.clientId);
   const documents = useDocumentStore((s) => s.documents);
@@ -23,6 +30,10 @@ export function WorkspaceView() {
   const searchState = useDocumentStore((s) => s.search);
   const setSelectedDocument = useDocumentStore((s) => s.setSelectedDocument);
   const selectedDocumentId = useDocumentStore((s) => s.selectedDocumentId);
+  const selectedDocumentIds = useDocumentStore((s) => s.selectedDocumentIds);
+  const toggleDocumentSelection = useDocumentStore((s) => s.toggleDocumentSelection);
+  const selectAllVisible = useDocumentStore((s) => s.selectAllVisible);
+  const clearSelection = useDocumentStore((s) => s.clearSelection);
   const applyMoveFinalized = useDocumentStore((s) => s.applyMoveFinalized);
   const applyClientMoveFailure = useDocumentStore((s) => s.applyClientMoveFailure);
   const filesLoading = useDocumentStore((s) => s.filesLoading);
@@ -48,6 +59,13 @@ export function WorkspaceView() {
     }
   }, [docs, selectedDocumentId, setSelectedDocument]);
 
+  // Fetch discovery cards when workspace changes
+  useEffect(() => {
+    if (activeWorkspaceId) {
+      fetchDiscovery(activeWorkspaceId);
+    }
+  }, [activeWorkspaceId, fetchDiscovery]);
+
   const handleMoveToWorkspace = useCallback((documentId: string) => {
     setSelectedDocument(documentId);
   }, [setSelectedDocument]);
@@ -61,7 +79,22 @@ export function WorkspaceView() {
     if (isTypingTarget) return;
 
     if (e.key === "Escape") {
-      setSelectedDocument(null);
+      if (activeTab === "insights") {
+        setActiveTab("documents");
+        return;
+      }
+      if (selectedDocumentIds.size > 0) {
+        clearSelection();
+      } else {
+        setSelectedDocument(null);
+      }
+      return;
+    }
+
+    // Cmd/Ctrl+A: select all visible documents
+    if ((e.metaKey || e.ctrlKey) && e.key === "a") {
+      e.preventDefault();
+      selectAllVisible(docs.map((d) => d.id));
       return;
     }
 
@@ -95,7 +128,7 @@ export function WorkspaceView() {
         }
       }
     }
-  }, [docs, selectedDocumentId, setSelectedDocument, isInbox, clientId, applyMoveFinalized, applyClientMoveFailure]);
+  }, [docs, selectedDocumentId, selectedDocumentIds, setSelectedDocument, clearSelection, selectAllVisible, isInbox, clientId, applyMoveFinalized, applyClientMoveFailure, activeTab, setActiveTab]);
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
@@ -108,15 +141,25 @@ export function WorkspaceView() {
 
   return (
     <main className="flex min-h-0 flex-1 flex-col items-stretch overflow-hidden bg-[rgba(0,0,0,0.1)] outline-none" tabIndex={-1}>
-      <div className="border-b border-[var(--surface-4)] pb-4">
-        <WorkspaceHeader workspace={workspace} />
+      <div className="border-b border-[var(--surface-4)]">
+        <div className="pb-4">
+          <WorkspaceHeader workspace={workspace} />
+          {!isInbox && activeWorkspaceId && (
+            <WorkspaceTimeline workspaceId={activeWorkspaceId} />
+          )}
+        </div>
+        <WorkspaceTabBar />
       </div>
       <div className="flex-1 overflow-y-auto pt-2 pb-4">
+        {activeTab === "insights" && activeWorkspaceId ? (
+          <InsightsFeed workspaceId={activeWorkspaceId} />
+        ) : (
+        <>
         {searchState.status === "error" ? (
           <div className="px-6 pt-2">
             <ErrorBanner
-              title="Sökning misslyckades"
-              message={searchState.error ?? "Kunde inte slutföra sökningen."}
+              title={t("search.failed_title")}
+              message={searchState.error ?? t("search.failed_message")}
             />
           </div>
         ) : null}
@@ -135,25 +178,29 @@ export function WorkspaceView() {
           </div>
         ) : showSearchEmptyState ? (
           <EmptyState
-            title="Inga träffar"
-            description={`Ingen match för \"${searchState.query}\". Prova ett bredare sökord.`}
+            title={t("search.no_results")}
+            description={t("search.no_results_hint").replace("{query}", searchState.query)}
             icon={<AiPresence mode="idle" accentKind={null} processingStage={null} connectionState="connected" />}
           />
         ) : docs.length === 0 ? (
           <EmptyState
-            title={isInbox ? "Inbox is empty" : "No documents yet"}
-            description="Drop files anywhere to process with AI"
+            title={isInbox ? t("empty.inbox") : t("empty.workspace")}
+            description={t("empty.drop_hint")}
             icon={<AiPresence mode="idle" accentKind={null} processingStage={null} connectionState="connected" />}
           />
         ) : (
           <div className="flex flex-col">
-            {/* Column headers */}
-            <div className="flex items-center gap-3 px-4 py-1.5 border-b border-[var(--surface-4)]">
-              <span className="h-2 w-2 shrink-0" />
-              <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[2]">Name</span>
-              <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[3]">Details</span>
-              <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] w-16 text-right">Status</span>
-            </div>
+            {/* Column headers or bulk action bar */}
+            {selectedDocumentIds.size > 0 ? (
+              <BulkActionBar />
+            ) : (
+              <div className="flex items-center gap-3 px-4 py-1.5 border-b border-[var(--surface-4)]">
+                <span className="h-2 w-2 shrink-0" />
+                <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[2]">Name</span>
+                <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[3]">Details</span>
+                <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] w-16 text-right">Status</span>
+              </div>
+            )}
 
             {groups.map((group) => (
               <div key={group.label}>
@@ -168,8 +215,10 @@ export function WorkspaceView() {
                     key={doc.id}
                     document={doc}
                     focused={doc.id === selectedDocumentId}
+                    selected={selectedDocumentIds.has(doc.id)}
                     isInbox={Boolean(isInbox)}
                     onSelectId={setSelectedDocument}
+                    onToggleSelect={toggleDocumentSelection}
                     onMoveToWorkspace={isInbox ? handleMoveToWorkspace : undefined}
                     snippet={searchState.snippetsByDocId[doc.id]}
                     searchQuery={hasActiveSearch ? searchState.query : undefined}
@@ -179,9 +228,8 @@ export function WorkspaceView() {
             ))}
           </div>
         )}
-        <div className="mt-8 px-6">
-          <DiscoveryCards workspaceId={workspace.id} />
-        </div>
+        </>
+        )}
       </div>
     </main>
   );

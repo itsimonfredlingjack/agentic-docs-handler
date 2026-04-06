@@ -3,6 +3,9 @@ export type DocumentType =
   | "contract"
   | "invoice"
   | "meeting_notes"
+  | "report"
+  | "letter"
+  | "tax_document"
   | "generic"
   | "unsupported";
 
@@ -13,6 +16,9 @@ export type UiDocumentKind =
   | "contract"
   | "invoice"
   | "meeting_notes"
+  | "report"
+  | "letter"
+  | "tax_document"
   | "audio"
   | "generic"
   | "file_moved";
@@ -42,7 +48,8 @@ export type JobStage =
   | "awaiting_confirmation"
   | "moved"
   | "completed"
-  | "failed";
+  | "failed"
+  | "pending_classification";
 
 export type ConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected";
 
@@ -58,6 +65,9 @@ export type SidebarFilter =
   | "contract"
   | "invoice"
   | "meeting_notes"
+  | "report"
+  | "letter"
+  | "tax_document"
   | "audio"
   | "generic"
   | "moved";
@@ -194,6 +204,9 @@ export type DocumentCounts = {
   contract: number;
   invoice: number;
   meeting_notes: number;
+  report: number;
+  letter: number;
+  tax_document: number;
   audio: number;
   generic: number;
   moved: number;
@@ -425,12 +438,15 @@ export type WorkspaceChatEvent =
   | { type: "done"; data: Record<string, never> }
   | { type: "error"; data: { error: string } };
 
+export type DiscoveryFilterType = "all" | "related" | "version" | "duplicate";
+
 export type DiscoveryRelationType = "duplicate" | "related" | "version";
 
 export type DiscoveryFileRef = {
   id: string;
   title: string;
-  source_path: string | null;
+  source_path?: string | null;
+  kind?: string | null;
 };
 
 export type DiscoveryCard = {
@@ -440,6 +456,7 @@ export type DiscoveryCard = {
   explanation: string;
   files: DiscoveryFileRef[];
   created_at: string;
+  metadata?: Record<string, unknown> | null;
 };
 
 export type WorkspaceDiscoveryResponse = {
