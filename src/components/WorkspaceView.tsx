@@ -166,9 +166,9 @@ export function WorkspaceView() {
             <div className="flex flex-col">
               <div className="flex items-center gap-3 px-4 py-1.5 border-b border-[var(--surface-4)]">
                 <span className="h-2 w-2 shrink-0" />
-                <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[2]">Name</span>
-                <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[3]">Details</span>
-                <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] w-16 text-right">Status</span>
+                <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[2]">{t("column.name")}</span>
+                <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[3]">{t("column.details")}</span>
+                <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] w-16 text-right">{t("column.status")}</span>
               </div>
               <DocumentRowSkeleton />
             </div>
@@ -192,9 +192,9 @@ export function WorkspaceView() {
               ) : (
                 <div className="flex items-center gap-3 px-4 py-1.5 border-b border-[var(--surface-4)]">
                   <span className="h-2 w-2 shrink-0" />
-                  <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[2]">Name</span>
-                  <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[3]">Details</span>
-                  <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] w-16 text-right">Status</span>
+                  <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[2]">{t("column.name")}</span>
+                  <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] flex-[3]">{t("column.details")}</span>
+                  <span className="text-xs-ui font-semibold uppercase tracking-[0.08em] text-[var(--text-disabled)] w-16 text-right">{t("column.status")}</span>
                 </div>
               )}
 

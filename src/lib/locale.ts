@@ -228,6 +228,26 @@ const SV: StringTable = {
 
   // Processing rail
   "processing.active_jobs": "Aktiva jobb",
+
+  // Column headers
+  "column.name": "Namn",
+  "column.details": "Detaljer",
+  "column.status": "Status",
+
+  // Actions
+  "action.move": "Flytta",
+  "action.import": "Importera",
+
+  // Workspace
+  "workspace.items": "objekt",
+  "workspace.inbox": "Inkorg",
+
+  // Extraction fallback
+  "extraction.no_details": "Inga detaljer",
+
+  // Kind / status fallbacks
+  "kind.generic_label": "Okategoriserad",
+  "status.unknown": "Okänd",
 };
 
 const EN: StringTable = {
@@ -429,6 +449,26 @@ const EN: StringTable = {
 
   // Processing rail
   "processing.active_jobs": "Active jobs",
+
+  // Column headers
+  "column.name": "Name",
+  "column.details": "Details",
+  "column.status": "Status",
+
+  // Actions
+  "action.move": "Move",
+  "action.import": "Import",
+
+  // Workspace
+  "workspace.items": "items",
+  "workspace.inbox": "Inbox",
+
+  // Extraction fallback
+  "extraction.no_details": "No details",
+
+  // Kind / status fallbacks
+  "kind.generic_label": "Uncategorized",
+  "status.unknown": "Unknown",
 };
 
 const STRINGS: Record<string, StringTable> = { sv: SV, en: EN };

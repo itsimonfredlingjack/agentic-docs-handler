@@ -134,7 +134,7 @@ describe("DocumentRow", () => {
       movePlan: { destination: "/docs/Receipts/2026/file.pdf", rule_name: "receipt", auto_move_allowed: true, reason: "matched" },
     };
     render(<DocumentRow document={inboxDoc} isInbox onMoveToWorkspace={onMove} />);
-    const moveBtn = screen.getByText("Move", { selector: "button" });
+    const moveBtn = screen.getByText("Flytta", { selector: "button" });
     expect(moveBtn).toBeInTheDocument();
     fireEvent.click(moveBtn);
     expect(onMove).toHaveBeenCalledWith(inboxDoc.id);

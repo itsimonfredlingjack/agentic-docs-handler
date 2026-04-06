@@ -2,15 +2,18 @@ import { memo } from "react";
 import { mapToUserStatus, userStatusColor, userStatusLabel } from "../lib/status";
 import { kindRgbVar, kindColor } from "../lib/document-colors";
 import { highlightSnippet } from "../lib/highlight-snippet";
+import { t } from "../lib/locale";
 import type { UiDocument } from "../types/documents";
 import { Button } from "./ui/Button";
 
 type Props = {
   document: UiDocument;
   focused?: boolean;
+  selected?: boolean;
   snippet?: string;
   searchQuery?: string;
   onSelectId?: (id: string) => void;
+  onToggleSelect?: (id: string) => void;
   onRetry?: () => void;
   onUndo?: () => void;
   onMoveToWorkspace?: (documentId: string) => void;
@@ -18,11 +21,12 @@ type Props = {
 };
 
 
-export const DocumentRow = memo(function DocumentRow({ document, focused, snippet, searchQuery, onSelectId, onRetry, onUndo, onMoveToWorkspace, isInbox }: Props) {
+export const DocumentRow = memo(function DocumentRow({ document, focused, selected, snippet, searchQuery, onSelectId, onToggleSelect, onRetry, onUndo, onMoveToWorkspace, isInbox }: Props) {
   const userStatus = mapToUserStatus(document);
   const statusColor = userStatusColor(userStatus);
 
   const isFailed = userStatus === "misslyckades";
+  const isPending = userStatus === "väntar";
   const isReview = userStatus === "behöver_granskas";
   const isProcessing = userStatus === "uppladdad" || userStatus === "bearbetas";
   const isClickable = userStatus !== "uppladdad";
@@ -32,6 +36,8 @@ export const DocumentRow = memo(function DocumentRow({ document, focused, snippe
 
   const modifierClass = isFailed
     ? "document-row--failed"
+    : isPending
+      ? "document-row--pending"
     : isReview
       ? "document-row--review"
       : "";
@@ -44,19 +50,31 @@ export const DocumentRow = memo(function DocumentRow({ document, focused, snippe
 
   return (
     <div
-      className={`document-row animate-fade-in-up flex flex-col justify-center px-4 py-2.5 transition-colors border-b border-[var(--surface-4)] hover:bg-[var(--surface-4)] ${modifierClass} ${focused ? "bg-[var(--surface-6)] border-l-2 border-l-[var(--type-accent)]" : "border-l-2 border-l-transparent"}`}
+      className={`document-row animate-fade-in-up flex flex-col justify-center px-4 py-2.5 transition-colors border-b border-[var(--surface-4)] hover:bg-[var(--surface-4)] ${modifierClass} ${focused ? "bg-[var(--surface-6)] border-l-2 border-l-[var(--type-accent)]" : "border-l-2 border-l-transparent"} ${selected ? "bg-[var(--accent-surface)]" : ""}`}
       style={{ "--type-color-rgb": `var(${kindRgbVar(document.kind)})`, "--type-accent": kindColor(document.kind) } as React.CSSProperties}
-      onClick={isClickable && onSelectId ? () => onSelectId(document.id) : undefined}
+      onClick={isClickable ? (e) => {
+        if ((e.metaKey || e.ctrlKey) && onToggleSelect) {
+          onToggleSelect(document.id);
+        } else if (onSelectId) {
+          onSelectId(document.id);
+        }
+      } : undefined}
       role={isClickable ? "button" : undefined}
       tabIndex={isClickable ? 0 : undefined}
       data-testid="document-row"
     >
       <div className="flex items-center gap-3">
-        {/* Type Icon Dot */}
-        <span
-          className="inline-block h-2 w-2 shrink-0 rounded-full"
-          style={{ backgroundColor: kindColor(document.kind) }}
-        />
+        {/* Type dot / selection checkbox */}
+        {selected ? (
+          <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm bg-[var(--accent-primary)] text-white text-[9px] leading-none font-bold">
+            ✓
+          </span>
+        ) : (
+          <span
+            className="inline-block h-2 w-2 shrink-0 rounded-full"
+            style={{ backgroundColor: kindColor(document.kind) }}
+          />
+        )}
 
         {/* Title */}
         <span className={`min-w-0 flex-[2] truncate text-base-ui tracking-tight ${isAiTitle ? "font-semibold text-[var(--text-primary)]" : "font-medium text-[var(--text-secondary)]"}`}>
@@ -66,11 +84,11 @@ export const DocumentRow = memo(function DocumentRow({ document, focused, snippe
         {/* Semantic Extractions inline */}
         <div className="flex-[3] flex items-center gap-4 text-sm-ui text-[var(--text-secondary)] truncate">
           {isFailed ? (
-            <span className="text-[var(--invoice-color)]">{document.summary || "Processing failed"}</span>
+            <span className="text-[var(--invoice-color)]">{document.summary || t("doc.failed_default")}</span>
           ) : isInbox && document.movePlan ? (
             <span className="flex items-center gap-1.5">
               <span className="truncate max-w-[160px] text-xs-ui text-[var(--text-muted)]">
-                {document.movePlan.destination?.split("/").pop() || "unknown"}
+                {document.movePlan.destination?.split("/").pop() || t("extraction.no_details")}
               </span>
               {onMoveToWorkspace && (
                 <Button
@@ -83,7 +101,7 @@ export const DocumentRow = memo(function DocumentRow({ document, focused, snippe
                     onMoveToWorkspace(document.id);
                   }}
                 >
-                  Move
+                  {t("action.move")}
                 </Button>
               )}
               {focused && <kbd className="ml-1 text-xs-ui font-mono text-[var(--text-disabled)] bg-[var(--surface-6)] px-1 rounded">↵</kbd>}
@@ -136,8 +154,8 @@ export const DocumentRow = memo(function DocumentRow({ document, focused, snippe
         <div className="mt-2 flex items-center justify-between gap-2 pl-[14px]">
           <span className="text-xs text-[var(--text-muted)]">
             {document.moveResult?.from_path
-              ? `Flyttad från ${document.moveResult.from_path.split("/").pop()}`
-              : "Flyttad"}
+              ? `${t("doc.moved_from")} ${document.moveResult.from_path.split("/").pop()}`
+              : t("doc.moved_from")}
           </span>
           <button
             type="button"
@@ -147,16 +165,16 @@ export const DocumentRow = memo(function DocumentRow({ document, focused, snippe
               onUndo();
             }}
           >
-            Ångra flytt
+            {t("doc.undo_move")}
           </button>
         </div>
       )}
 
-      {/* Failed state */}
-      {isFailed && (
+      {/* Pending state — accepted but waiting for AI */}
+      {isPending && (
         <div className="mt-2 flex items-center justify-between gap-2 pl-[14px]">
-          <span className="text-xs text-[var(--invoice-color)]">
-            {document.summary || "Behandlingen misslyckades"}
+          <span className="text-xs text-[var(--meeting-color)]">
+            {t("doc.pending_message")}
           </span>
           {document.retryable && onRetry && (
             <button
@@ -167,7 +185,28 @@ export const DocumentRow = memo(function DocumentRow({ document, focused, snippe
                 onRetry();
               }}
             >
-              Försök igen
+              {t("common.retry")}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Failed state */}
+      {isFailed && (
+        <div className="mt-2 flex items-center justify-between gap-2 pl-[14px]">
+          <span className="text-xs text-[var(--invoice-color)]">
+            {document.summary || t("doc.failed_default")}
+          </span>
+          {document.retryable && onRetry && (
+            <button
+              type="button"
+              className="action-secondary shrink-0 px-3 py-1 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRetry();
+              }}
+            >
+              {t("common.retry")}
             </button>
           )}
         </div>

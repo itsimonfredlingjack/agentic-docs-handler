@@ -3,6 +3,7 @@ import type { WorkspaceResponse } from "../types/workspace";
 import { useDocumentStore } from "../store/documentStore";
 import { processFile } from "../lib/api";
 import { buildQueuedDocument, mapProcessResponseToUiDocument } from "../lib/document-mappers";
+import { t } from "../lib/locale";
 
 function entityIcon(type: string): string {
   switch (type) {
@@ -50,10 +51,10 @@ export function WorkspaceHeader({ workspace }: { workspace: WorkspaceResponse })
             style={{ background: workspace.cover_color || "var(--report-color)" }}
           />
           <h1 className="truncate text-lg-ui font-semibold tracking-tight text-white m-0">
-            {workspace.is_inbox || workspace.name === "Inkorg" ? "Inbox" : workspace.name}
+            {workspace.is_inbox || workspace.name === "Inkorg" ? t("workspace.inbox") : workspace.name}
           </h1>
           <span className="shrink-0 text-sm-ui font-[var(--font-mono)] text-[var(--text-disabled)] px-2 py-0.5 rounded-full border border-[var(--surface-6)] bg-[var(--surface-4)]">
-            {workspace.file_count} ITEMS
+            {workspace.file_count} {t("workspace.items").toUpperCase()}
           </span>
         </div>
 
@@ -66,7 +67,7 @@ export function WorkspaceHeader({ workspace }: { workspace: WorkspaceResponse })
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className="-mt-px">
               <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
             </svg>
-            Import
+            {t("action.import")}
           </button>
           <input
             ref={fileInputRef}

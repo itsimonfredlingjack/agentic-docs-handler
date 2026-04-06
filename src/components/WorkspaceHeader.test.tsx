@@ -25,7 +25,7 @@ describe("WorkspaceHeader", () => {
   it("renders workspace name and file count", () => {
     render(<WorkspaceHeader workspace={baseWorkspace} />);
     expect(screen.getByText("Bostadsrätten")).toBeInTheDocument();
-    expect(screen.getByText(/12 ITEMS/)).toBeInTheDocument();
+    expect(screen.getByText(/12 OBJEKT/)).toBeInTheDocument();
   });
 
   it("shows AI brief text when it exists", () => {
@@ -36,7 +36,7 @@ describe("WorkspaceHeader", () => {
 
   it("renders Import button", () => {
     render(<WorkspaceHeader workspace={baseWorkspace} />);
-    expect(screen.getByText("Import")).toBeInTheDocument();
+    expect(screen.getByText("Importera")).toBeInTheDocument();
   });
 
   it("renders entity badges when workspace has ai_entities", () => {
