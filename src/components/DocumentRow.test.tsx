@@ -114,7 +114,29 @@ describe("DocumentRow", () => {
     expect(onSelectId).toHaveBeenCalledWith(baseDoc.id);
   });
 
-  it("shows inbox suggestion badge when isInbox and movePlan exists", () => {
+  it("shows workspace suggestion badge when isInbox and movePlan has suggestion", () => {
+    render(
+      <DocumentRow
+        document={{
+          ...baseDoc,
+          movePlan: {
+            rule_name: "invoices",
+            destination: "/docs/invoices",
+            auto_move_allowed: true,
+            reason: "matched",
+            suggested_workspace_id: "ws-1",
+            suggested_workspace_name: "Fakturor 2026",
+            suggestion_confidence: 0.85,
+            suggestion_reason: "Invoice content matches",
+          },
+        }}
+        isInbox
+      />,
+    );
+    expect(screen.getByText("Fakturor 2026")).toBeInTheDocument();
+  });
+
+  it("shows no-suggestion text when isInbox and movePlan lacks suggestion", () => {
     render(
       <DocumentRow
         document={{
@@ -124,19 +146,41 @@ describe("DocumentRow", () => {
         isInbox
       />,
     );
-    expect(screen.getByText("invoices")).toBeInTheDocument();
+    expect(screen.getByText("Ingen föreslagen workspace")).toBeInTheDocument();
   });
 
-  it("shows move button in inbox when movePlan exists", () => {
+  it("shows confirm button in inbox when movePlan has suggestion", () => {
+    const onMove = vi.fn();
+    const inboxDoc = {
+      ...baseDoc,
+      movePlan: {
+        destination: "/docs/Receipts/2026/file.pdf",
+        rule_name: "receipt",
+        auto_move_allowed: true,
+        reason: "matched",
+        suggested_workspace_id: "ws-1",
+        suggested_workspace_name: "Kvitton",
+        suggestion_confidence: 0.9,
+        suggestion_reason: "Receipt match",
+      },
+    };
+    render(<DocumentRow document={inboxDoc} isInbox onMoveToWorkspace={onMove} />);
+    const confirmBtn = screen.getByText("Bekräfta", { selector: "button" });
+    expect(confirmBtn).toBeInTheDocument();
+    fireEvent.click(confirmBtn);
+    expect(onMove).toHaveBeenCalledWith(inboxDoc.id);
+  });
+
+  it("shows choose button in inbox when movePlan has no suggestion", () => {
     const onMove = vi.fn();
     const inboxDoc = {
       ...baseDoc,
       movePlan: { destination: "/docs/Receipts/2026/file.pdf", rule_name: "receipt", auto_move_allowed: true, reason: "matched" },
     };
     render(<DocumentRow document={inboxDoc} isInbox onMoveToWorkspace={onMove} />);
-    const moveBtn = screen.getByText("Flytta", { selector: "button" });
-    expect(moveBtn).toBeInTheDocument();
-    fireEvent.click(moveBtn);
+    const chooseBtn = screen.getByText("Välj", { selector: "button" });
+    expect(chooseBtn).toBeInTheDocument();
+    fireEvent.click(chooseBtn);
     expect(onMove).toHaveBeenCalledWith(inboxDoc.id);
   });
 

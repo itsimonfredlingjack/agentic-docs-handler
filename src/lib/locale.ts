@@ -236,7 +236,13 @@ const SV: StringTable = {
 
   // Actions
   "action.move": "Flytta",
+  "action.confirm_route": "Bekräfta",
+  "action.choose_workspace": "Välj",
   "action.import": "Importera",
+
+  // Inbox suggestion
+  "inbox.no_suggestion": "Ingen föreslagen workspace",
+  "inbox.suggested_for": "Föreslagen:",
 
   // Workspace
   "workspace.items": "objekt",
@@ -457,7 +463,13 @@ const EN: StringTable = {
 
   // Actions
   "action.move": "Move",
+  "action.confirm_route": "Confirm",
+  "action.choose_workspace": "Choose",
   "action.import": "Import",
+
+  // Inbox suggestion
+  "inbox.no_suggestion": "No suggested workspace",
+  "inbox.suggested_for": "Suggested:",
 
   // Workspace
   "workspace.items": "items",

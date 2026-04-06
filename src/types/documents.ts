@@ -95,6 +95,10 @@ export type MovePlan = {
   destination: string | null;
   auto_move_allowed: boolean;
   reason: string;
+  suggested_workspace_id?: string | null;
+  suggested_workspace_name?: string | null;
+  suggestion_confidence?: number | null;
+  suggestion_reason?: string | null;
 };
 
 export type MoveResult = {

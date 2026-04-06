@@ -5,6 +5,117 @@ import { highlightSnippet } from "../lib/highlight-snippet";
 import { t } from "../lib/locale";
 import type { UiDocument } from "../types/documents";
 import { Button } from "./ui/Button";
+import { useWorkspaceStore } from "../store/workspaceStore";
+import type { MovePlan } from "../types/documents";
+
+
+function ConfidenceDots({ confidence }: { confidence: number | null | undefined }) {
+  if (confidence == null) return null;
+
+  let filled: number;
+  let color: string;
+  if (confidence >= 0.8) {
+    filled = 3;
+    color = "var(--receipt-color)";
+  } else if (confidence >= 0.5) {
+    filled = 2;
+    color = "var(--meeting-color)";
+  } else {
+    filled = 1;
+    color = "var(--text-disabled)";
+  }
+
+  return (
+    <span className="inline-flex items-center gap-[3px]" aria-label={`confidence ${Math.round(confidence * 100)}%`}>
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="inline-block h-1.5 w-1.5 rounded-full"
+          style={
+            i < filled
+              ? { backgroundColor: color }
+              : { border: `1px solid ${color}`, opacity: 0.4 }
+          }
+        />
+      ))}
+    </span>
+  );
+}
+
+
+function InboxSuggestion({
+  movePlan,
+  documentId,
+  focused,
+  onMoveToWorkspace,
+}: {
+  movePlan: MovePlan;
+  documentId: string;
+  focused?: boolean;
+  onMoveToWorkspace?: (documentId: string) => void;
+}) {
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const hasSuggestion = !!movePlan.suggested_workspace_id;
+  const workspace = hasSuggestion
+    ? workspaces.find((w) => w.id === movePlan.suggested_workspace_id)
+    : null;
+  const badgeColor = workspace?.cover_color || "var(--accent-primary)";
+
+  return (
+    <span className="flex items-center gap-2">
+      {hasSuggestion ? (
+        <>
+          <span
+            className="inline-flex items-center gap-1 truncate max-w-[160px] rounded px-1.5 py-0.5 text-xs-ui font-medium"
+            style={{
+              backgroundColor: `color-mix(in srgb, ${badgeColor} 15%, transparent)`,
+              color: badgeColor,
+            }}
+          >
+            {movePlan.suggested_workspace_name}
+          </span>
+          <ConfidenceDots confidence={movePlan.suggestion_confidence} />
+          {onMoveToWorkspace && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="shrink-0 px-2 py-0.5 text-xs-ui"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveToWorkspace(documentId);
+              }}
+            >
+              {t("action.confirm_route")}
+            </Button>
+          )}
+        </>
+      ) : (
+        <>
+          <span className="text-xs-ui text-[var(--text-muted)]">
+            {t("inbox.no_suggestion")}
+          </span>
+          {onMoveToWorkspace && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="shrink-0 px-2 py-0.5 text-xs-ui"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveToWorkspace(documentId);
+              }}
+            >
+              {t("action.choose_workspace")}
+            </Button>
+          )}
+        </>
+      )}
+      {focused && <kbd className="ml-1 text-xs-ui font-mono text-[var(--text-disabled)] bg-[var(--surface-6)] px-1 rounded">&#8629;</kbd>}
+    </span>
+  );
+}
+
 
 type Props = {
   document: UiDocument;
@@ -86,26 +197,12 @@ export const DocumentRow = memo(function DocumentRow({ document, focused, select
           {isFailed ? (
             <span className="text-[var(--invoice-color)]">{document.summary || t("doc.failed_default")}</span>
           ) : isInbox && document.movePlan ? (
-            <span className="flex items-center gap-1.5">
-              <span className="truncate max-w-[160px] text-xs-ui text-[var(--text-muted)]">
-                {document.movePlan.destination?.split("/").pop() || t("extraction.no_details")}
-              </span>
-              {onMoveToWorkspace && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="shrink-0 px-2 py-0.5 text-xs-ui"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onMoveToWorkspace(document.id);
-                  }}
-                >
-                  {t("action.move")}
-                </Button>
-              )}
-              {focused && <kbd className="ml-1 text-xs-ui font-mono text-[var(--text-disabled)] bg-[var(--surface-6)] px-1 rounded">↵</kbd>}
-            </span>
+            <InboxSuggestion
+              movePlan={document.movePlan}
+              documentId={document.id}
+              focused={focused}
+              onMoveToWorkspace={onMoveToWorkspace}
+            />
           ) : hasExtractions ? (
             <>
               {vendor && <span className="truncate max-w-[120px]">{vendor}</span>}
