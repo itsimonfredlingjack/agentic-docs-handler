@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../lib/api", () => ({
   streamWorkspaceChat: vi.fn(),
+  fetchConversation: vi.fn().mockResolvedValue({ entries: [] }),
+  saveConversationEntry: vi.fn().mockResolvedValue({ id: "mock-id" }),
 }));
 
 import { streamWorkspaceChat } from "../lib/api";
@@ -26,11 +28,9 @@ describe("useWorkspaceChat", () => {
       activeWorkspaceId: "ws-1",
       loading: false,
       error: null,
-      chatPanelOpen: true,
     });
     useDocumentStore.setState({
       activeWorkspace: null,
-      activeDocumentChat: null,
       conversations: {},
       documents: {},
       documentOrder: [],
@@ -57,5 +57,21 @@ describe("useWorkspaceChat", () => {
       [],
       expect.objectContaining({ workspace_id: "ws-1" }),
     );
+  });
+
+  it("returns conversationKey matching activeWorkspaceId", () => {
+    const { result } = renderHook(() => useWorkspaceChat());
+    expect(result.current.conversationKey).toBe("ws-1");
+  });
+
+  it("does not send document_id in workspace mode", async () => {
+    const { result } = renderHook(() => useWorkspaceChat());
+
+    await act(async () => {
+      await result.current.sendMessage("Hello");
+    });
+
+    const callOptions = vi.mocked(streamWorkspaceChat).mock.calls[0][3];
+    expect(callOptions).not.toHaveProperty("document_id");
   });
 });

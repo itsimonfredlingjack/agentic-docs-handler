@@ -1,29 +1,50 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useDocumentStore } from "../store/documentStore";
-import { streamWorkspaceChat } from "../lib/api";
+import { fetchConversation, saveConversationEntry, streamWorkspaceChat } from "../lib/api";
 import { useWorkspaceStore } from "../store/workspaceStore";
+import { t } from "../lib/locale";
 
 export function useWorkspaceChat() {
-  const activeDocumentChat = useDocumentStore((s) => s.activeDocumentChat);
-  const documents = useDocumentStore((s) => s.documents);
   const conversations = useDocumentStore((s) => s.conversations);
   const startQuery = useDocumentStore((s) => s.startWorkspaceQuery);
   const appendToken = useDocumentStore((s) => s.appendStreamingToken);
   const finalize = useDocumentStore((s) => s.finalizeStreamingEntry);
+  const hydrate = useDocumentStore((s) => s.hydrateConversation);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
 
   const abortRef = useRef<AbortController | null>(null);
 
-  const chatDocument = activeDocumentChat ? documents[activeDocumentChat] : null;
-  const isDocumentMode = activeDocumentChat !== null;
-  const conversationKey = isDocumentMode
-    ? `doc:${activeDocumentChat}`
-    : activeWorkspaceId;
-  const category = chatDocument?.kind;
+  const conversationKey = activeWorkspaceId;
   const workspaceId = activeWorkspaceId ?? undefined;
 
   const conversation = conversationKey ? conversations[conversationKey] : undefined;
   const isStreaming = conversation?.isStreaming ?? false;
+
+  // Hydrate persisted conversation when context activates
+  useEffect(() => {
+    if (!conversationKey) return;
+    const existing = useDocumentStore.getState().conversations[conversationKey];
+    if (existing && existing.entries.length > 0) return;
+
+    let cancelled = false;
+    fetchConversation(conversationKey)
+      .then((data) => {
+        if (cancelled || !data.entries.length) return;
+        hydrate(conversationKey, data.entries.map((e) => ({
+          id: e.id,
+          query: e.query,
+          response: e.response,
+          timestamp: e.timestamp,
+          sourceCount: e.sourceCount,
+          sources: e.sources,
+          errorMessage: e.errorMessage,
+        })));
+      })
+      .catch(() => {
+        // Hydration failure is non-fatal — conversation starts empty
+      });
+    return () => { cancelled = true; };
+  }, [conversationKey, hydrate]);
 
   // Abort any in-flight stream when chat context changes or component unmounts
   useEffect(() => {
@@ -61,10 +82,8 @@ export function useWorkspaceChat() {
       let errorMessage: string | null = null;
       let tokenCount = 0;
       try {
-        const docId = useDocumentStore.getState().activeDocumentChat;
-        for await (const event of streamWorkspaceChat(category, message, history, {
+        for await (const event of streamWorkspaceChat(undefined, message, history, {
           signal: controller.signal,
-          document_id: docId ?? undefined,
           workspace_id: workspaceId,
         })) {
           if (event.type === "context") {
@@ -75,13 +94,13 @@ export function useWorkspaceChat() {
             tokenCount++;
           } else if (event.type === "error") {
             console.error("workspace.chat.failed", event.data.error);
-            errorMessage = event.data.error || "Okänt fel";
+            errorMessage = event.data.error || t("chat.unknown_error");
             break;
           }
         }
         // Handle empty response from LLM
         if (!errorMessage && tokenCount === 0) {
-          errorMessage = "Inget svar från AI-motorn";
+          errorMessage = t("chat.empty_response");
         }
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
@@ -89,12 +108,27 @@ export function useWorkspaceChat() {
           finalize(conversationKey, sourceCount, sources, null);
           return;
         }
-        errorMessage = error instanceof Error ? error.message : "Anslutningsfel";
+        errorMessage = error instanceof Error ? error.message : t("chat.connection_error");
       }
       finalize(conversationKey, sourceCount, sources, errorMessage);
+
+      // Persist the finalized entry to the backend
+      const finalConv = useDocumentStore.getState().conversations[conversationKey];
+      if (finalConv && finalConv.entries.length > 0) {
+        const lastEntry = finalConv.entries[finalConv.entries.length - 1];
+        saveConversationEntry(conversationKey, {
+          query: lastEntry.query,
+          response: lastEntry.response,
+          sourceCount: lastEntry.sourceCount,
+          sources: lastEntry.sources,
+          errorMessage: lastEntry.errorMessage,
+        }).catch(() => {
+          // Persistence failure is non-fatal — entry remains in memory
+        });
+      }
     },
-    [conversationKey, category, workspaceId, startQuery, appendToken, finalize],
+    [conversationKey, workspaceId, startQuery, appendToken, finalize],
   );
 
-  return { conversation, isStreaming, sendMessage, chatDocument };
+  return { conversation, isStreaming, sendMessage, conversationKey };
 }
