@@ -261,6 +261,26 @@ const SV: StringTable = {
   // Kind / status fallbacks
   "kind.generic_label": "Okategoriserad",
   "status.unknown": "Okänd",
+
+  // Action queues
+  "actions.tab": "Att göra",
+  "actions.sidebar_heading": "ATT GÖRA",
+  "actions.merge_duplicates": "dubbletter att slå ihop",
+  "actions.review_classification": "filer att granska",
+  "actions.cluster_to_workspace": "kluster att organisera",
+  "actions.section_duplicates": "Dubbletter att slå ihop",
+  "actions.section_review": "Att granska",
+  "actions.section_clusters": "Kluster att organisera",
+  "actions.keep_newest": "Behåll nyaste",
+  "actions.keep_both": "Behåll båda",
+  "actions.skip": "Hoppa över",
+  "actions.open_inspector": "Öppna",
+  "actions.move_to_workspace": "Flytta till workspace",
+  "actions.identical_content": "Dessa filer har identiskt innehåll",
+  "actions.could_not_classify": "Kunde inte klassificeras",
+  "actions.shared_entities": "dokument delar entiteter",
+  "actions.progress": "{current} av {total}",
+  "actions.all_done": "Allt klart — inga åtgärder just nu",
 };
 
 const EN: StringTable = {
@@ -495,6 +515,26 @@ const EN: StringTable = {
   // Kind / status fallbacks
   "kind.generic_label": "Uncategorized",
   "status.unknown": "Unknown",
+
+  // Action queues
+  "actions.tab": "To do",
+  "actions.sidebar_heading": "TO DO",
+  "actions.merge_duplicates": "duplicates to merge",
+  "actions.review_classification": "files to review",
+  "actions.cluster_to_workspace": "clusters to organize",
+  "actions.section_duplicates": "Duplicates to merge",
+  "actions.section_review": "To review",
+  "actions.section_clusters": "Clusters to organize",
+  "actions.keep_newest": "Keep newest",
+  "actions.keep_both": "Keep both",
+  "actions.skip": "Skip",
+  "actions.open_inspector": "Open",
+  "actions.move_to_workspace": "Move to workspace",
+  "actions.identical_content": "These files have identical content",
+  "actions.could_not_classify": "Could not classify",
+  "actions.shared_entities": "documents share entities",
+  "actions.progress": "{current} of {total}",
+  "actions.all_done": "All clear — no actions right now",
 };
 
 const STRINGS: Record<string, StringTable> = { sv: SV, en: EN };

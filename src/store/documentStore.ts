@@ -21,6 +21,7 @@ import type {
   NotebookEntry,
   WorkspaceConversation,
 } from "../types/documents";
+import type { ActionQueueType } from "../lib/action-queues";
 import { fetchWorkspaceDiscovery, dismissWorkspaceDiscovery } from "../lib/api";
 
 type UploadMemory = {
@@ -59,6 +60,7 @@ type DocumentStoreState = {
   discoveryLoading: boolean;
   discoveryError: string | null;
   discoveryFilter: DiscoveryFilterType;
+  activeActionQueue: ActionQueueType | null;
   setSelectedDocument: (id: string | null) => void;
   setSearchFilters: (filters: Partial<{ documentType: string | null; dateFrom: string | null; dateTo: string | null }>) => void;
   setFilesLoading: (loading: boolean) => void;
@@ -104,6 +106,7 @@ type DocumentStoreState = {
   fetchDiscovery: (workspaceId: string) => Promise<void>;
   dismissDiscoveryCard: (workspaceId: string, cardId: string) => Promise<void>;
   setDiscoveryFilter: (filter: DiscoveryFilterType) => void;
+  setActiveActionQueue: (queue: ActionQueueType | null) => void;
 };
 
 const emptyCounts: DocumentCounts = {
@@ -162,6 +165,7 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => ({
   discoveryLoading: false,
   discoveryError: null,
   discoveryFilter: "all",
+  activeActionQueue: null,
   setSelectedDocument: (id) => set({ selectedDocumentId: id }),
   setSearchFilters: (filters) => set((state) => ({
     searchFilters: { ...state.searchFilters, ...filters },
@@ -625,4 +629,5 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => ({
     }
   },
   setDiscoveryFilter: (filter) => set({ discoveryFilter: filter }),
+  setActiveActionQueue: (queue) => set({ activeActionQueue: queue }),
 }));
