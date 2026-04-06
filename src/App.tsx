@@ -7,7 +7,6 @@ import { WindowDropZone } from "./components/WindowDropZone";
 import { ToastContainer } from "./components/ui/ToastContainer";
 import { WorkspaceSidebar } from "./components/WorkspaceSidebar";
 import { WorkspaceView } from "./components/WorkspaceView";
-import { WorkspaceNotebook } from "./components/WorkspaceNotebook";
 import { ConnectionBanner } from "./components/ConnectionBanner";
 import { fetchWorkspaceFiles } from "./lib/api";
 import { getClientId } from "./lib/tauri-events";
@@ -20,7 +19,6 @@ export default function App() {
   const setClientId = useDocumentStore((s) => s.setClientId);
   const setFilesLoading = useDocumentStore((s) => s.setFilesLoading);
   const selectedDocumentId = useDocumentStore((s) => s.selectedDocumentId);
-  const chatPanelOpen = useWorkspaceStore((s) => s.chatPanelOpen);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const checkBackend = useWorkspaceStore((s) => s.checkBackend);
   const [cmdkOpen, setCmdkOpen] = useState(false);
@@ -56,7 +54,7 @@ export default function App() {
         startTransition(() => {
           bootstrap(
             payload.documents,
-            { all: payload.total, processing: 0, receipt: 0, contract: 0, invoice: 0, meeting_notes: 0, audio: 0, generic: 0, moved: 0 },
+            { all: payload.total, processing: 0, receipt: 0, contract: 0, invoice: 0, meeting_notes: 0, report: 0, letter: 0, tax_document: 0, audio: 0, generic: 0, moved: 0 },
             [],
           );
         });
@@ -92,11 +90,6 @@ export default function App() {
 
         <WorkspaceView />
 
-        {chatPanelOpen && (
-          <aside className="workspace-panel glass-panel hidden lg:flex">
-            <WorkspaceNotebook />
-          </aside>
-        )}
         {selectedDocumentId && <InspectorPane />}
       </div>
 

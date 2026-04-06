@@ -5,25 +5,26 @@ import { InlineEdit } from "./InlineEdit";
 import { PipelineStepper } from "./PipelineStepper";
 import { kindRgbVar, kindColor } from "../lib/document-colors";
 import { deleteDocument, fetchWorkspaceDiscovery } from "../lib/api";
+import { t } from "../lib/locale";
 import type { UiDocument, UiDocumentKind } from "../types/documents";
 
 
 function formatKindLabel(kind: UiDocumentKind): string {
   switch (kind) {
     case "receipt":
-      return "Kvitto";
+      return t("kind.receipt");
     case "contract":
-      return "Avtal";
+      return t("kind.contract");
     case "invoice":
-      return "Faktura";
+      return t("kind.invoice");
     case "meeting_notes":
-      return "Mötesanteckning";
+      return t("kind.meeting_notes");
     case "audio":
-      return "Ljud";
+      return t("kind.audio");
     case "file_moved":
-      return "Flyttad";
+      return t("kind.file_moved");
     default:
-      return "Dokument";
+      return t("kind.generic");
   }
 }
 
@@ -55,7 +56,7 @@ function InlineEditField({ documentId, fieldKey, value }: { documentId: string; 
 
   const handleSave = (newValue: string) => {
     updateExtractionField(documentId, fieldKey, newValue);
-    showToast("Fält sparat", "success");
+    showToast(t("toast.field_saved"), "success");
     setSaved(true);
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setSaved(false), 1200);
@@ -103,7 +104,7 @@ export function InspectorPane() {
     <aside
       className="inspector-pane"
       role="region"
-      aria-label="Dokumentdetaljer"
+      aria-label={t("inspector.summary")}
       style={{ "--type-color": document ? kindColor(document.kind) : "var(--accent-primary)" } as React.CSSProperties}
     >
       {document && <ModalContent document={document} history={stageHistory} onClose={close} />}
@@ -153,7 +154,7 @@ function RelatedFilesSection({ documentId, workspaceId }: { documentId: string; 
 
   return (
     <section className="hud-section control-card p-4">
-      <p className="section-kicker">Relaterade filer</p>
+      <p className="section-kicker">{t("inspector.related_files")}</p>
       <div className="mt-2 space-y-1.5">
         {relations.map((rel) => (
           <button
@@ -172,7 +173,6 @@ function RelatedFilesSection({ documentId, workspaceId }: { documentId: string; 
 }
 
 function ModalContent({ document, history, onClose }: { document: UiDocument; history: import("../store/documentStore").StageEntry[]; onClose: () => void }) {
-  const setActiveDocumentChat = useDocumentStore((state) => state.setActiveDocumentChat);
   const removeDocument = useDocumentStore((s) => s.removeDocument);
   const showToast = useToastStore((s) => s.show);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -185,9 +185,9 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
     try {
       await deleteDocument(document.id);
       removeDocument(document.id);
-      showToast("Dokument raderat", "success");
+      showToast(t("toast.document_deleted"), "success");
     } catch {
-      showToast("Kunde inte radera dokumentet", "error");
+      showToast(t("toast.delete_failed"), "error");
     }
     setConfirmDelete(false);
   };
@@ -221,7 +221,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
           type="button"
           className="focus-ring flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-6)] hover:text-[var(--text-primary)]"
           onClick={onClose}
-          aria-label="Stäng detaljpanel"
+          aria-label={t("inspector.summary")}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -242,7 +242,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
 
         {document.summary ? (
           <section className="hud-section control-card p-4">
-            <p className="section-kicker">Sammanfattning</p>
+            <p className="section-kicker">{t("inspector.summary")}</p>
             <p className="mt-2 text-base-ui leading-6 text-[var(--text-secondary)]">{document.summary}</p>
           </section>
         ) : null}
@@ -252,7 +252,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
             className="hud-section control-card p-4"
             style={{ "--type-color-rgb": `var(${kindRgbVar(document.kind)})` } as React.CSSProperties}
           >
-            <p className="section-kicker">Extraherade fält</p>
+            <p className="section-kicker">{t("inspector.extracted_fields")}</p>
             <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
               {fieldEntries.map(([key, value]) => (
                 <div key={key}>
@@ -272,7 +272,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
 
         {hasTranscription ? (
           <section className="hud-section control-card p-4">
-            <p className="section-kicker">Transkribering</p>
+            <p className="section-kicker">{t("inspector.transcription")}</p>
             <p className="mt-2 text-base-ui leading-6 text-[var(--text-secondary)]">
               {document.transcription!.text.length > 500
                 ? `${document.transcription!.text.slice(0, 500)}...`
@@ -283,7 +283,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
 
         {document.tags.length > 0 ? (
           <section className="hud-section control-card p-4">
-            <p className="section-kicker">Taggar</p>
+            <p className="section-kicker">{t("inspector.tags")}</p>
             <div className="mt-2 flex flex-wrap gap-2">
             {document.tags.map((tag) => (
               <span key={tag} className="glass-badge bg-[var(--surface-6)] text-[var(--text-secondary)]">
@@ -296,7 +296,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
 
         {(document.extraction as any)?.entities && Array.isArray((document.extraction as any).entities) && ((document.extraction as any).entities as Array<{ name: string; entity_type: string }>).length > 0 ? (
           <section className="hud-section control-card p-4">
-            <p className="section-kicker">Entiteter</p>
+            <p className="section-kicker">{t("inspector.entities")}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {((document.extraction as any).entities as Array<{ name: string; entity_type: string }>).map((entity, i) => (
                 <span key={`${entity.name}-${i}`} className="glass-badge bg-[var(--surface-6)] text-[var(--text-secondary)]">
@@ -312,7 +312,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
 
         {document.sourcePath ? (
           <section className="hud-section control-card p-4">
-            <p className="section-kicker">Filplats</p>
+            <p className="section-kicker">{t("inspector.file_location")}</p>
             <p className="mt-2 break-all font-[var(--font-mono)] text-sm-ui text-[var(--text-secondary)]">
               {document.sourcePath}
             </p>
@@ -321,22 +321,22 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
 
         {document.movePlan?.destination ? (
           <section className="hud-section control-card p-4">
-            <p className="section-kicker">Flyttplan</p>
+            <p className="section-kicker">{t("inspector.move_plan")}</p>
             <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-base-ui">
               <div>
-                <p className="text-sm-ui uppercase text-[var(--text-muted)]">Mål</p>
+                <p className="text-sm-ui uppercase text-[var(--text-muted)]">{t("inspector.move_target")}</p>
                 <p className="mt-0.5 break-all font-[var(--font-mono)] text-sm-ui text-[var(--text-secondary)]">
                   {document.movePlan.destination}
                 </p>
               </div>
               {document.movePlan.rule_name ? (
                 <div>
-                  <p className="text-sm-ui uppercase text-[var(--text-muted)]">Regel</p>
+                  <p className="text-sm-ui uppercase text-[var(--text-muted)]">{t("inspector.move_rule")}</p>
                   <p className="mt-0.5 text-[var(--text-secondary)]">{document.movePlan.rule_name}</p>
                 </div>
               ) : null}
               <div>
-                <p className="text-sm-ui uppercase text-[var(--text-muted)]">Status</p>
+                <p className="text-sm-ui uppercase text-[var(--text-muted)]">{t("inspector.move_status")}</p>
                 <p className="mt-0.5 text-[var(--text-secondary)]">{formatMoveStatus(document.moveStatus)}</p>
               </div>
             </div>
@@ -347,7 +347,7 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
 
         {document.warnings.length > 0 ? (
           <section className="hud-section rounded-2xl border border-[rgba(255,159,10,0.18)] bg-[rgba(255,159,10,0.08)] p-3">
-            <p className="section-kicker text-[var(--meeting-color)]">Varningar</p>
+            <p className="section-kicker text-[var(--meeting-color)]">{t("inspector.warnings")}</p>
             {document.warnings.map((warning, i) => (
               <p key={i} className="mt-1 text-base-ui text-[var(--meeting-color)]">{warning}</p>
             ))}
@@ -355,44 +355,33 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
         ) : null}
 
         <div className="hud-section mt-auto flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            className="focus-ring action-secondary px-3 py-1.5 text-sm-ui"
-            onClick={() => { setActiveDocumentChat(document.id); onClose(); }}
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="mr-1.5 inline-block -mt-px">
-              <path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H5.5L3 13.5V11H3a1 1 0 0 1-1-1V3Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-              <path d="M5.5 5.5h5M5.5 7.5h3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-            </svg>
-            Chatta om dokumentet
-          </button>
           {document.sourcePath ? (
             <button
               type="button"
               className="focus-ring action-secondary px-3 py-1.5 text-sm-ui"
               onClick={() => void openInFinder(document.sourcePath!)}
             >
-              Öppna i Finder
+              {t("inspector.open_in_finder")}
             </button>
           ) : null}
           {confirmDelete ? (
             <div className="flex items-center gap-2 mt-2">
               <span className="text-xs-ui text-[var(--invoice-color)]">
-                Radera permanent?
+                {t("inspector.delete_confirm")}
               </span>
               <button
                 type="button"
                 onClick={handleDelete}
                 className="px-2 py-0.5 text-xs-ui rounded-[var(--badge-radius)] bg-[rgba(var(--invoice-color-rgb),0.12)] text-[var(--invoice-color)] hover:bg-[rgba(var(--invoice-color-rgb),0.25)] transition-colors"
               >
-                Ja, radera
+                {t("inspector.confirm_delete")}
               </button>
               <button
                 type="button"
                 onClick={() => setConfirmDelete(false)}
                 className="px-2 py-0.5 text-xs-ui rounded-[var(--badge-radius)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
               >
-                Avbryt
+                {t("common.cancel")}
               </button>
             </div>
           ) : (
@@ -401,13 +390,13 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
               onClick={() => setConfirmDelete(true)}
               className="mt-2 px-3 py-1 text-xs-ui rounded-[var(--badge-radius)] text-[var(--invoice-color)] hover:bg-[rgba(var(--invoice-color-rgb),0.12)] transition-colors"
             >
-              Radera
+              {t("inspector.delete_button")}
             </button>
           )}
         </div>
 
         <section className="hud-section control-card p-3">
-          <p className="section-kicker">Meta</p>
+          <p className="section-kicker">{t("inspector.meta")}</p>
           <div className="grid grid-cols-2 gap-2 text-sm-ui text-[var(--text-secondary)]">
             <span className="font-mono">Req {document.requestId.slice(0, 8)}</span>
             <span className="font-mono">Doc {document.id.slice(0, 8)}</span>
@@ -423,19 +412,19 @@ function ModalContent({ document, history, onClose }: { document: UiDocument; hi
 function formatMoveStatus(status: UiDocument["moveStatus"]): string {
   switch (status) {
     case "not_requested":
-      return "Ej begärd";
+      return t("move.not_requested");
     case "planned":
-      return "Planerad";
+      return t("move.planned");
     case "awaiting_confirmation":
-      return "Väntar på bekräftelse";
+      return t("move.awaiting_confirmation");
     case "auto_pending_client":
-      return "Väntar på klient";
+      return t("move.pending_client");
     case "moved":
-      return "Flyttad";
+      return t("move.moved");
     case "move_failed":
-      return "Misslyckad";
+      return t("move.failed");
     case "undone":
-      return "Återställd";
+      return t("move.undone");
     default:
       return status;
   }
