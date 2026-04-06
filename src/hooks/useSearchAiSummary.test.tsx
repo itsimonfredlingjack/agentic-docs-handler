@@ -25,7 +25,7 @@ describe("useSearchAiSummary", () => {
       activeWorkspaceId: "ws-1",
       loading: false,
       error: null,
-      chatPanelOpen: false,
+
     });
     vi.mocked(streamWorkspaceChat).mockReturnValue(
       streamEvents([

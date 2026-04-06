@@ -18,7 +18,7 @@ describe("useSearch", () => {
       activeWorkspaceId: "ws-1",
       loading: false,
       error: null,
-      chatPanelOpen: false,
+
     });
     useDocumentStore.setState({
       search: {

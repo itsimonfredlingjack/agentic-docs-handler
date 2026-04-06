@@ -37,7 +37,7 @@ beforeEach(() => {
     activeWorkspaceId: "inbox-1",
     loading: false,
     error: null,
-    chatPanelOpen: false,
+
     backendStatus: "online",
   });
 });

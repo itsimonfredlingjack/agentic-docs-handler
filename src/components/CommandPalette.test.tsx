@@ -47,7 +47,7 @@ beforeEach(() => {
     activeWorkspaceId: null,
     loading: false,
     error: null,
-    chatPanelOpen: false,
+
   });
   useDocumentStore.setState({
     documents: {},

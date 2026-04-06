@@ -34,10 +34,9 @@ describe("WorkspaceHeader", () => {
     expect(screen.getByText("Dokument om lägenhetsköpet.")).toBeInTheDocument();
   });
 
-  it("renders Import button and notebook toggle", () => {
+  it("renders Import button", () => {
     render(<WorkspaceHeader workspace={baseWorkspace} />);
     expect(screen.getByText("Import")).toBeInTheDocument();
-    expect(screen.getByLabelText("Toggle notebook")).toBeInTheDocument();
   });
 
   it("renders entity badges when workspace has ai_entities", () => {
